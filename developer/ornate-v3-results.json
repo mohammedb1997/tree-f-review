@@ -1,0 +1,14 @@
+{
+  "count": 51,
+  "relationships": 50,
+  "layers": 5,
+  "paper": "A2 portrait",
+  "minimumPt": 14.91555,
+  "branchCrossings": 0,
+  "ribbonContacts": 0,
+  "collisions": 0,
+  "obstructedBranches": 0,
+  "search": true,
+  "zoom": true,
+  "lineageTrace": true
+}

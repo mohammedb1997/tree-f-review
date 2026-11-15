@@ -796,17 +796,20 @@
     return count;
   }
 
-  function layout(doc, paper, measure, style, retryPt, arcFactor) {
+  function layout(doc, paper, measure, style, retryPt, arcFactor, stagger = true) {
     if (style === 'organic-improved' && arcFactor === undefined) {
       let best;
-      for (const size of [37,34,undefined]) {
-        for (const factor of size===undefined ? [.65,.63,.67,.61,.69,.59,.71] : [.65,.63,.67]) {
-          const candidate = layout(doc,paper,measure,style,retryPt??size,factor);
-          const score = r => r.collisions*1e6 + r.obstructedBranches*1e4 + r.branchCrossings*100 + (r.ribbonContacts??0);
-          if (candidate.nodes.length > 80) return layout(doc,paper,measure,style,retryPt,.65);
-          if (!best || score(candidate)<score(best) ||
-              (score(candidate)===score(best)&&candidate.font>best.font)) best=candidate;
-          if (score(best)===0 && size!==undefined && best.minimumPt>=size*Math.min(paper.width/700,paper.height/(700*height/width))-.05) return best;
+      const score = r => r.collisions*1e6 + r.obstructedBranches*1e4 + r.branchCrossings*100 + (r.ribbonContacts??0);
+      for (const useStagger of [true,false]) {
+        for (const size of [37,34,undefined]) {
+          for (const factor of size===undefined ? [.65,.63,.67,.61,.69,.59,.71] : [.65,.63,.67]) {
+            const candidate = layout(doc,paper,measure,style,retryPt??size,factor,useStagger);
+            if (candidate.nodes.length > 80) return layout(doc,paper,measure,style,retryPt,.65);
+            if (!best || score(candidate)<score(best) ||
+                (score(candidate)===score(best)&&candidate.font>best.font)) best=candidate;
+            if (score(best)===0 && (size===undefined ||
+                best.minimumPt>=size*Math.min(paper.width/700,paper.height/(700*height/width))-.05)) return best;
+          }
         }
       }
       return best;
@@ -814,6 +817,7 @@
     const { root, nodes } = core.visible(doc);
     style = style || 'growing';
     const improved = style === 'organic-improved';
+    const staggerLeaves = improved && stagger;
     if (improved) style = 'organic';
     if (style === 'sector') return sectorCrown(root, nodes, paper, measure);
     if (style === 'weighted') {
@@ -882,9 +886,12 @@
         const end = start + (to - from) * sizes[index] / total;
         const angle = (start + end) / 2;
         const jitter = noise(child.index);
+        // Improved distribution: leaves sit on a near-uniform outer ring by
+        // generation (not random radial jitter), internal nodes ease outward
+        // with sqrt-like progress so branching stays visible along the limb.
         const progress = child.children.length
           ? Math.pow(child.generation / Math.max(1, maxDepth), .84) * .81
-          : .68 + jitter * .29;
+          : staggerLeaves ? .84 + .13 * (child.generation / Math.max(1, maxDepth)) : .68 + jitter * .29;
         const tipX = crown.x + Math.sin(angle) * crown.rx;
         const tipY = crown.y - Math.cos(angle) * crown.ry;
         seed(child, start, end);
@@ -898,7 +905,16 @@
         } else {
           const localProgress = style === 'grove' ? .31 + noise(parent.index) * .66 + (jitter - .5) * .14 : progress;
           child.x = mix(root.x, tipX, localProgress);
-          child.y = mix(root.y, tipY, localProgress) + (jitter - .5) * 32;
+          child.y = mix(root.y, tipY, localProgress) + (staggerLeaves ? 0 : (jitter - .5) * 32);
+          if (staggerLeaves && !child.children.length) {
+            // Normal stagger: offset perpendicular to the crown tangent (not
+            // radial, which cancels angular separation on an elongated ellipse).
+            // Alternating leaves form two rows, so pointed badges can interleave.
+            let tx = crown.rx * Math.cos(angle), ty = crown.ry * Math.sin(angle);
+            const tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
+            const stag = (child.index % 2 === 0 ? 7 : -7);
+            child.x += -ty * stag; child.y += tx * stag;
+          }
         }
         contain(child);
         start = end;
@@ -915,7 +931,7 @@
     }
     // A denser tree can trade some display size for separation, within the
     // physical print floor. The names themselves always remain complete.
-    if (collisions && targetPt > 9.25) return layout(doc, paper, measure, improved ? 'organic-improved' : style, Math.max(9.25, targetPt * .9),arcFactor);
+    if (collisions && targetPt > 9.25) return layout(doc, paper, measure, improved ? 'organic-improved' : style, Math.max(9.25, targetPt * .9),arcFactor,stagger);
     const links = [], grid = branchGrid(nodes), branches = branchIndex();
     let preciseGrid;
     const fineGrid = () => preciseGrid ??= branchGrid(nodes, 3);
@@ -980,6 +996,43 @@
 
   function artwork(improved) {
     const corner = '<path d="M0 44V0H44M5 32V5H32M10 24Q21 25 25 10M10 24Q5 12 25 10" fill="none" stroke="#9d743c" stroke-width="1.5"/><path d="M10 10l5 2-3 4z" fill="#51766a"/>';
+    // Diamond medallion like the reference poster: rotated square, inner diamond, star dot.
+    const medallion = (cx, cy, s) => `<g transform="translate(${cx} ${cy})"><path d="M0 ${-s}L${s} 0L0 ${s}L${-s} 0Z" fill="url(#hp-gold)" stroke="#8a6d2f" stroke-width="2.2"/><path d="M0 ${-s*.62}L${s*.62} 0L0 ${s*.62}L${-s*.62} 0Z" fill="none" stroke="#8a6d2f" stroke-width="1.1"/><path d="M0 ${-s*.28}L${s*.28} 0L0 ${s*.28}L${-s*.28} 0Z" fill="#fff8e8" stroke="#8a6d2f" stroke-width=".8"/><circle r="${Math.max(2, s*.09)}" fill="#8a6d2f"/></g>`;
+    if (improved) {
+      const definitions = `<defs>
+      <radialGradient id="hp-sky" cx=".5" cy=".36" r=".74"><stop stop-color="#fffdf5"/><stop offset=".68" stop-color="#f9f2df"/><stop offset="1" stop-color="#efe3c8"/></radialGradient>
+      <pattern id="hp-paper" width="34" height="34" patternUnits="userSpaceOnUse"><path d="M17 2L32 17L17 32L2 17Z" fill="none" stroke="#c9b98a" stroke-width=".55" opacity=".28"/><circle cx="17" cy="17" r="1.1" fill="#c9b98a" opacity=".3"/></pattern>
+      <linearGradient id="hp-field" x2="0" y2="1"><stop stop-color="#9aaa54"/><stop offset="1" stop-color="#344a2d"/></linearGradient>
+      <linearGradient id="hp-bark"><stop stop-color="#4a2c17"/><stop offset=".42" stop-color="#8a5a33"/><stop offset=".65" stop-color="#6b4226"/><stop offset="1" stop-color="#3d2215"/></linearGradient>
+      <linearGradient id="hp-leaf" x2="0" y2="1"><stop stop-color="#f1edaf"/><stop offset=".48" stop-color="#d7e4a2"/><stop offset="1" stop-color="#99b679"/></linearGradient>
+      <linearGradient id="hp-leaf-dark" x2="0" y2="1"><stop stop-color="#3f8a4a"/><stop offset="1" stop-color="#1e5c2e"/></linearGradient>
+      <linearGradient id="hp-leaf-green" x2="0" y2="1"><stop stop-color="#4caf50"/><stop offset=".55" stop-color="#2e7d32"/><stop offset="1" stop-color="#1b4d2e"/></linearGradient>
+      <linearGradient id="hp-leaf-light" x2="0" y2="1"><stop stop-color="#81c784"/><stop offset=".55" stop-color="#43a047"/><stop offset="1" stop-color="#2e7d32"/></linearGradient>
+      <linearGradient id="hp-leaf-deep" x2="0" y2="1"><stop stop-color="#388e3c"/><stop offset=".55" stop-color="#1b5e20"/><stop offset="1" stop-color="#0d3311"/></linearGradient>
+      <linearGradient id="hp-gold" x2="0" y2="1"><stop stop-color="#fff5d9"/><stop offset=".6" stop-color="#f4dc9e"/><stop offset="1" stop-color="#c3974c"/></linearGradient>
+      <linearGradient id="hp-badge" x2="0" y2="1"><stop stop-color="#fffdf5"/><stop offset=".55" stop-color="#f7e8c3"/><stop offset="1" stop-color="#e8d5a8"/></linearGradient>
+      <radialGradient id="hp-medallion" cx=".5" cy=".42" r=".65"><stop stop-color="#fff8e0"/><stop offset=".7" stop-color="#f4dc9e"/><stop offset="1" stop-color="#b8892b"/></radialGradient>
+      <pattern id="hp-border" width="29" height="29" patternUnits="userSpaceOnUse"><rect width="29" height="29" fill="#f9f2df"/><path d="M14.5 2L18 11L27 14.5L18 18L14.5 27L11 18L2 14.5L11 11Z" fill="none" stroke="#b8892b" stroke-width=".85"/><path d="M14.5 7L22 14.5L14.5 22L7 14.5Z" fill="none" stroke="#8a6d2f" stroke-width=".55"/><circle cx="14.5" cy="14.5" r="2" fill="#b8892b"/></pattern>
+    </defs>`;
+      const background = `
+    <rect x="28" y="28" width="1144" height="1641" rx="3" fill="url(#hp-sky)" stroke="#b8892b" stroke-width="2.5"/>
+    <rect x="30" y="30" width="1140" height="1637" fill="url(#hp-paper)"/>
+    `;
+      const frame = `
+    <path d="M0 0H1200V1697H0Z M28 28H1172V1669H28Z" fill="url(#hp-border)" fill-rule="evenodd"/>
+    <rect x="40" y="40" width="1120" height="1617" rx="2" fill="none" stroke="#8a6d2f" stroke-width="2"/>
+    <rect x="47" y="47" width="1106" height="1603" rx="2" fill="none" stroke="#c9a95f" stroke-width="1"/>
+    <rect x="54" y="54" width="1092" height="1589" rx="2" fill="none" stroke="#8a6d2f" stroke-width=".7"/>
+    ${medallion(54,54,26)}${medallion(1146,54,26)}${medallion(54,1643,26)}${medallion(1146,1643,26)}
+    ${medallion(165,150,42)}${medallion(1035,150,42)}
+    `;
+      const trunk = `
+    <path d="M548 1208C556 1310 544 1440 528 1520C518 1570 500 1610 470 1667L730 1667C700 1610 682 1570 672 1520C656 1440 644 1310 652 1208Q600 1188 548 1208Z" fill="url(#hp-bark)" stroke="#4d2b16" stroke-width="3"/>
+    <path d="M578 1236C590 1360 566 1500 548 1580M600 1240C612 1350 588 1490 598 1600M622 1241C608 1366 626 1490 644 1580M574 1280C570 1350 564 1430 560 1500M628 1330C618 1400 634 1490 654 1550" fill="none" stroke="#d29c5f" stroke-width="3" opacity=".4"/>
+    <path d="M602 1256C624 1300 580 1335 610 1400C628 1440 594 1500 614 1550M560 1410Q562 1510 512 1560M632 1460Q650 1540 684 1560" fill="none" stroke="#2c180e" stroke-width="4" opacity=".6"/>
+    <g fill="none" stroke="#c58a52" opacity=".3" stroke-width="1.15">${Array.from({length:27},(_,i)=>{const x=560+noise(i+510)*80,y=1280+noise(i+640)*340;return `<path d="M${round(x)} ${round(y)}q${round((noise(i)-.5)*11)} 15 ${round((noise(i+16)-.5)*8)} ${round(17+noise(i+26)*28)}"/>`;}).join('')}</g>`;
+      return { definitions, background, frame, trunk };
+    }
     const definitions = `<defs>
       <radialGradient id="hp-sky" cx=".5" cy=".36" r=".74"><stop stop-color="#fffbed"/><stop offset=".68" stop-color="#f4e8cc"/><stop offset="1" stop-color="#dfcba6"/></radialGradient>
       <pattern id="hp-paper" width="17" height="19" patternUnits="userSpaceOnUse"><path d="M2 4h1m8 7h1m-6 5h1" stroke="#8f6942" stroke-width=".55" opacity=".24"/></pattern>
@@ -1019,13 +1072,57 @@
     const x = node.shapeWidth / 2, y = node.shapeHeight / 2;
     const generation = core.color(presentation, node.generation + generationOffset);
     const leaf = node.children.length === 0 && node.generation !== 0;
-    const shape = leaf && (sector || dark)
-      ? `<path d="M${-x} 0C${-x} ${-y} ${round(x*.3)} ${round(-y*1.2)} ${x} 0C${round(x*.3)} ${round(y*1.2)} ${-x} ${y} ${-x} 0Z" fill="url(#hp-leaf${dark?'-dark':''})" stroke="${generation}" stroke-width="${sector?.28:1.4}"/>`
-      : leaf
-      ? `<path d="M${-x} ${round(y*.34)}C${round(-x*.74)} ${round(-y*1.24)} ${round(x*.25)} ${round(-y*.78)} ${x} ${round(-y*.43)}C${round(x*.62)} ${round(y*1.15)} ${round(-x*.4)} ${round(y*1.1)} ${-x} ${round(y*.34)}Z" fill="url(#hp-leaf)" stroke="${generation}" stroke-width="1.4"/><path d="M${round(-x*.88)} ${round(y*.26)}Q0 ${round(-y*.04)} ${round(x*.86)} ${round(-y*.36)}" stroke="#a6c478" opacity=".28" fill="none"/>`
-      : `<ellipse rx="${x}" ry="${y}" fill="url(#hp-gold)" stroke="${generation}" stroke-width="2"/><ellipse rx="${round(x-2.5)}" ry="${round(y-2.5)}" fill="none" stroke="#8b6031" stroke-width=".65"/>`;
+    // Ornate (improved): beige name badge like the reference poster, with a
+    // decorative green leaf behind it. Text stays dark-on-light for legibility.
+    const badge = `<ellipse rx="${x}" ry="${y}" fill="url(#hp-${dark?'badge':'gold'})" stroke="${generation}" stroke-width="2"/><ellipse rx="${round(x-2.5)}" ry="${round(y-2.5)}" fill="none" stroke="#8b6031" stroke-width=".65"/>`;
+    const leafFill = noise(node.index + 11) > .66 ? 'url(#hp-leaf-light)' : noise(node.index + 11) > .33 ? 'url(#hp-leaf-green)' : 'url(#hp-leaf-deep)';
+    const decoLeaf = (lx, ly, dx, dy, rot) => `<g transform="translate(${round(dx)} ${round(dy)}) rotate(${round(rot)})"><path d="M${round(-lx*1.15)} ${round(ly*.55)}Q${round(-lx*.4)} ${round(ly*.3)} ${round(-lx*.85)} 0" stroke="#2e5d3a" stroke-width="1.1" fill="none"/><path d="M${-lx} 0C${-lx} ${-ly} ${round(lx*.25)} ${round(-ly*1.3)} ${lx} 0C${round(lx*.25)} ${round(ly*1.3)} ${-lx} ${ly} ${-lx} 0Z" fill="${leafFill}" stroke="#2e5d3a" stroke-width="1"/><path d="M${round(-lx*.82)} 0Q0 ${round(-ly*.22)} ${round(lx*.82)} 0" stroke="#c8e6c9" opacity=".65" fill="none" stroke-width=".9"/><path d="M${round(-lx*.3)} ${round(-ly*.28)}Q${round(-lx*.05)} ${round(-ly*.05)} ${round(lx*.3)} ${round(-ly*.28)}M${round(-lx*.3)} ${round(ly*.28)}Q${round(-lx*.05)} ${round(ly*.05)} ${round(lx*.3)} ${round(ly*.28)}" stroke="#a8d5a2" opacity=".4" fill="none" stroke-width=".6"/></g>`;
+    let shape, textFill = ink;
+    if (dark && leaf) {
+      // Green leaf peeking above/behind the badge, badge on top (reference style).
+      shape = decoLeaf(x*.92, y*1.15, -x*.12, -y*1.05, (node.leafFacing||1)*-18) + badge;
+      textFill = ink;
+    } else if (leaf && (sector || dark)) {
+      shape = `<path d="M${-x} 0C${-x} ${-y} ${round(x*.3)} ${round(-y*1.2)} ${x} 0C${round(x*.3)} ${round(y*1.2)} ${-x} ${y} ${-x} 0Z" fill="url(#hp-leaf${dark?'-dark':''})" stroke="${generation}" stroke-width="${sector?.28:1.4}"/>`;
+      textFill = dark ? '#fffdf3' : '#243618';
+    } else if (leaf) {
+      shape = `<path d="M${-x} ${round(y*.34)}C${round(-x*.74)} ${round(-y*1.24)} ${round(x*.25)} ${round(-y*.78)} ${x} ${round(-y*.43)}C${round(x*.62)} ${round(y*1.15)} ${round(-x*.4)} ${round(y*1.1)} ${-x} ${round(y*.34)}Z" fill="url(#hp-leaf)" stroke="${generation}" stroke-width="1.4"/><path d="M${round(-x*.88)} ${round(y*.26)}Q0 ${round(-y*.04)} ${round(x*.86)} ${round(-y*.36)}" stroke="#a6c478" opacity=".28" fill="none"/>`;
+      textFill = '#243618';
+    } else {
+      shape = badge;
+      textFill = ink;
+    }
     const lines = node.lines.map((line, i) => `<tspan x="0" y="${round((i-(node.lines.length-1)/2)*font*1.14+font*.32)}">${escape(line)}${i+1<node.lines.length?' ':''}</tspan>`).join('');
-    return `<g transform="translate(${pair(node)}) rotate(${round(node.tilt)})" data-person-id="${escape(node.personId)}" data-generation="${node.generation+generationOffset}"><g transform="scale(${node.leafFacing||1} 1)">${shape}</g><text data-poster-name="true" text-anchor="middle" direction="rtl" style="unicode-bidi:plaintext" font-size="${font}" fill="${leaf?(dark?'#fffdf3':'#243618'):ink}">${lines}</text></g>`;
+    return `<g transform="translate(${pair(node)}) rotate(${round(node.tilt)})" data-person-id="${escape(node.personId)}" data-generation="${node.generation+generationOffset}"><g transform="scale(${node.leafFacing||1} 1)">${shape}</g><text data-poster-name="true" text-anchor="middle" direction="rtl" style="unicode-bidi:plaintext" font-size="${font}" fill="${textFill}">${lines}</text></g>`;
+  }
+
+  // Decorative green leaves along branches (ornament only, never persons).
+  function decorativeLeaves(links, nodes) {
+    const out = [];
+    links.forEach((link, idx) => {
+      const s = link.samples;
+      if (!s || s.length < 10) return;
+      const bw = link.width ?? branchWidth(link.child);
+      // Two small leaves on long branches, one on short ones; skip near badges.
+      const spots = bw > 14 ? [0.34, 0.66] : [0.5];
+      for (const frac of spots) {
+        const i = Math.floor(s.length * frac);
+        const pt = s[i], a = s[Math.max(0, i - 2)], b = s[Math.min(s.length - 1, i + 2)];
+        if (Math.hypot(pt.x - link.parent.x, pt.y - link.parent.y) < 42) continue;
+        if (Math.hypot(pt.x - link.child.x, pt.y - link.child.y) < 42) continue;
+        const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
+        const nx = -dy / len, ny = dx / len;
+        const side = noise(idx + Math.floor(frac * 100) + 31) > .5 ? 1 : -1;
+        const lx = 11 + Math.min(14, bw * .55) + noise(idx + Math.floor(frac * 100) + 3) * 6, ly = lx * .42;
+        const x = pt.x + nx * side * 8, y = pt.y + ny * side * 8;
+        if (nodes.some(node => Math.abs(x-node.x) < node.w/2+lx+3 &&
+            Math.abs(y-node.y) < node.h/2+lx+3)) continue;
+        const rot = Math.atan2(dy, dx) * 180 / Math.PI + side * 44;
+        const fill = noise(idx + Math.floor(frac * 100) + 11) > .66 ? 'url(#hp-leaf-light)' : noise(idx + Math.floor(frac * 100) + 11) > .33 ? 'url(#hp-leaf-green)' : 'url(#hp-leaf-deep)';
+        out.push(`<g transform="translate(${round(x)} ${round(y)}) rotate(${round(rot)})" pointer-events="none" aria-hidden="true"><path d="M${-lx} 0C${-lx} ${-ly} ${round(lx*.25)} ${round(-ly*1.3)} ${lx} 0C${round(lx*.25)} ${round(ly*1.3)} ${-lx} ${ly} ${-lx} 0Z" fill="${fill}" stroke="#2e5d3a" stroke-width=".9" opacity=".94"/><path d="M${round(-lx*.8)} 0Q0 ${round(-ly*.2)} ${round(lx*.8)} 0" stroke="#c8e6c9" opacity=".6" fill="none" stroke-width=".7"/></g>`);
+      }
+    });
+    return out.join('');
   }
 
   function render(doc, w, h, measure, style, generationOffset = 0) {
@@ -1054,11 +1151,11 @@
     const markup = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="${w}mm" height="${h}mm" viewBox="0 0 ${boardWidth} ${boardHeight}" text-rendering="geometricPrecision" font-family="Tahoma,Arial,sans-serif"><title>${escape(title)}</title>${decoration.definitions}
       <g id="hp-background-layer" inkscape:groupmode="layer" inkscape:label="الخلفية" transform="${boardTransform}">${decoration.background}</g>
       <g id="hp-frame-layer" inkscape:groupmode="layer" inkscape:label="الإطار" transform="${boardTransform}">${decoration.frame}</g>
-      <g id="hp-trunk-layer" inkscape:groupmode="layer" inkscape:label="الجذع" transform="${trunkTransform}">${improved?'<ellipse cx="600" cy="1558" rx="154" ry="16" fill="#283620" opacity=".25"/>':''}${decoration.trunk}</g>
-      <g transform="${headerTransform}" fill="${ink}" direction="rtl" text-anchor="middle"><path d="M235 157H482M718 157H965M582 157l18-11 18 11-18 11Z" fill="none" stroke="#a88342" stroke-width="2"/><text x="600" y="128" font-size="${titleFont}" font-weight="700">${escape(title)}</text></g>
-      <g id="hp-branches-layer" inkscape:groupmode="layer" inkscape:label="أغصان النسب">${links.map(ribbon).join('')}</g>
+      <g id="hp-trunk-layer" inkscape:groupmode="layer" inkscape:label="الجذع" transform="${trunkTransform}">${improved?`<ellipse cx="600" cy="1558" rx="154" ry="16" fill="#283620" opacity=".18"/><ellipse cx="${round(root.x)}" cy="${round(root.y)}" rx="${round(root.shapeWidth/2+13)}" ry="${round(root.shapeHeight/2+13)}" fill="url(#hp-medallion)" stroke="#8a6d2f" stroke-width="3"/><ellipse cx="${round(root.x)}" cy="${round(root.y)}" rx="${round(root.shapeWidth/2+6)}" ry="${round(root.shapeHeight/2+6)}" fill="none" stroke="#fff8e8" stroke-width="1.2"/>`:''}${decoration.trunk}</g>
+      <g transform="${headerTransform}" fill="${ink}" direction="rtl" text-anchor="middle">${improved?`<text x="600" y="118" font-size="${Math.min(64,titleFont+6)}" font-weight="700" font-family="Amiri,Tahoma,serif">${escape(title)}</text><text x="600" y="146" font-size="17" font-family="Amiri,Tahoma,serif" fill="#8a6d2f">شجرة النسب · لوحة تراثية</text><path d="M235 162H482M718 162H965M582 162l18-11 18 11-18 11Z" fill="none" stroke="#a88342" stroke-width="2"/>`:`<path d="M235 157H482M718 157H965M582 157l18-11 18 11-18 11Z" fill="none" stroke="#a88342" stroke-width="2"/><text x="600" y="128" font-size="${titleFont}" font-weight="700">${escape(title)}</text>`}</g>
+      <g id="hp-branches-layer" inkscape:groupmode="layer" inkscape:label="أغصان النسب">${links.map(ribbon).join('')}${improved?decorativeLeaves(links,nodes):''}</g>
       <g id="hp-names-layer" inkscape:groupmode="layer" inkscape:label="الأوراق والأسماء">${nodes.map(node => label(node,font,doc.presentation,result.style==='sector',improved,generationOffset)).join('')}</g>
-      <g transform="scale(${sx} ${sy})" fill="${ink}" text-anchor="middle" direction="rtl"><rect x="76" y="1520" width="270" height="104" rx="12" fill="url(#hp-gold)" stroke="#865c31" stroke-width="2"/><text x="211" y="1561" font-size="19" font-weight="700">${nodes.length} اسمًا في الشجرة</text><text x="211" y="1596" font-size="16">${maxDepth+1} أجيال</text><rect x="852" y="1520" width="270" height="104" rx="12" fill="url(#hp-gold)" stroke="#865c31" stroke-width="2"/><text x="987" y="1553" font-size="17" font-weight="700">ألوان الأجيال</text>${legend}</g></svg>`;
+      <g transform="scale(${sx} ${sy})" fill="${ink}" text-anchor="middle" direction="rtl">${improved?`<rect x="76" y="1520" width="270" height="104" rx="10" fill="#fff8e8" stroke="#b8892b" stroke-width="2.2"/><rect x="82" y="1526" width="258" height="92" rx="7" fill="none" stroke="#c9a95f" stroke-width=".8"/><text x="211" y="1561" font-size="19" font-weight="700" font-family="Amiri,Tahoma,serif">${nodes.length} اسمًا في الشجرة</text><text x="211" y="1596" font-size="16">${maxDepth+1} أجيال</text><rect x="852" y="1520" width="270" height="104" rx="10" fill="#fff8e8" stroke="#b8892b" stroke-width="2.2"/><rect x="858" y="1526" width="258" height="92" rx="7" fill="none" stroke="#c9a95f" stroke-width=".8"/><text x="987" y="1553" font-size="17" font-weight="700" font-family="Amiri,Tahoma,serif">ألوان الأجيال</text>${legend}`:`<rect x="76" y="1520" width="270" height="104" rx="12" fill="url(#hp-gold)" stroke="#865c31" stroke-width="2"/><text x="211" y="1561" font-size="19" font-weight="700">${nodes.length} اسمًا في الشجرة</text><text x="211" y="1596" font-size="16">${maxDepth+1} أجيال</text><rect x="852" y="1520" width="270" height="104" rx="12" fill="url(#hp-gold)" stroke="#865c31" stroke-width="2"/><text x="987" y="1553" font-size="17" font-weight="700">ألوان الأجيال</text>${legend}`}</g></svg>`;
     return { ...result, svg: markup, w, h, pt: result.minimumPt, count: nodes.length, rootName: root.fullName };
   }
   function splitPages(doc, limit = 51) {
