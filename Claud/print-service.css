@@ -1,0 +1,11 @@
+#printBookDialog{width:min(1200px,96vw);height:94vh;padding:0;border:1px solid #b7a56c;border-radius:10px;background:#f5f0df;color:#263b2f}
+#printBookDialog::backdrop{background:#17271ed4}
+.print-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:9px;padding:12px;border-bottom:1px solid #d5ceb3}
+.print-toolbar strong{flex:1;min-width:150px}
+#printBookFrame{border:0;width:100%;height:calc(100% - 85px);background:white}
+@media(max-width:700px){.print-toolbar{font-size:12px}#printBookFrame{height:calc(100% - 120px)}}
+@media print{#printBookDialog{display:none!important}}
+#printBookDialog[open]{display:flex;flex-direction:column}
+.print-toolbar{flex-shrink:0}
+.print-settings-summary{flex-basis:100%;font-size:12px;line-height:1.7;color:#4b5d47}
+#printBookFrame{flex:1;min-height:0;height:auto}

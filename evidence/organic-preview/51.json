@@ -1,0 +1,793 @@
+{
+  "schemaVersion": 2,
+  "treeId": "75a4ae82-527f-4ad5-b1f0-9b9d125ea375",
+  "rootPersonId": "test-0",
+  "title": "شجرة عائلة تجريبية — 51 شخص",
+  "persons": [
+    {
+      "id": "test-0",
+      "name": "عبدالله التجريبي",
+      "gender": "m",
+      "personId": "test-0",
+      "fullName": "عبدالله التجريبي",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-1",
+      "name": "أحمد 1",
+      "gender": "m",
+      "personId": "test-1",
+      "fullName": "أحمد 1",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-4",
+      "name": "سليمان 4",
+      "gender": "m",
+      "personId": "test-4",
+      "fullName": "سليمان 4",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-13",
+      "name": "أحمد 13",
+      "gender": "m",
+      "personId": "test-13",
+      "fullName": "أحمد 13",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-40",
+      "name": "سليمان 40",
+      "gender": "m",
+      "personId": "test-40",
+      "fullName": "سليمان 40",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-41",
+      "name": "عبدالعزيز 41",
+      "gender": "m",
+      "personId": "test-41",
+      "fullName": "عبدالعزيز 41",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-42",
+      "name": "محمد 42",
+      "gender": "m",
+      "personId": "test-42",
+      "fullName": "محمد 42",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-14",
+      "name": "عبدالرحمن 14",
+      "gender": "m",
+      "personId": "test-14",
+      "fullName": "عبدالرحمن 14",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-43",
+      "name": "أحمد 43",
+      "gender": "m",
+      "personId": "test-43",
+      "fullName": "أحمد 43",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-44",
+      "name": "عبدالرحمن 44",
+      "gender": "m",
+      "personId": "test-44",
+      "fullName": "عبدالرحمن 44",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-45",
+      "name": "إبراهيم 45",
+      "gender": "m",
+      "personId": "test-45",
+      "fullName": "إبراهيم 45",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-15",
+      "name": "إبراهيم 15",
+      "gender": "m",
+      "personId": "test-15",
+      "fullName": "إبراهيم 15",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-46",
+      "name": "سليمان 46",
+      "gender": "m",
+      "personId": "test-46",
+      "fullName": "سليمان 46",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-47",
+      "name": "عبدالعزيز 47",
+      "gender": "m",
+      "personId": "test-47",
+      "fullName": "عبدالعزيز 47",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-48",
+      "name": "محمد 48",
+      "gender": "m",
+      "personId": "test-48",
+      "fullName": "محمد 48",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-5",
+      "name": "عبدالعزيز 5",
+      "gender": "m",
+      "personId": "test-5",
+      "fullName": "عبدالعزيز 5",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-16",
+      "name": "سليمان 16",
+      "gender": "m",
+      "personId": "test-16",
+      "fullName": "سليمان 16",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-49",
+      "name": "أحمد 49",
+      "gender": "m",
+      "personId": "test-49",
+      "fullName": "أحمد 49",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-17",
+      "name": "عبدالعزيز 17",
+      "gender": "m",
+      "personId": "test-17",
+      "fullName": "عبدالعزيز 17",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-18",
+      "name": "محمد 18",
+      "gender": "m",
+      "personId": "test-18",
+      "fullName": "محمد 18",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-6",
+      "name": "محمد 6",
+      "gender": "m",
+      "personId": "test-6",
+      "fullName": "محمد 6",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-19",
+      "name": "أحمد 19",
+      "gender": "m",
+      "personId": "test-19",
+      "fullName": "أحمد 19",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-20",
+      "name": "عبدالرحمن 20",
+      "gender": "m",
+      "personId": "test-20",
+      "fullName": "عبدالرحمن 20",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-21",
+      "name": "إبراهيم 21",
+      "gender": "m",
+      "personId": "test-21",
+      "fullName": "إبراهيم 21",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-2",
+      "name": "عبدالرحمن 2",
+      "gender": "m",
+      "personId": "test-2",
+      "fullName": "عبدالرحمن 2",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-7",
+      "name": "أحمد 7",
+      "gender": "m",
+      "personId": "test-7",
+      "fullName": "أحمد 7",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-22",
+      "name": "سليمان 22",
+      "gender": "m",
+      "personId": "test-22",
+      "fullName": "سليمان 22",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-23",
+      "name": "عبدالعزيز 23",
+      "gender": "m",
+      "personId": "test-23",
+      "fullName": "عبدالعزيز 23",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-24",
+      "name": "محمد 24",
+      "gender": "m",
+      "personId": "test-24",
+      "fullName": "محمد 24",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-8",
+      "name": "عبدالرحمن 8",
+      "gender": "m",
+      "personId": "test-8",
+      "fullName": "عبدالرحمن 8",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-25",
+      "name": "أحمد 25",
+      "gender": "m",
+      "personId": "test-25",
+      "fullName": "أحمد 25",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-26",
+      "name": "عبدالرحمن 26",
+      "gender": "m",
+      "personId": "test-26",
+      "fullName": "عبدالرحمن 26",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-27",
+      "name": "إبراهيم 27",
+      "gender": "m",
+      "personId": "test-27",
+      "fullName": "إبراهيم 27",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-9",
+      "name": "إبراهيم 9",
+      "gender": "m",
+      "personId": "test-9",
+      "fullName": "إبراهيم 9",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-28",
+      "name": "سليمان 28",
+      "gender": "m",
+      "personId": "test-28",
+      "fullName": "سليمان 28",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-29",
+      "name": "عبدالعزيز 29",
+      "gender": "m",
+      "personId": "test-29",
+      "fullName": "عبدالعزيز 29",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-30",
+      "name": "محمد 30",
+      "gender": "m",
+      "personId": "test-30",
+      "fullName": "محمد 30",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-3",
+      "name": "إبراهيم 3",
+      "gender": "m",
+      "personId": "test-3",
+      "fullName": "إبراهيم 3",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-10",
+      "name": "سليمان 10",
+      "gender": "m",
+      "personId": "test-10",
+      "fullName": "سليمان 10",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-31",
+      "name": "أحمد 31",
+      "gender": "m",
+      "personId": "test-31",
+      "fullName": "أحمد 31",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-32",
+      "name": "عبدالرحمن 32",
+      "gender": "m",
+      "personId": "test-32",
+      "fullName": "عبدالرحمن 32",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-33",
+      "name": "إبراهيم 33",
+      "gender": "m",
+      "personId": "test-33",
+      "fullName": "إبراهيم 33",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-11",
+      "name": "عبدالعزيز 11",
+      "gender": "m",
+      "personId": "test-11",
+      "fullName": "عبدالعزيز 11",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-34",
+      "name": "سليمان 34",
+      "gender": "m",
+      "personId": "test-34",
+      "fullName": "سليمان 34",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-35",
+      "name": "عبدالعزيز 35",
+      "gender": "m",
+      "personId": "test-35",
+      "fullName": "عبدالعزيز 35",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-36",
+      "name": "محمد 36",
+      "gender": "m",
+      "personId": "test-36",
+      "fullName": "محمد 36",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-12",
+      "name": "محمد 12",
+      "gender": "m",
+      "personId": "test-12",
+      "fullName": "محمد 12",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-37",
+      "name": "أحمد 37",
+      "gender": "m",
+      "personId": "test-37",
+      "fullName": "أحمد 37",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-38",
+      "name": "عبدالرحمن 38",
+      "gender": "m",
+      "personId": "test-38",
+      "fullName": "عبدالرحمن 38",
+      "lifeStatus": "unknown"
+    },
+    {
+      "id": "test-39",
+      "name": "إبراهيم 39",
+      "gender": "m",
+      "personId": "test-39",
+      "fullName": "إبراهيم 39",
+      "lifeStatus": "unknown"
+    },
+    {
+      "personId": "test-added",
+      "fullName": "خالد بن محمد التجريبي",
+      "gender": "m"
+    }
+  ],
+  "relationships": [
+    {
+      "relationshipId": "father:test-1",
+      "type": "father",
+      "parentId": "test-0",
+      "childId": "test-1",
+      "siblingOrder": 2
+    },
+    {
+      "relationshipId": "father:test-4",
+      "type": "father",
+      "parentId": "test-1",
+      "childId": "test-4",
+      "siblingOrder": 3
+    },
+    {
+      "relationshipId": "father:test-13",
+      "type": "father",
+      "parentId": "test-4",
+      "childId": "test-13",
+      "siblingOrder": 4
+    },
+    {
+      "relationshipId": "father:test-40",
+      "type": "father",
+      "parentId": "test-13",
+      "childId": "test-40",
+      "siblingOrder": 5
+    },
+    {
+      "relationshipId": "father:test-41",
+      "type": "father",
+      "parentId": "test-13",
+      "childId": "test-41",
+      "siblingOrder": 6
+    },
+    {
+      "relationshipId": "father:test-42",
+      "type": "father",
+      "parentId": "test-13",
+      "childId": "test-42",
+      "siblingOrder": 7
+    },
+    {
+      "relationshipId": "father:test-14",
+      "type": "father",
+      "parentId": "test-4",
+      "childId": "test-14",
+      "siblingOrder": 8
+    },
+    {
+      "relationshipId": "father:test-43",
+      "type": "father",
+      "parentId": "test-14",
+      "childId": "test-43",
+      "siblingOrder": 9
+    },
+    {
+      "relationshipId": "father:test-44",
+      "type": "father",
+      "parentId": "test-14",
+      "childId": "test-44",
+      "siblingOrder": 10
+    },
+    {
+      "relationshipId": "father:test-45",
+      "type": "father",
+      "parentId": "test-14",
+      "childId": "test-45",
+      "siblingOrder": 11
+    },
+    {
+      "relationshipId": "father:test-15",
+      "type": "father",
+      "parentId": "test-4",
+      "childId": "test-15",
+      "siblingOrder": 12
+    },
+    {
+      "relationshipId": "father:test-46",
+      "type": "father",
+      "parentId": "test-15",
+      "childId": "test-46",
+      "siblingOrder": 13
+    },
+    {
+      "relationshipId": "father:test-47",
+      "type": "father",
+      "parentId": "test-15",
+      "childId": "test-47",
+      "siblingOrder": 14
+    },
+    {
+      "relationshipId": "father:test-48",
+      "type": "father",
+      "parentId": "test-15",
+      "childId": "test-48",
+      "siblingOrder": 15
+    },
+    {
+      "relationshipId": "father:test-5",
+      "type": "father",
+      "parentId": "test-1",
+      "childId": "test-5",
+      "siblingOrder": 16
+    },
+    {
+      "relationshipId": "father:test-16",
+      "type": "father",
+      "parentId": "test-5",
+      "childId": "test-16",
+      "siblingOrder": 17
+    },
+    {
+      "relationshipId": "father:test-49",
+      "type": "father",
+      "parentId": "test-16",
+      "childId": "test-49",
+      "siblingOrder": 18
+    },
+    {
+      "relationshipId": "father:test-17",
+      "type": "father",
+      "parentId": "test-5",
+      "childId": "test-17",
+      "siblingOrder": 19
+    },
+    {
+      "relationshipId": "father:test-18",
+      "type": "father",
+      "parentId": "test-5",
+      "childId": "test-18",
+      "siblingOrder": 20
+    },
+    {
+      "relationshipId": "father:test-6",
+      "type": "father",
+      "parentId": "test-1",
+      "childId": "test-6",
+      "siblingOrder": 21
+    },
+    {
+      "relationshipId": "father:test-19",
+      "type": "father",
+      "parentId": "test-6",
+      "childId": "test-19",
+      "siblingOrder": 22
+    },
+    {
+      "relationshipId": "father:test-20",
+      "type": "father",
+      "parentId": "test-6",
+      "childId": "test-20",
+      "siblingOrder": 23
+    },
+    {
+      "relationshipId": "father:test-21",
+      "type": "father",
+      "parentId": "test-6",
+      "childId": "test-21",
+      "siblingOrder": 24
+    },
+    {
+      "relationshipId": "father:test-2",
+      "type": "father",
+      "parentId": "test-0",
+      "childId": "test-2",
+      "siblingOrder": 25
+    },
+    {
+      "relationshipId": "father:test-7",
+      "type": "father",
+      "parentId": "test-2",
+      "childId": "test-7",
+      "siblingOrder": 26
+    },
+    {
+      "relationshipId": "father:test-22",
+      "type": "father",
+      "parentId": "test-7",
+      "childId": "test-22",
+      "siblingOrder": 27
+    },
+    {
+      "relationshipId": "father:test-23",
+      "type": "father",
+      "parentId": "test-7",
+      "childId": "test-23",
+      "siblingOrder": 28
+    },
+    {
+      "relationshipId": "father:test-24",
+      "type": "father",
+      "parentId": "test-7",
+      "childId": "test-24",
+      "siblingOrder": 29
+    },
+    {
+      "relationshipId": "father:test-8",
+      "type": "father",
+      "parentId": "test-2",
+      "childId": "test-8",
+      "siblingOrder": 30
+    },
+    {
+      "relationshipId": "father:test-25",
+      "type": "father",
+      "parentId": "test-8",
+      "childId": "test-25",
+      "siblingOrder": 31
+    },
+    {
+      "relationshipId": "father:test-26",
+      "type": "father",
+      "parentId": "test-8",
+      "childId": "test-26",
+      "siblingOrder": 32
+    },
+    {
+      "relationshipId": "father:test-27",
+      "type": "father",
+      "parentId": "test-8",
+      "childId": "test-27",
+      "siblingOrder": 33
+    },
+    {
+      "relationshipId": "father:test-9",
+      "type": "father",
+      "parentId": "test-2",
+      "childId": "test-9",
+      "siblingOrder": 34
+    },
+    {
+      "relationshipId": "father:test-28",
+      "type": "father",
+      "parentId": "test-9",
+      "childId": "test-28",
+      "siblingOrder": 35
+    },
+    {
+      "relationshipId": "father:test-29",
+      "type": "father",
+      "parentId": "test-9",
+      "childId": "test-29",
+      "siblingOrder": 36
+    },
+    {
+      "relationshipId": "father:test-30",
+      "type": "father",
+      "parentId": "test-9",
+      "childId": "test-30",
+      "siblingOrder": 37
+    },
+    {
+      "relationshipId": "father:test-3",
+      "type": "father",
+      "parentId": "test-0",
+      "childId": "test-3",
+      "siblingOrder": 38
+    },
+    {
+      "relationshipId": "father:test-10",
+      "type": "father",
+      "parentId": "test-3",
+      "childId": "test-10",
+      "siblingOrder": 39
+    },
+    {
+      "relationshipId": "father:test-31",
+      "type": "father",
+      "parentId": "test-10",
+      "childId": "test-31",
+      "siblingOrder": 40
+    },
+    {
+      "relationshipId": "father:test-32",
+      "type": "father",
+      "parentId": "test-10",
+      "childId": "test-32",
+      "siblingOrder": 41
+    },
+    {
+      "relationshipId": "father:test-33",
+      "type": "father",
+      "parentId": "test-10",
+      "childId": "test-33",
+      "siblingOrder": 42
+    },
+    {
+      "relationshipId": "father:test-11",
+      "type": "father",
+      "parentId": "test-3",
+      "childId": "test-11",
+      "siblingOrder": 43
+    },
+    {
+      "relationshipId": "father:test-34",
+      "type": "father",
+      "parentId": "test-11",
+      "childId": "test-34",
+      "siblingOrder": 44
+    },
+    {
+      "relationshipId": "father:test-35",
+      "type": "father",
+      "parentId": "test-11",
+      "childId": "test-35",
+      "siblingOrder": 45
+    },
+    {
+      "relationshipId": "father:test-36",
+      "type": "father",
+      "parentId": "test-11",
+      "childId": "test-36",
+      "siblingOrder": 46
+    },
+    {
+      "relationshipId": "father:test-12",
+      "type": "father",
+      "parentId": "test-3",
+      "childId": "test-12",
+      "siblingOrder": 47
+    },
+    {
+      "relationshipId": "father:test-37",
+      "type": "father",
+      "parentId": "test-12",
+      "childId": "test-37",
+      "siblingOrder": 48
+    },
+    {
+      "relationshipId": "father:test-38",
+      "type": "father",
+      "parentId": "test-12",
+      "childId": "test-38",
+      "siblingOrder": 49
+    },
+    {
+      "relationshipId": "father:test-39",
+      "type": "father",
+      "parentId": "test-12",
+      "childId": "test-39",
+      "siblingOrder": 50
+    },
+    {
+      "relationshipId": "father:test-added",
+      "type": "father",
+      "parentId": "test-6",
+      "childId": "test-added",
+      "siblingOrder": 51
+    }
+  ],
+  "presentation": {
+    "template": "heritage-balanced",
+    "canopyShape": "oval",
+    "layoutSeed": 20261025,
+    "layoutAlgorithmVersion": "botanical-v1",
+    "generationColorMode": "green-leaf-colored-label",
+    "generationPalette": {
+      "0": "#b88b39",
+      "1": "#215c47",
+      "2": "#356e99",
+      "3": "#843e4b",
+      "4": "#71518c",
+      "5": "#287e80",
+      "6": "#8b592b",
+      "7": "#657a32",
+      "8": "#944f7d",
+      "9": "#416886"
+    },
+    "nodeOverrides": {},
+    "branchOverrides": {},
+    "lockedElements": {},
+    "print": {
+      "widthMm": 700,
+      "heightMm": 1000,
+      "minLabelPt": 8
+    }
+  },
+  "legacyEnvelope": null
+}

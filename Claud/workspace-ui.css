@@ -1,0 +1,147 @@
+/* A reversible presentation layer over the existing editor and stable controls. */
+.tree-workspace{--ui-green:#234f40;--ui-muted:#74796e;--ui-line:#e3e5da;height:100vh;height:100dvh;min-height:0;overflow:hidden;background:#f5f5ee;color:#273b31}
+.tree-workspace [hidden]{display:none!important}
+/* Keep mouse gestures on controls from selecting labels across the workspace.
+   Text fields and useful person details remain selectable for editing/copying. */
+.tree-workspace header,.tree-workspace #sidebar,.tree-workspace .zoom-controls,.tree-workspace .workspace-status,.tree-workspace .hint,.tree-workspace button,.tree-workspace label,.tree-workspace summary{-webkit-user-select:none;user-select:none}
+.tree-workspace input,.tree-workspace textarea,.tree-workspace [contenteditable="true"],.tree-workspace [contenteditable=""],.tree-workspace [contenteditable="plaintext-only"],.tree-workspace #selName,.tree-workspace .workspace-person-facts,.tree-workspace .workspace-person-notes,.tree-workspace .workspace-person-documentation{-webkit-user-select:text;user-select:text}
+.tree-workspace header{display:flex;flex-wrap:nowrap;gap:24px;padding:16px 24px;min-height:88px;border-bottom:1px solid var(--ui-line);background:#fffef9;box-shadow:0 2px 16px #203c2410;color:var(--ui-green);z-index:30}
+.workspace-brand{display:flex;flex-direction:column;gap:4px;flex:0 0 210px;min-width:0}
+.tree-workspace header .brand{font-size:13px;font-weight:600;color:#78806b;gap:7px}
+.tree-workspace header .brand svg{width:21px;height:21px;background:var(--ui-green);border-radius:6px;padding:2px}
+.tree-workspace header #treeTitle{width:100%;min-width:0;max-width:none;text-align:start;color:var(--ui-green);font-size:18px;padding:2px 0;border:0;border-radius:4px;background:none;line-height:1.5}
+.tree-workspace header #treeTitle:not([readonly]){border-bottom:1px dashed #9b8a58}
+.tree-workspace header #treeTitle:focus{background:#f6f1df;outline:2px solid #aa8c46}
+.workspace-modes{display:flex;padding:4px;background:#f0f2e9;border:1px solid #e6e8dc;border-radius:12px;flex:none;gap:3px}
+.tree-workspace .workspace-modes .btn{background:none;border-color:transparent;min-height:38px;padding:6px 15px;color:#677360;border-radius:8px;font-size:13px}
+.tree-workspace .workspace-modes .btn[aria-pressed=true]{background:var(--ui-green);color:#fff;box-shadow:0 2px 6px #2543321b}
+.workspace-actions{display:flex;gap:8px;flex:none}
+.tree-workspace .btn{min-height:44px;font-size:13px;justify-content:center;border-radius:9px;box-shadow:none;transform:none;line-height:1.5}
+.tree-workspace .btn:hover{background:#f1eddc;box-shadow:none;transform:none}
+.tree-workspace .btn-gold{background:#c7a65a;color:#213c2e;border:1px solid #b29753}
+.tree-workspace .btn:disabled{opacity:.5;cursor:default}
+.tree-workspace button:focus-visible,.tree-workspace input:focus-visible,.tree-workspace select:focus-visible,.tree-workspace summary:focus-visible,.tree-workspace [tabindex]:focus-visible{outline:3px solid #b99546;outline-offset:3px}
+.workspace-search{flex:1;position:relative;min-width:160px;max-width:540px;margin-inline:auto}
+.tree-workspace #artSearch{font:14px Tahoma,Arial,sans-serif;width:100%;height:46px;border:1px solid #e0e3d6;border-radius:12px;background:#f7f8f1;color:#294d3e;padding:10px 15px 10px 44px;outline-offset:2px}
+.tree-workspace #workspaceClearSearch{position:absolute;inset-inline-end:4px;top:2px;width:40px;height:40px;min-height:40px;border:0;background:transparent;font-size:22px;color:#6e7969}
+.workspace-search-popup{position:absolute;top:calc(100% + 10px);inset-inline:0;background:#fffef9;border:1px solid #e1dfcd;border-radius:12px;padding:9px;box-shadow:0 12px 28px #223c2924;z-index:80}
+.workspace-search-status{font-size:12px;color:#717967;margin:3px 6px 7px;line-height:1.7}
+.tree-workspace #searchResults{max-height:min(360px,55vh);overflow:auto;overscroll-behavior:contain}
+.tree-workspace .search-result{border:0;min-height:46px;border-radius:8px;background:#f2f4e9;font:13px Tahoma,Arial,sans-serif;padding:12px;text-align:start;line-height:1.7}
+.tree-workspace .search-result:hover,.tree-workspace .search-result:focus{background:#e3ebd6}
+.tree-workspace .workspace{position:relative;flex:1;min-height:0;height:auto;display:block!important;overflow:hidden}
+.tree-workspace .canvas-wrap{width:100%;height:100%;min-height:0;order:initial;background:radial-gradient(ellipse at 50% 42%,#fffef6 0%,#f4f3e8 70%,#eeefe3 100%)!important}
+.tree-workspace #treeSvg{height:100%;width:100%;min-height:0;display:block}
+.tree-workspace .hint{top:16px;bottom:auto;right:20px;max-width:calc(100% - 40px);font-size:12px!important;padding:8px 12px;box-shadow:none;background:#fffef5db!important;border-color:#e1e0ce;pointer-events:none}
+.tree-workspace .zoom-controls{flex-direction:row;align-items:center;gap:5px;bottom:24px;left:50%;transform:translateX(-50%);padding:7px;border:1px solid #dedecd;border-radius:14px;box-shadow:0 6px 20px #23432b15;max-width:calc(100% - 28px);background:#fffef9f5;z-index:10}
+.tree-workspace .zoom-controls>button{width:44px;height:44px;min-height:44px;border-radius:9px;font-size:21px}
+.tree-workspace .zoom-controls #zoomReset{font-size:12px!important;width:58px}
+.workspace-history{display:flex!important;gap:4px;margin:0!important;border-inline-start:1px solid var(--ui-line);padding-inline-start:7px}
+.tree-workspace .workspace-history .btn{padding:6px 9px;font-size:12px}
+.workspace-motion{max-width:190px;border-inline-start:1px solid var(--ui-line);padding-inline-start:7px}
+.tree-workspace #editMode{font-size:12px;min-height:44px;background:#f6f6ed;border-color:#e3e3d5}
+.workspace-status{position:absolute;bottom:22px;right:22px;display:flex;flex-direction:column;gap:4px;padding:8px 12px;border-radius:10px;background:#fffef5cf;color:#51634e;max-width:240px;pointer-events:none}
+.workspace-status #workspaceCounts{font-size:13px;font-weight:600}
+.workspace-template{font-size:11px;color:#8c7741}
+.workspace-status #saveStatus{font-size:10px;line-height:1.5;margin:0;max-width:210px}
+.tree-workspace #sidebar{position:absolute!important;inset-block:16px;inset-inline:auto 18px;transform:none!important;width:360px!important;min-width:0!important;max-width:calc(100% - 32px);height:auto!important;max-height:none!important;padding:0!important;background:#fffef9!important;border:1px solid #e0dec9;border-radius:16px;box-shadow:0 12px 38px #233c2b24;display:flex;flex-direction:column;gap:0;z-index:25;overflow:hidden;transition:none}
+.workspace-drawer-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-bottom:1px solid var(--ui-line);flex:none;background:#fffef9}
+.workspace-drawer-head h2{font-size:16px;color:#244c3b;margin:0}
+.tree-workspace #workspaceClosePanel{min-height:38px;padding:5px 10px;font-size:12px;background:#f5f3e9}
+.workspace-drawer-body,.tree-workspace #selPanel{overflow:auto;overscroll-behavior:contain;padding:14px!important;min-height:0}
+.tree-workspace #selPanel{background:#fffef9!important;border:0!important;border-radius:0!important;box-shadow:none!important;margin:0;position:static;max-height:none;inset:auto}
+.tree-workspace #selPanel>h3{display:none}
+.tree-workspace .panel{background:#fffef9!important;border:0!important;padding:4px!important;border-radius:0!important}
+.tree-workspace .panel h3{font-size:13px;margin-top:14px}
+.workspace-section{margin-bottom:12px;border:1px solid #e3e3d5;border-radius:11px;padding:0 12px;background:#fbfbf3}
+.workspace-section>summary{cursor:pointer;font-size:13px;font-weight:600;color:#34533f;min-height:48px;display:list-item;align-content:center;padding-block:13px;line-height:1.6;list-style-position:inside}
+.workspace-section[open]>summary{border-bottom:1px solid #e8e7d9;margin-bottom:12px}
+.workspace-section[open]{padding-bottom:12px}
+.tree-workspace .workspace-section label{font-size:12px;margin-top:12px}
+.tree-workspace input:not([type=color]):not([type=checkbox]):not([type=file]),.tree-workspace select,.tree-workspace textarea{font-family:Tahoma,Arial,sans-serif;line-height:1.7;border:1px solid #dce0d0;border-radius:8px;padding:9px;background:#fffefb;color:#324e3e;max-width:100%;min-width:0}
+.tree-workspace .workspace-section .actions{display:grid;gap:8px}
+.tree-workspace .workspace-section .actions>.btn{width:100%;margin:0}
+.tree-workspace .workspace-section .btn-outline-light{color:#234f40;background:#fffdf4;border-color:#e3d9bd}
+.tree-workspace .muted{line-height:1.9;font-size:12px}
+.workspace-person-overview{text-align:center;padding:8px 0 10px;border-bottom:1px solid var(--ui-line)}
+.tree-workspace #personPhoto{margin:0 auto 12px;width:80px;height:80px;border:2px solid #cfb773}
+.tree-workspace #selName{font-size:22px;color:#244f3c;line-height:1.7;margin:5px 0}
+.tree-workspace #personGeneration{font-size:12px;color:#8c7442;margin:4px 0}
+.workspace-person-facts{font-size:13px;line-height:1.9;color:#5d6f58;margin:8px 0}
+.workspace-person-notes{white-space:pre-wrap;overflow-wrap:anywhere;text-align:start;font-size:13px;line-height:1.9;background:#f6f4e6;border-radius:8px;padding:10px}
+.workspace-person-documentation{white-space:pre-wrap;overflow-wrap:anywhere;text-align:start;font-size:13px;line-height:1.9;background:#eef2e7;border-inline-start:3px solid #748768;border-radius:8px;padding:10px}
+.workspace-person-documentation[data-verification=review]{background:#faf0df;border-color:#9c763b}
+.tree-workspace #personDocumentationEditor{min-width:0;border:1px solid #dce0d0;border-radius:10px;padding:10px 12px;margin:16px 0}
+#personDocumentationEditor legend{padding-inline:6px;font-size:13px;font-weight:600;color:#34533f}
+.tree-workspace #personReference{width:100%;resize:vertical;min-height:90px;min-width:0}
+.tree-workspace #personVerification{width:100%;min-height:44px}
+#personDocumentationHint{margin:8px 0 0;overflow-wrap:anywhere}
+.workspace-person-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:14px 0}
+.tree-workspace .workspace-person-actions .btn{font-size:12px;padding:7px}
+.workspace-person-editor{padding-top:2px}
+.workspace-father-context{background:#eaf0df;color:#34583b;font-size:12px;line-height:1.7;padding:9px;border-radius:8px;margin:10px 0 4px}
+.tree-workspace #btnAddChild,.tree-workspace #saveDetails{width:100%;margin:10px 0;min-height:44px}
+.tree-workspace #saveDetails{background:var(--ui-green);color:white;border-color:var(--ui-green)}
+.tree-workspace #uploadPhoto+button{margin-block:8px}
+.tree-workspace #branchContract,.tree-workspace #btnExportBranchSvg{width:100%;margin-block:5px;font-size:12px}
+.tree-workspace #workspaceBatchChildren{grid-column:1/-1;background:#edf2e3;color:#345839}
+.tree-workspace #kinshipDialog{padding:0;width:min(720px,calc(100vw - 24px));max-height:88vh;max-height:88dvh;border:1px solid #d6dbc8;border-radius:16px;background:#fffef9;color:#294a38;box-shadow:0 22px 65px #203c2940}
+#kinshipDialog::backdrop{background:#17332788}
+.kinship-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-bottom:1px solid #e1e5d6}
+.kinship-head h2{font-size:18px;margin:0}.kinship-body{padding:4px 18px 18px;max-height:calc(88vh - 72px);max-height:calc(88dvh - 72px);overflow:auto;overscroll-behavior:contain}
+.kinship-body p,.kinship-body li{line-height:1.9;overflow-wrap:anywhere;-webkit-user-select:text;user-select:text}
+.kinship-anchor{padding:10px 12px;background:#edf2e3;border-radius:10px;margin-block:12px}.kinship-anchor span{font-size:12px;color:#63755b}.kinship-anchor p{margin:5px 0 0;font-size:14px}
+.kinship-body label{display:block;margin-block:12px 6px;font-size:13px}.tree-workspace #kinshipQuery{width:100%;min-height:44px;font-size:16px}
+#kinshipStatus{font-size:13px;min-height:25px}.kinship-matches{display:grid;gap:6px;max-height:32vh;overflow:auto;overscroll-behavior:contain}
+.tree-workspace .kinship-match{width:100%;min-height:44px;text-align:start;border:1px solid #e0e5d5;background:#f2f5e9;color:#294a38;border-radius:8px;padding:10px 12px;font:13px/1.8 Tahoma,Arial,sans-serif;overflow-wrap:anywhere;cursor:pointer}
+.tree-workspace .kinship-match:hover{background:#e3ecd7}#kinshipResult{margin-top:12px;border-top:1px solid #e0e5d5;padding-top:12px}#kinshipRelation{font-size:17px;line-height:1.9;overflow-wrap:anywhere;margin:0}
+#kinshipAncestor{font-weight:600}#kinshipDistances{font-size:12px;color:#5c7055}.kinship-paths{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin-block:14px}.kinship-paths>div{padding:12px;background:#f4f5eb;border-radius:10px;min-width:0}.kinship-paths h4{font-size:12px;line-height:1.8;margin:0}.kinship-paths ol{padding-inline-start:26px;margin:10px 0 0}.kinship-paths li{font-size:13px;padding:4px 0}
+.tree-workspace #kinshipShowAncestor{width:100%}
+@media(max-width:540px){.kinship-head{padding:10px 12px}.kinship-head h2{font-size:16px}.kinship-body{padding-inline:12px}.kinship-paths{grid-template-columns:minmax(0,1fr)}}
+.tree-workspace #childrenBatchDialog{padding:0;width:min(620px,calc(100vw - 24px));max-height:88vh;max-height:88dvh;border:1px solid #d6dbc8;border-radius:16px;background:#fffef9;color:#294a38;box-shadow:0 22px 65px #203c2940}
+#childrenBatchDialog::backdrop{background:#17332788}
+.children-batch-head,.children-batch-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;background:#fffef9}
+.children-batch-head{border-bottom:1px solid #e1e5d6}.children-batch-head h2{font-size:18px;margin:0}
+.children-batch-body{padding:4px 18px 14px;overflow:auto;max-height:calc(88dvh - 152px)}
+.children-batch-body textarea{width:100%;resize:vertical;min-height:110px}.children-batch-body label{font-size:13px}
+#childrenBatchStatus{font-size:13px;line-height:1.9;overflow-wrap:anywhere}#childrenBatchRows{max-height:180px;overflow:auto;padding-inline-start:26px;background:#f3f5e9;border-radius:9px}
+#childrenBatchRows li{padding:7px 4px;font-size:13px;line-height:1.7;overflow-wrap:anywhere}
+.children-batch-footer{border-top:1px solid #e1e5d6}.children-batch-footer .btn:first-child{flex:1}
+.tree-workspace #childrenBatchDuplicateLabel{background:#fbefd2;padding:10px;border-radius:8px;font-size:12px;line-height:1.9}
+@media(max-width:540px){.children-batch-head h2{font-size:15px}.children-batch-head,.children-batch-footer{padding:10px 12px}.children-batch-body{padding-inline:12px}}
+.tree-workspace #auditResult{margin-block:10px;background:#f0f1e4}
+.tree-workspace[data-workspace-mode=view] .workspace-edit-only{display:none!important}
+.visually-hidden{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip-path:inset(50%)!important;white-space:nowrap!important;border:0!important}
+@media(max-width:1150px){.tree-workspace header{gap:12px;padding:12px 16px}.workspace-brand{flex-basis:180px}.workspace-actions{gap:5px}.workspace-actions .btn{padding:7px 10px}.tree-workspace .workspace-modes .btn{padding-inline:11px}.workspace-status{bottom:95px}}
+@media(max-width:880px){
+  .tree-workspace header{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 12px;padding:10px 14px;min-height:0}
+  .workspace-brand{width:auto;max-width:none;grid-column:1;grid-row:1}.tree-workspace header .brand{font-size:11px;width:auto}.tree-workspace header #treeTitle{font-size:16px;width:100%;line-height:1.3}
+  .workspace-modes{grid-column:2;grid-row:1}.tree-workspace .workspace-modes .btn{min-height:36px;padding:5px 12px}
+  .workspace-search{grid-column:1;grid-row:2;width:100%;max-width:none;margin:0;min-width:0}.tree-workspace #artSearch{height:44px;font-size:13px}
+  .workspace-actions{grid-column:2;grid-row:2;gap:5px}.tree-workspace .workspace-actions .btn{font-size:11px;min-height:44px;padding:6px 9px}
+  .tree-workspace .canvas-wrap{height:100%;min-height:0}.tree-workspace #treeSvg{min-height:0}
+  .tree-workspace #sidebar{inset-block:12px;inset-inline:auto 12px;width:350px!important;max-width:calc(100% - 24px)}
+  .tree-workspace .hint{font-size:10px!important;top:12px;right:12px;max-width:calc(100% - 24px);padding:6px 9px}
+  .workspace-status{bottom:auto;top:52px;right:12px;padding:5px 8px;max-width:180px}.workspace-status #workspaceCounts{font-size:11px}.workspace-status #saveStatus{max-width:170px;font-size:9px}
+  .tree-workspace .zoom-controls{bottom:16px;max-width:calc(100% - 20px);padding:5px;gap:3px;flex-wrap:wrap;justify-content:center;width:max-content}
+  .workspace-motion{max-width:170px}.workspace-history .btn{min-height:42px!important}.tree-workspace .workspace-history{gap:3px}
+}
+@media(max-width:540px){
+  .tree-workspace header{gap:8px;padding:10px}.workspace-search{grid-column:1/3;grid-row:2}.workspace-actions{grid-row:3;grid-column:2;justify-self:end}.workspace-modes{grid-row:3;grid-column:1;justify-self:start}.workspace-brand{grid-column:1/3}
+  .tree-workspace header .brand{display:none}.tree-workspace header #treeTitle{font-size:18px;line-height:1.5}
+  .tree-workspace .workspace-actions .btn{min-height:38px;font-size:12px}.tree-workspace .workspace-modes .btn{min-height:32px;font-size:12px}
+  .tree-workspace #sidebar{inset-inline:8px;inset-block:auto 8px;width:auto!important;max-width:none;max-height:75%!important;border-radius:16px}
+  .tree-workspace .workspace-drawer-head{padding:9px 12px}.tree-workspace #selPanel,.workspace-drawer-body{padding:12px!important}
+  .tree-workspace .zoom-controls{max-width:calc(100% - 16px);bottom:12px;gap:2px}.tree-workspace .zoom-controls>button{width:40px;height:44px}.tree-workspace .zoom-controls #zoomReset{width:52px}
+  .tree-workspace .workspace-history .btn{padding:4px 7px;font-size:11px}.workspace-motion{max-width:100%;width:100%;padding:0;border:0}.tree-workspace #editMode{width:100%;min-height:38px}
+  .workspace-search-popup{max-height:60vh;overflow:auto}
+}
+@media(prefers-reduced-motion:reduce){.tree-workspace *{transition:none!important;scroll-behavior:auto!important}}
+@media(max-width:360px){.workspace-modes{grid-column:1/3}.workspace-actions{grid-row:4;grid-column:1/3;justify-self:stretch}.workspace-actions .btn{flex:1}.workspace-brand{min-width:0}}
+@media print{
+  .tree-workspace{height:auto;overflow:visible;min-height:0;display:block}
+  .tree-workspace header,.tree-workspace #sidebar,.workspace-status,.tree-workspace .zoom-controls,.tree-workspace .hint{display:none!important}
+  .tree-workspace #childrenBatchDialog{display:none!important}
+  .tree-workspace .workspace,.tree-workspace .canvas-wrap{overflow:visible;height:auto!important;display:block!important;width:100%!important}
+  .tree-workspace #treeSvg{height:auto!important;min-height:0}
+}

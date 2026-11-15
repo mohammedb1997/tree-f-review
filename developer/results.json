@@ -1,0 +1,250 @@
+{
+  "samples": [
+    {
+      "count": 30,
+      "variants": [
+        {
+          "style": "crown",
+          "collisions": 0,
+          "obstructedBranches": 0,
+          "branchCrossings": 0,
+          "boardWidth": 1200,
+          "boardHeight": 1697,
+          "font": 15.99595238095238,
+          "joins": true,
+          "routeLength": 6627,
+          "minPt": 26.45,
+          "ms": 9
+        },
+        {
+          "style": "growing",
+          "collisions": 0,
+          "obstructedBranches": 0,
+          "branchCrossings": 0,
+          "boardWidth": 1623.5871353393509,
+          "boardHeight": 1537.2907059402612,
+          "font": 16,
+          "joins": true,
+          "routeLength": 7513,
+          "minPt": 19.55425169676972,
+          "ms": 8
+        }
+      ],
+      "selected": {
+        "style": "growing",
+        "collisions": 0,
+        "obstructedBranches": 0,
+        "branchCrossings": 0,
+        "boardWidth": 1623.5871353393509,
+        "boardHeight": 1537.2907059402612,
+        "font": 16,
+        "joins": true,
+        "routeLength": 7513,
+        "minPt": 19.55425169676972,
+        "ms": 8
+      },
+      "minimumPt": 19.55415503232753,
+      "pdf": null,
+      "interactiveReview": true,
+      "sourceUnchanged": true,
+      "fullNames": true,
+      "relations": 29,
+      "nameBounds": true
+    },
+    {
+      "count": 150,
+      "variants": [
+        {
+          "style": "weighted",
+          "collisions": 0,
+          "obstructedBranches": 0,
+          "branchCrossings": 55,
+          "boardWidth": 1200,
+          "boardHeight": 1697,
+          "font": 10.498666666666665,
+          "joins": true,
+          "routeLength": 25163,
+          "minPt": 17.36,
+          "ms": 432
+        },
+        {
+          "style": "growing",
+          "collisions": 0,
+          "obstructedBranches": 0,
+          "branchCrossings": 0,
+          "boardWidth": 5055.9908975695225,
+          "boardHeight": 6047.5151474775885,
+          "font": 16,
+          "joins": true,
+          "routeLength": 64544,
+          "minPt": 6.279289686087977,
+          "ms": 40
+        }
+      ],
+      "selected": {
+        "style": "growing",
+        "collisions": 0,
+        "obstructedBranches": 0,
+        "branchCrossings": 0,
+        "boardWidth": 5055.9908975695225,
+        "boardHeight": 6047.5151474775885,
+        "font": 16,
+        "joins": true,
+        "routeLength": 64544,
+        "minPt": 6.279289686087977,
+        "ms": 40
+      },
+      "minimumPt": 6.279258950720684,
+      "pdf": null,
+      "interactiveReview": true,
+      "sourceUnchanged": true,
+      "fullNames": true,
+      "relations": 149,
+      "nameBounds": true
+    },
+    {
+      "count": 280,
+      "variants": [
+        {
+          "style": "weighted",
+          "collisions": 0,
+          "obstructedBranches": 0,
+          "branchCrossings": 215,
+          "boardWidth": 1200,
+          "boardHeight": 1697,
+          "font": 7.402285714285715,
+          "joins": true,
+          "routeLength": 42889,
+          "minPt": 12.240000000000002,
+          "ms": 1829
+        },
+        {
+          "style": "growing",
+          "collisions": 0,
+          "obstructedBranches": 0,
+          "branchCrossings": 0,
+          "boardWidth": 6349.992078850197,
+          "boardHeight": 5128.590783069581,
+          "font": 16,
+          "joins": true,
+          "routeLength": 97270,
+          "minPt": 4.999696236126906,
+          "ms": 101
+        }
+      ],
+      "selected": {
+        "style": "growing",
+        "collisions": 0,
+        "obstructedBranches": 0,
+        "branchCrossings": 0,
+        "boardWidth": 6349.992078850197,
+        "boardHeight": 5128.590783069581,
+        "font": 16,
+        "joins": true,
+        "routeLength": 97270,
+        "minPt": 4.999696236126906,
+        "ms": 101
+      },
+      "minimumPt": 4.999671505501359,
+      "pdf": null,
+      "interactiveReview": true,
+      "sourceUnchanged": true,
+      "fullNames": true,
+      "relations": 279,
+      "nameBounds": true
+    },
+    {
+      "count": 500,
+      "variants": [
+        {
+          "style": "weighted",
+          "collisions": 0,
+          "obstructedBranches": 0,
+          "branchCrossings": 1075,
+          "boardWidth": 1200,
+          "boardHeight": 1697,
+          "font": 6.301619047619048,
+          "joins": true,
+          "routeLength": 77168,
+          "minPt": 10.420000000000002,
+          "ms": 4408
+        },
+        {
+          "style": "growing",
+          "collisions": 0,
+          "obstructedBranches": 0,
+          "branchCrossings": 0,
+          "boardWidth": 9961.567178454558,
+          "boardHeight": 10095.610277125981,
+          "font": 16,
+          "joins": true,
+          "routeLength": 232273,
+          "minPt": 3.1870518892578903,
+          "ms": 139
+        }
+      ],
+      "selected": {
+        "style": "growing",
+        "collisions": 0,
+        "obstructedBranches": 0,
+        "branchCrossings": 0,
+        "boardWidth": 9961.567178454558,
+        "boardHeight": 10095.610277125981,
+        "font": 16,
+        "joins": true,
+        "routeLength": 232273,
+        "minPt": 3.1870518892578903,
+        "ms": 139
+      },
+      "minimumPt": 3.187036113892798,
+      "pdf": null,
+      "interactiveReview": true,
+      "sourceUnchanged": true,
+      "fullNames": true,
+      "relations": 499,
+      "nameBounds": true
+    }
+  ],
+  "pageErrors": [],
+  "externalRequests": [],
+  "sandbox": true,
+  "preferredStyle": {
+    "count": 51,
+    "svgMatches": true,
+    "interactiveDownload": true,
+    "measured": [
+      {
+        "style": "organic",
+        "minimumPt": 14.91555,
+        "branchCrossings": 7,
+        "collisions": 0,
+        "obstructedBranches": 0
+      },
+      {
+        "style": "organic-improved",
+        "minimumPt": 14.91555,
+        "branchCrossings": 0,
+        "ribbonContacts": 0,
+        "collisions": 0,
+        "obstructedBranches": 0
+      }
+    ]
+  },
+  "branchPages": [
+    {
+      "count": 150,
+      "pages": 4,
+      "status": "تم تجهيز 4 صفحات · أصغر خط تقريبي 15.1 نقطة."
+    },
+    {
+      "count": 500,
+      "pages": 14,
+      "status": "تم تجهيز 14 صفحات · أصغر خط تقريبي 15.0 نقطة."
+    }
+  ],
+  "paperIndependent": true,
+  "pngDownload": {
+    "width": 3854,
+    "height": 3113
+  }
+}

@@ -1,0 +1,9 @@
+.close-person{display:none}
+/* The SVG is an interaction surface; native text selection must not compete
+   with clicking people or dragging either renderer's tree. */
+#treeSvg,#treeSvg *{-webkit-user-select:none;user-select:none}
+@media(max-width:800px){
+  #selPanel.mobile-open{position:fixed;inset:auto 8px 8px;z-index:60;max-height:72vh;overflow-y:auto;background:#fffdf6!important;border:2px solid #b88b39!important;overscroll-behavior:contain}
+  #selPanel.mobile-open .close-person{display:block;position:sticky;top:0;margin-inline-start:auto;background:#f3ebd6;z-index:1}
+}
+@media print{.close-person{display:none!important}}
