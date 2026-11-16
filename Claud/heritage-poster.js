@@ -1003,6 +1003,7 @@
       <radialGradient id="hp-sky" cx=".5" cy=".36" r=".74"><stop stop-color="#fffdf5"/><stop offset=".68" stop-color="#f9f2df"/><stop offset="1" stop-color="#efe3c8"/></radialGradient>
       <pattern id="hp-paper" width="34" height="34" patternUnits="userSpaceOnUse"><path d="M17 2L32 17L17 32L2 17Z" fill="none" stroke="#c9b98a" stroke-width=".55" opacity=".28"/><circle cx="17" cy="17" r="1.1" fill="#c9b98a" opacity=".3"/></pattern>
       <linearGradient id="hp-field" x2="0" y2="1"><stop stop-color="#9aaa54"/><stop offset="1" stop-color="#344a2d"/></linearGradient>
+      <linearGradient id="hp-meadow" x2="0" y2="1"><stop stop-color="#dce5ba" stop-opacity=".46"/><stop offset="1" stop-color="#829650" stop-opacity=".8"/></linearGradient>
       <linearGradient id="hp-bark"><stop stop-color="#4a2c17"/><stop offset=".42" stop-color="#8a5a33"/><stop offset=".65" stop-color="#6b4226"/><stop offset="1" stop-color="#3d2215"/></linearGradient>
       <linearGradient id="hp-leaf" x2="0" y2="1"><stop stop-color="#f1edaf"/><stop offset=".48" stop-color="#d7e4a2"/><stop offset="1" stop-color="#99b679"/></linearGradient>
       <linearGradient id="hp-leaf-dark" x2="0" y2="1"><stop stop-color="#3f8a4a"/><stop offset="1" stop-color="#1e5c2e"/></linearGradient>
@@ -1017,6 +1018,8 @@
       const background = `
     <rect x="28" y="28" width="1144" height="1641" rx="3" fill="url(#hp-sky)" stroke="#b8892b" stroke-width="2.5"/>
     <rect x="30" y="30" width="1140" height="1637" fill="url(#hp-paper)"/>
+    <path d="M30 1586C254 1533 394 1564 575 1598C756 1548 949 1533 1170 1573V1667H30Z" fill="#c4cc9a" opacity=".36"/>
+    <path d="M30 1623C255 1571 431 1611 597 1621C776 1584 982 1575 1170 1608V1667H30Z" fill="url(#hp-meadow)"/>
     `;
       const frame = `
     <path d="M0 0H1200V1697H0Z M28 28H1172V1669H28Z" fill="url(#hp-border)" fill-rule="evenodd"/>
@@ -1027,10 +1030,13 @@
     ${medallion(165,150,42)}${medallion(1035,150,42)}
     `;
       const trunk = `
-    <path d="M548 1208C556 1310 544 1440 528 1520C518 1570 500 1610 470 1667L730 1667C700 1610 682 1570 672 1520C656 1440 644 1310 652 1208Q600 1188 548 1208Z" fill="url(#hp-bark)" stroke="#4d2b16" stroke-width="3"/>
+    <ellipse cx="600" cy="1587" rx="162" ry="20" fill="#435135" opacity=".18"/>
+    <path d="M553 1208C561 1289 549 1361 543 1420C536 1497 522 1545 498 1567Q478 1584 451 1594Q489 1597 530 1582Q553 1573 568 1581Q600 1600 632 1578Q647 1572 674 1584Q712 1596 749 1590C710 1575 691 1558 676 1533C656 1480 648 1412 651 1368C654 1304 641 1261 650 1208Q600 1191 553 1208Z" fill="url(#hp-bark)" stroke="#4d2b16" stroke-width="3"/>
     <path d="M578 1236C590 1360 566 1500 548 1580M600 1240C612 1350 588 1490 598 1600M622 1241C608 1366 626 1490 644 1580M574 1280C570 1350 564 1430 560 1500M628 1330C618 1400 634 1490 654 1550" fill="none" stroke="#d29c5f" stroke-width="3" opacity=".4"/>
     <path d="M602 1256C624 1300 580 1335 610 1400C628 1440 594 1500 614 1550M560 1410Q562 1510 512 1560M632 1460Q650 1540 684 1560" fill="none" stroke="#2c180e" stroke-width="4" opacity=".6"/>
-    <g fill="none" stroke="#c58a52" opacity=".3" stroke-width="1.15">${Array.from({length:27},(_,i)=>{const x=560+noise(i+510)*80,y=1280+noise(i+640)*340;return `<path d="M${round(x)} ${round(y)}q${round((noise(i)-.5)*11)} 15 ${round((noise(i+16)-.5)*8)} ${round(17+noise(i+26)*28)}"/>`;}).join('')}</g>`;
+    <path d="M535 1509Q515 1559 475 1587M563 1512Q548 1556 523 1576M645 1500Q669 1561 719 1585M622 1520Q636 1558 652 1570" fill="none" stroke="#d4a06a" stroke-width="2.4" opacity=".5"/>
+    <g fill="none" stroke="#c58a52" opacity=".3" stroke-width="1.15">${Array.from({length:24},(_,i)=>{const x=560+noise(i+510)*80,y=1280+noise(i+640)*264;return `<path d="M${round(x)} ${round(y)}q${round((noise(i)-.5)*11)} 15 ${round((noise(i+16)-.5)*8)} ${round(17+noise(i+26)*28)}"/>`;}).join('')}</g>
+    <g fill="none" stroke="#627b41" stroke-linecap="round" opacity=".7">${Array.from({length:27},(_,i)=>{const x=467+i*10,y=1598+noise(i+443)*15,h=5+noise(i+410)*15;return `<path d="M${round(x)} ${round(y)}q2 -7 -5 ${round(-h)}m5 ${round(h)}q3 -6 8 ${round(-h*.85)}"/>`;}).join('')}</g>`;
       return { definitions, background, frame, trunk };
     }
     const definitions = `<defs>
@@ -1099,33 +1105,75 @@
   // Decorative green leaves along branches (ornament only, never persons).
   function decorativeLeaves(links, nodes) {
     const out = [];
+    const placements = [];
     links.forEach((link, idx) => {
       const s = link.samples;
       if (!s || s.length < 10) return;
       const bw = link.width ?? branchWidth(link.child);
-      // Two small leaves on long branches, one on short ones; skip near badges.
-      const spots = bw > 14 ? [0.34, 0.66] : [0.5];
-      for (const frac of spots) {
-        const i = Math.floor(s.length * frac);
+      const distances = [0];
+      for (let i = 1; i < s.length; i++) {
+        distances.push(distances[i-1] + Math.hypot(s[i].x-s[i-1].x,s[i].y-s[i-1].y));
+      }
+      const length = distances.at(-1);
+      if (length < 76) return;
+      const spots = length > 285 && bw > 8 ? [.25,.48,.72] : length > 155 ? [.36,.64] : [.5];
+      for (const [slot, frac] of spots.entries()) {
+        const i = distances.findIndex(distance => distance >= length * frac);
         const pt = s[i], a = s[Math.max(0, i - 2)], b = s[Math.min(s.length - 1, i + 2)];
-        if (Math.hypot(pt.x - link.parent.x, pt.y - link.parent.y) < 42) continue;
-        if (Math.hypot(pt.x - link.child.x, pt.y - link.child.y) < 42) continue;
         const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
+        const tx = dx/len, ty = dy/len;
         const nx = -dy / len, ny = dx / len;
-        const side = noise(idx + Math.floor(frac * 100) + 31) > .5 ? 1 : -1;
-        const lx = 11 + Math.min(14, bw * .55) + noise(idx + Math.floor(frac * 100) + 3) * 6, ly = lx * .42;
-        const x = pt.x + nx * side * 8, y = pt.y + ny * side * 8;
-        if (nodes.some(node => Math.abs(x-node.x) < node.w/2+lx+3 &&
-            Math.abs(y-node.y) < node.h/2+lx+3)) continue;
-        const rot = Math.atan2(dy, dx) * 180 / Math.PI + side * 44;
-        const fill = noise(idx + Math.floor(frac * 100) + 11) > .66 ? 'url(#hp-leaf-light)' : noise(idx + Math.floor(frac * 100) + 11) > .33 ? 'url(#hp-leaf-green)' : 'url(#hp-leaf-deep)';
-        out.push(`<g transform="translate(${round(x)} ${round(y)}) rotate(${round(rot)})" pointer-events="none" aria-hidden="true"><path d="M${-lx} 0C${-lx} ${-ly} ${round(lx*.25)} ${round(-ly*1.3)} ${lx} 0C${round(lx*.25)} ${round(ly*1.3)} ${-lx} ${ly} ${-lx} 0Z" fill="${fill}" stroke="#2e5d3a" stroke-width=".9" opacity=".94"/><path d="M${round(-lx*.8)} 0Q0 ${round(-ly*.2)} ${round(lx*.8)} 0" stroke="#c8e6c9" opacity=".6" fill="none" stroke-width=".7"/></g>`);
+        const firstSide = (idx + slot) % 2 ? 1 : -1;
+        const lx = 12 + Math.min(11, bw * .32) + noise(idx + slot * 127 + 3) * 4, ly = lx * .41;
+        const tone = noise(idx + slot * 127 + 11);
+        const fill = tone > .66 ? 'url(#hp-leaf-light)' : tone > .33 ? 'url(#hp-leaf-green)' : 'url(#hp-leaf-deep)';
+        for (const side of [firstSide, -firstSide]) {
+          const angle = (45+noise(idx + slot * 127 + 23)*24)*Math.PI/180;
+          const ux = tx*Math.cos(angle) + side*nx*Math.sin(angle);
+          const uy = ty*Math.cos(angle) + side*ny*Math.sin(angle);
+          const reach = lx + Math.min(13, bw*.24) + 4;
+          const x = pt.x + ux * reach, y = pt.y + uy * reach;
+          if (nodes.some(node => Math.abs(x-node.x) < node.w/2+lx+9 &&
+              Math.abs(y-node.y) < node.h/2+lx+9)) continue;
+          if (placements.some(leaf => Math.hypot(leaf.x-x,leaf.y-y) < leaf.radius+lx)) continue;
+          if (links.some(other => other !== link && other.samples.some(point =>
+            Math.hypot(point.x-x,point.y-y) < lx+1))) continue;
+          placements.push({x,y,radius:lx});
+          const rot = Math.atan2(uy,ux)*180/Math.PI;
+          out.push(`<g data-poster-ornament="leaf" transform="translate(${round(x)} ${round(y)}) rotate(${round(rot)})" pointer-events="none" aria-hidden="true"><path d="M${round(-reach)} 0H${round(-lx)}" stroke="#607745" stroke-width="1.6"/><path d="M${-lx} 0C${round(-lx*.64)} ${round(-ly*1.45)} ${round(lx*.31)} ${round(-ly*.93)} ${lx} ${round(-ly*.26)}C${round(lx*.60)} ${round(ly*1.42)} ${round(-lx*.47)} ${round(ly*.99)} ${-lx} 0Z" fill="${fill}" stroke="#355a38" stroke-width=".9"/><path d="M${round(-lx*.82)} 0Q0 ${round(ly*.22)} ${round(lx*.79)} ${round(-ly*.16)}m${round(-lx*.69)} ${round(ly*.16)}l${round(-lx*.30)} ${round(-ly*.46)}m${round(lx*.45)} ${round(ly*.44)}l${round(lx*.26)} ${round(ly*.28)}" stroke="#d8e7ac" opacity=".68" fill="none" stroke-width=".75"/></g>`);
+          break;
+        }
       }
     });
     return out.join('');
   }
 
-  function render(doc, w, h, measure, style, generationOffset = 0) {
+  function rootMedallion(root) {
+    return `<g data-poster-ornament="root" aria-hidden="true" transform="translate(${pair(root)})">
+      <g transform="scale(${round(root.shapeWidth/2+17)} ${round(root.shapeHeight/2+13)})" stroke="#8a6d2f" stroke-width="1.6">
+        <path d="M0 -1.12C.29 -.92 .74 -.96 .88 -.57L1.08 0 .88 .57C.74 .96 .29 .92 0 1.12C-.29 .92 -.74 .96 -.88 .57L-1.08 0 -.88 -.57C-.74 -.96 -.29 -.92 0 -1.12Z" vector-effect="non-scaling-stroke" fill="url(#hp-medallion)"/>
+        <ellipse rx=".96" ry=".91" fill="none" stroke="#fff5ce" vector-effect="non-scaling-stroke"/>
+      </g>
+    </g>`;
+  }
+
+  function editorialPanel(notes, count, generations, measure) {
+    const footerLines = [notes?.summary, notes?.source, notes?.credit]
+      .filter(value => typeof value === 'string' && value.trim()).map(value => value.trim());
+    const text = footerLines.map((line,index) => {
+      const size = Math.min(15, Math.floor(234 * 15 / Math.max(1,measure(line,15))));
+      if (size < 11) throw new RangeError('النص التعريفي أطول من مساحة بطاقة اللوحة');
+      return `<text x="211" y="${1572+index*17}" font-size="${size}" data-poster-editorial-line="">${escape(line)}</text>`;
+    }).join('');
+    return `<g data-poster-editorial="">
+      <rect x="76" y="1520" width="270" height="104" rx="10" fill="#fff8e8" stroke="#b8892b" stroke-width="2.2"/>
+      <rect x="82" y="1526" width="258" height="92" rx="6" fill="none" stroke="#c9a95f" stroke-width=".8"/>
+      <text x="211" y="${text?'1551':'1561'}" font-size="19" font-weight="700">${count} اسمًا في الشجرة</text>
+      ${text || `<text x="211" y="1596" font-size="16">${generations} أجيال</text>`}
+    </g>`;
+  }
+
+  function render(doc, w, h, measure, style, generationOffset = 0, options) {
     const result = layout(doc, { width: w, height: h }, measure, style);
     const { nodes, links, font, root, maxDepth } = result;
     const improved = result.style === 'organic-improved';
@@ -1148,14 +1196,15 @@
       const x = 895 + (i % 7) * 32, y = 1581 + Math.floor(i / 7) * 18;
       return `<circle cx="${x}" cy="${y}" r="5" fill="${core.color(doc.presentation, i+generationOffset)}"/><text x="${x+8}" y="${y+4}" font-size="${generationFont*.7}" direction="ltr" text-anchor="start">${i+1+generationOffset}</text>`;
     }).join('');
-    const markup = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="${w}mm" height="${h}mm" viewBox="0 0 ${boardWidth} ${boardHeight}" text-rendering="geometricPrecision" font-family="Tahoma,Arial,sans-serif"><title>${escape(title)}</title>${decoration.definitions}
+    const fontFamily = options?.nameFont === 'Amiri' ? 'Amiri,Tahoma,Arial,sans-serif' : 'Tahoma,Arial,sans-serif';
+    const markup = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="${w}mm" height="${h}mm" viewBox="0 0 ${boardWidth} ${boardHeight}" text-rendering="geometricPrecision" font-family="${fontFamily}"><title>${escape(title)}</title>${decoration.definitions}
       <g id="hp-background-layer" inkscape:groupmode="layer" inkscape:label="الخلفية" transform="${boardTransform}">${decoration.background}</g>
       <g id="hp-frame-layer" inkscape:groupmode="layer" inkscape:label="الإطار" transform="${boardTransform}">${decoration.frame}</g>
-      <g id="hp-trunk-layer" inkscape:groupmode="layer" inkscape:label="الجذع" transform="${trunkTransform}">${improved?`<ellipse cx="600" cy="1558" rx="154" ry="16" fill="#283620" opacity=".18"/><ellipse cx="${round(root.x)}" cy="${round(root.y)}" rx="${round(root.shapeWidth/2+13)}" ry="${round(root.shapeHeight/2+13)}" fill="url(#hp-medallion)" stroke="#8a6d2f" stroke-width="3"/><ellipse cx="${round(root.x)}" cy="${round(root.y)}" rx="${round(root.shapeWidth/2+6)}" ry="${round(root.shapeHeight/2+6)}" fill="none" stroke="#fff8e8" stroke-width="1.2"/>`:''}${decoration.trunk}</g>
+      <g id="hp-trunk-layer" inkscape:groupmode="layer" inkscape:label="الجذع" transform="${trunkTransform}">${decoration.trunk}${improved?rootMedallion(root):''}</g>
       <g transform="${headerTransform}" fill="${ink}" direction="rtl" text-anchor="middle">${improved?`<text x="600" y="118" font-size="${Math.min(64,titleFont+6)}" font-weight="700" font-family="Amiri,Tahoma,serif">${escape(title)}</text><text x="600" y="146" font-size="17" font-family="Amiri,Tahoma,serif" fill="#8a6d2f">شجرة النسب · لوحة تراثية</text><path d="M235 162H482M718 162H965M582 162l18-11 18 11-18 11Z" fill="none" stroke="#a88342" stroke-width="2"/>`:`<path d="M235 157H482M718 157H965M582 157l18-11 18 11-18 11Z" fill="none" stroke="#a88342" stroke-width="2"/><text x="600" y="128" font-size="${titleFont}" font-weight="700">${escape(title)}</text>`}</g>
       <g id="hp-branches-layer" inkscape:groupmode="layer" inkscape:label="أغصان النسب">${links.map(ribbon).join('')}${improved?decorativeLeaves(links,nodes):''}</g>
       <g id="hp-names-layer" inkscape:groupmode="layer" inkscape:label="الأوراق والأسماء">${nodes.map(node => label(node,font,doc.presentation,result.style==='sector',improved,generationOffset)).join('')}</g>
-      <g transform="scale(${sx} ${sy})" fill="${ink}" text-anchor="middle" direction="rtl">${improved?`<rect x="76" y="1520" width="270" height="104" rx="10" fill="#fff8e8" stroke="#b8892b" stroke-width="2.2"/><rect x="82" y="1526" width="258" height="92" rx="7" fill="none" stroke="#c9a95f" stroke-width=".8"/><text x="211" y="1561" font-size="19" font-weight="700" font-family="Amiri,Tahoma,serif">${nodes.length} اسمًا في الشجرة</text><text x="211" y="1596" font-size="16">${maxDepth+1} أجيال</text><rect x="852" y="1520" width="270" height="104" rx="10" fill="#fff8e8" stroke="#b8892b" stroke-width="2.2"/><rect x="858" y="1526" width="258" height="92" rx="7" fill="none" stroke="#c9a95f" stroke-width=".8"/><text x="987" y="1553" font-size="17" font-weight="700" font-family="Amiri,Tahoma,serif">ألوان الأجيال</text>${legend}`:`<rect x="76" y="1520" width="270" height="104" rx="12" fill="url(#hp-gold)" stroke="#865c31" stroke-width="2"/><text x="211" y="1561" font-size="19" font-weight="700">${nodes.length} اسمًا في الشجرة</text><text x="211" y="1596" font-size="16">${maxDepth+1} أجيال</text><rect x="852" y="1520" width="270" height="104" rx="12" fill="url(#hp-gold)" stroke="#865c31" stroke-width="2"/><text x="987" y="1553" font-size="17" font-weight="700">ألوان الأجيال</text>${legend}`}</g></svg>`;
+      <g transform="scale(${sx} ${sy})" fill="${ink}" text-anchor="middle" direction="rtl">${improved?`${editorialPanel(options?.notes,nodes.length,maxDepth+1,measure)}<rect x="852" y="1520" width="270" height="104" rx="10" fill="#fff8e8" stroke="#b8892b" stroke-width="2.2"/><rect x="858" y="1526" width="258" height="92" rx="7" fill="none" stroke="#c9a95f" stroke-width=".8"/><text x="987" y="1553" font-size="17" font-weight="700" font-family="Amiri,Tahoma,serif">ألوان الأجيال</text>${legend}`:`<rect x="76" y="1520" width="270" height="104" rx="12" fill="url(#hp-gold)" stroke="#865c31" stroke-width="2"/><text x="211" y="1561" font-size="19" font-weight="700">${nodes.length} اسمًا في الشجرة</text><text x="211" y="1596" font-size="16">${maxDepth+1} أجيال</text><rect x="852" y="1520" width="270" height="104" rx="12" fill="url(#hp-gold)" stroke="#865c31" stroke-width="2"/><text x="987" y="1553" font-size="17" font-weight="700">ألوان الأجيال</text>${legend}`}</g></svg>`;
     return { ...result, svg: markup, w, h, pt: result.minimumPt, count: nodes.length, rootName: root.fullName };
   }
   function splitPages(doc, limit = 51) {
