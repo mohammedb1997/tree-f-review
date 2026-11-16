@@ -968,6 +968,8 @@
     return Math.min(child.region ? 140 : 42, 2.5 + Math.sqrt(child.descendantCount + 1) * (child.region ? 5 : 2.45));
   }
 
+  const rootFlareReach = .62;
+
   function ribbonOutline(link) {
     const { samples, child } = link;
     const start = link.width ?? branchWidth(child);
@@ -976,14 +978,33 @@
     for (const [i, point] of samples.entries()) {
       const a = samples[Math.max(0, i - 1)], b = samples[Math.min(samples.length - 1, i + 1)];
       const dx = b.x - a.x, dy = b.y - a.y;
-      const radius = mix(start, end, i / (samples.length - 1)) / (Math.hypot(dx, dy) || 1) / 2;
+      const progress = i / (samples.length - 1);
+      const flare = (link.flare || 0) * Math.max(0, 1-progress/rootFlareReach)**1.55;
+      const radius = (mix(start,end,progress)+start*flare) / (Math.hypot(dx,dy)||1) / 2;
       left.push({ x: point.x - dy * radius, y: point.y + dx * radius });
       right.push({ x: point.x + dy * radius, y: point.y - dx * radius });
     }
     return { outline: [...left,...right.reverse()], left, start };
   }
 
-  function ribbon(link) {
+  function rootFlares(links, root, nodes) {
+    const primaries = links.filter(link => link.parent === root);
+    if (ribbonContacts(links)) return links;
+    for (const flare of [1.8, 1.1, .55]) {
+      const thickened = primaries.map(link => ({...link,flare}));
+      const clear = thickened.every(link => ribbonOutline(link).outline.every((point,i,outline) => {
+        const progress = Math.min(i,outline.length-1-i)/(link.samples.length-1);
+        return progress >= rootFlareReach || !nodes.some(node => node !== root && node !== link.child &&
+          Math.abs(point.x-node.x) <= node.w/2+4 && Math.abs(point.y-node.y) <= node.h/2+4);
+      }));
+      if (!clear) continue;
+      const rendered = links.map(link => thickened.find(candidate=>candidate.child===link.child) || link);
+      if (!ribbonContacts(rendered)) return rendered;
+    }
+    return links;
+  }
+
+  function ribbon(link, botanical) {
     const { samples, child } = link;
     const { outline, left, start } = ribbonOutline(link);
     const silhouette = `M${outline.map(pair).join('L')}Z`;
@@ -991,7 +1012,11 @@
       x: mix(point.x, left[i].x, .38),
       y: mix(point.y, left[i].y, .38)
     }));
-    return `<g data-parent-id="${escape(link.parent.personId)}" data-child-id="${escape(child.personId)}"><path d="${silhouette}" fill="#513221"/><path d="M${grain.map(pair).join('L')}" stroke="#bb8959" opacity=".64" stroke-width="${round(Math.max(.42, start * .18))}" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>`;
+    const wood = botanical ? 'url(#hp-branch-wood)' : '#513221';
+    const grainColor = botanical ? '#c6945d' : '#bb8959';
+    const grainOpacity = botanical ? '.61' : '.64';
+    const flare = link.flare ? ` data-root-flare="${link.flare}"` : '';
+    return `<g data-parent-id="${escape(link.parent.personId)}" data-child-id="${escape(child.personId)}"${flare}><path d="${silhouette}" fill="${wood}"/><path d="M${grain.map(pair).join('L')}" stroke="${grainColor}" opacity="${grainOpacity}" stroke-width="${round(Math.max(.42, start * .18))}" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>`;
   }
 
   function artwork(improved) {
@@ -1005,15 +1030,16 @@
       <linearGradient id="hp-field" x2="0" y2="1"><stop stop-color="#9aaa54"/><stop offset="1" stop-color="#344a2d"/></linearGradient>
       <linearGradient id="hp-meadow" x2="0" y2="1"><stop stop-color="#dce5ba" stop-opacity=".46"/><stop offset="1" stop-color="#829650" stop-opacity=".8"/></linearGradient>
       <linearGradient id="hp-bark"><stop stop-color="#4a2c17"/><stop offset=".42" stop-color="#8a5a33"/><stop offset=".65" stop-color="#6b4226"/><stop offset="1" stop-color="#3d2215"/></linearGradient>
+      <linearGradient id="hp-branch-wood" gradientUnits="userSpaceOnUse" x1="0" x2="1200" y1="0" y2="0"><stop stop-color="#573923"/><stop offset=".35" stop-color="#6d472c"/><stop offset=".53" stop-color="#4d2d1c"/><stop offset=".76" stop-color="#6e492e"/><stop offset="1" stop-color="#50311f"/></linearGradient>
       <linearGradient id="hp-leaf" x2="0" y2="1"><stop stop-color="#f1edaf"/><stop offset=".48" stop-color="#d7e4a2"/><stop offset="1" stop-color="#99b679"/></linearGradient>
       <linearGradient id="hp-leaf-dark" x2="0" y2="1"><stop stop-color="#3f8a4a"/><stop offset="1" stop-color="#1e5c2e"/></linearGradient>
-      <linearGradient id="hp-leaf-green" x2="0" y2="1"><stop stop-color="#4caf50"/><stop offset=".55" stop-color="#2e7d32"/><stop offset="1" stop-color="#1b4d2e"/></linearGradient>
-      <linearGradient id="hp-leaf-light" x2="0" y2="1"><stop stop-color="#81c784"/><stop offset=".55" stop-color="#43a047"/><stop offset="1" stop-color="#2e7d32"/></linearGradient>
-      <linearGradient id="hp-leaf-deep" x2="0" y2="1"><stop stop-color="#388e3c"/><stop offset=".55" stop-color="#1b5e20"/><stop offset="1" stop-color="#0d3311"/></linearGradient>
+      <linearGradient id="hp-leaf-green" x2="0" y2="1"><stop stop-color="#79994c"/><stop offset=".48" stop-color="#476c39"/><stop offset="1" stop-color="#294d2c"/></linearGradient>
+      <linearGradient id="hp-leaf-light" x2="0" y2="1"><stop stop-color="#acb965"/><stop offset=".48" stop-color="#789448"/><stop offset="1" stop-color="#456330"/></linearGradient>
+      <linearGradient id="hp-leaf-deep" x2="0" y2="1"><stop stop-color="#66804a"/><stop offset=".52" stop-color="#3d6337"/><stop offset="1" stop-color="#213d28"/></linearGradient>
       <linearGradient id="hp-gold" x2="0" y2="1"><stop stop-color="#fff5d9"/><stop offset=".6" stop-color="#f4dc9e"/><stop offset="1" stop-color="#c3974c"/></linearGradient>
       <linearGradient id="hp-badge" x2="0" y2="1"><stop stop-color="#fffdf5"/><stop offset=".55" stop-color="#f7e8c3"/><stop offset="1" stop-color="#e8d5a8"/></linearGradient>
       <radialGradient id="hp-medallion" cx=".5" cy=".42" r=".65"><stop stop-color="#fff8e0"/><stop offset=".7" stop-color="#f4dc9e"/><stop offset="1" stop-color="#b8892b"/></radialGradient>
-      <pattern id="hp-border" width="29" height="29" patternUnits="userSpaceOnUse"><rect width="29" height="29" fill="#f9f2df"/><path d="M14.5 2L18 11L27 14.5L18 18L14.5 27L11 18L2 14.5L11 11Z" fill="none" stroke="#b8892b" stroke-width=".85"/><path d="M14.5 7L22 14.5L14.5 22L7 14.5Z" fill="none" stroke="#8a6d2f" stroke-width=".55"/><circle cx="14.5" cy="14.5" r="2" fill="#b8892b"/></pattern>
+      <pattern id="hp-border" width="29" height="29" patternUnits="userSpaceOnUse"><rect width="29" height="29" fill="#263e35"/><path d="M14.5 2L18 11L27 14.5L18 18L14.5 27L11 18L2 14.5L11 11Z" fill="none" stroke="#e0bb70" stroke-width=".85"/><path d="M14.5 7L22 14.5L14.5 22L7 14.5Z" fill="#9b7843" stroke="#f2d59d" stroke-width=".55"/><circle cx="14.5" cy="14.5" r="1.8" fill="#f7e6b6"/></pattern>
     </defs>`;
       const background = `
     <rect x="28" y="28" width="1144" height="1641" rx="3" fill="url(#hp-sky)" stroke="#b8892b" stroke-width="2.5"/>
@@ -1116,7 +1142,8 @@
       }
       const length = distances.at(-1);
       if (length < 76) return;
-      const spots = length > 285 && bw > 8 ? [.25,.48,.72] : length > 155 ? [.36,.64] : [.5];
+      const spots = length > 350 ? [.22,.39,.58,.76] :
+        length > 240 ? [.26,.5,.74] : length > 140 ? [.36,.64] : [.5];
       for (const [slot, frac] of spots.entries()) {
         const i = distances.findIndex(distance => distance >= length * frac);
         const pt = s[i], a = s[Math.max(0, i - 2)], b = s[Math.min(s.length - 1, i + 2)];
@@ -1177,6 +1204,7 @@
     const result = layout(doc, { width: w, height: h }, measure, style);
     const { nodes, links, font, root, maxDepth } = result;
     const improved = result.style === 'organic-improved';
+    const renderedLinks = improved && nodes.length<=80 ? rootFlares(links,root,nodes) : links;
     const boardWidth=result.boardWidth||width, boardHeight=result.boardHeight||height;
     const sx=boardWidth/width, sy=boardHeight/height;
     const decoration = artwork(improved);
@@ -1202,7 +1230,7 @@
       <g id="hp-frame-layer" inkscape:groupmode="layer" inkscape:label="الإطار" transform="${boardTransform}">${decoration.frame}</g>
       <g id="hp-trunk-layer" inkscape:groupmode="layer" inkscape:label="الجذع" transform="${trunkTransform}">${decoration.trunk}${improved?rootMedallion(root):''}</g>
       <g transform="${headerTransform}" fill="${ink}" direction="rtl" text-anchor="middle">${improved?`<text x="600" y="118" font-size="${Math.min(64,titleFont+6)}" font-weight="700" font-family="Amiri,Tahoma,serif">${escape(title)}</text><text x="600" y="146" font-size="17" font-family="Amiri,Tahoma,serif" fill="#8a6d2f">شجرة النسب · لوحة تراثية</text><path d="M235 162H482M718 162H965M582 162l18-11 18 11-18 11Z" fill="none" stroke="#a88342" stroke-width="2"/>`:`<path d="M235 157H482M718 157H965M582 157l18-11 18 11-18 11Z" fill="none" stroke="#a88342" stroke-width="2"/><text x="600" y="128" font-size="${titleFont}" font-weight="700">${escape(title)}</text>`}</g>
-      <g id="hp-branches-layer" inkscape:groupmode="layer" inkscape:label="أغصان النسب">${links.map(ribbon).join('')}${improved?decorativeLeaves(links,nodes):''}</g>
+      <g id="hp-branches-layer" inkscape:groupmode="layer" inkscape:label="أغصان النسب">${renderedLinks.map(link=>ribbon(link,improved)).join('')}${improved?decorativeLeaves(renderedLinks,nodes):''}</g>
       <g id="hp-names-layer" inkscape:groupmode="layer" inkscape:label="الأوراق والأسماء">${nodes.map(node => label(node,font,doc.presentation,result.style==='sector',improved,generationOffset)).join('')}</g>
       <g transform="scale(${sx} ${sy})" fill="${ink}" text-anchor="middle" direction="rtl">${improved?`${editorialPanel(options?.notes,nodes.length,maxDepth+1,measure)}<rect x="852" y="1520" width="270" height="104" rx="10" fill="#fff8e8" stroke="#b8892b" stroke-width="2.2"/><rect x="858" y="1526" width="258" height="92" rx="7" fill="none" stroke="#c9a95f" stroke-width=".8"/><text x="987" y="1553" font-size="17" font-weight="700" font-family="Amiri,Tahoma,serif">ألوان الأجيال</text>${legend}`:`<rect x="76" y="1520" width="270" height="104" rx="12" fill="url(#hp-gold)" stroke="#865c31" stroke-width="2"/><text x="211" y="1561" font-size="19" font-weight="700">${nodes.length} اسمًا في الشجرة</text><text x="211" y="1596" font-size="16">${maxDepth+1} أجيال</text><rect x="852" y="1520" width="270" height="104" rx="12" fill="url(#hp-gold)" stroke="#865c31" stroke-width="2"/><text x="987" y="1553" font-size="17" font-weight="700">ألوان الأجيال</text>${legend}`}</g></svg>`;
     return { ...result, svg: markup, w, h, pt: result.minimumPt, count: nodes.length, rootName: root.fullName };

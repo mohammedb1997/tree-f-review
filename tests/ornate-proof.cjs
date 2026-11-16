@@ -9,7 +9,7 @@ const core = require('../Claud/botanical-core.js');
 const data = require('../evidence/organic-preview/51.json');
 
 const root = path.resolve(__dirname, '..');
-const output = path.join(root, 'evidence/ornate-proof');
+const output = path.join(root, 'evidence/living-heritage-poster');
 const notes = {
   summary: 'نموذج للوحة نسب تراثية',
   source: 'المصدر · بيانات اختبار وهمية',
@@ -31,6 +31,20 @@ async function inspect(page) {
     const names = select('[data-person-id]');
     const textBoxes = select('[data-poster-name]').map(box);
     const leaves = select('[data-poster-ornament="leaf"] > path:nth-child(2)').map(box);
+    const flares = select('[data-root-flare] > path:first-child');
+    const primaryNameContacts = flares.reduce((sum,branch) => {
+      const bounds = box(branch);
+      const inverse = branch.getCTM().inverse().multiply(svg.getCTM());
+      const {parentId,childId} = branch.parentElement.dataset;
+      return sum + textBoxes.filter((text,i) => {
+        if ([parentId,childId].includes(names[i].dataset.personId) || !overlaps(text,bounds)) return false;
+        const [x1,y1,x2,y2] = text;
+        for(let x=x1;x<=x2;x+=2) for(let y=y1;y<=y2;y+=2) {
+          if(branch.isPointInFill(new DOMPoint(x,y).matrixTransform(inverse))) return true;
+        }
+        return false;
+      }).length;
+    },0);
     const insideBoard = ([x1,y1,x2,y2]) =>
       x1>=0 && y1>=0 && x2<=svg.viewBox.baseVal.width && y2<=svg.viewBox.baseVal.height;
     const panel = svg.querySelector('[data-poster-editorial] > rect:nth-child(2)');
@@ -40,6 +54,8 @@ async function inspect(page) {
       links: select('[data-child-id]').map(node => [node.dataset.parentId,node.dataset.childId]),
       layers: select('[inkscape\\:groupmode="layer"]').length,
       ornaments: leaves.length,
+      flaredBranches: flares.length,
+      primaryNameContacts,
       leafTextContacts: leaves.filter(leaf => textBoxes.some(text=>overlaps(text,leaf))).length,
       panelTextContacts: textBoxes.filter(text=>overlaps(text,panelBox)).length,
       editorialFits: select('[data-poster-editorial-line]').every(node => {
@@ -111,8 +127,10 @@ async function run() {
       assert.equal(actual.layers,5);
       assert.ok(actual.namesInsideBoard && actual.editorialFits && deterministic);
       assert.equal(actual.panelTextContacts,0);
+      assert.equal(actual.primaryNameContacts,0);
       if (nameFont==='Tahoma') {
         assert.equal(actual.leafTextContacts,0);
+        assert.equal(actual.flaredBranches,expected[0].children.length);
         assert.ok(metrics.minimumPt>=14.9);
         for (const metric of ['branchCrossings','ribbonContacts','collisions','obstructedBranches'])
           assert.equal(metrics[metric],0,metric);
@@ -122,7 +140,8 @@ async function run() {
       fs.writeFileSync(path.join(output,stem+'.html'),html);
       fs.writeFileSync(path.join(output,stem+'.svg'),svg);
       summary.push({nameFont,fonts,count:actual.names.length,relationships:actual.links.length,
-        layers:actual.layers,decorativeLeaves:actual.ornaments,leafTextContacts:actual.leafTextContacts,
+        layers:actual.layers,decorativeLeaves:actual.ornaments,flaredBranches:actual.flaredBranches,
+        primaryNameContacts:actual.primaryNameContacts,leafTextContacts:actual.leafTextContacts,
         renderedNameSize:actual.renderedNameSize,editorialFits:actual.editorialFits,deterministic,...metrics});
     }
 
