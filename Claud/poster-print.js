@@ -6,13 +6,21 @@
     const button=(id,text,fn)=>{const b=el('button',text);b.id=id;b.type='button';b.className='btn';b.onclick=fn;return b;};
     const dialog=el('dialog');dialog.id='posterDialog';dialog.dir='rtl';dialog.style.cssText='width:min(1100px,96vw);max-height:94vh;overflow:auto;background:#fffdf6;color:#203c2b;padding:16px;border-radius:12px';
     const status=el('p');status.id='posterStatus';status.setAttribute('role','status');
-    const stylePicker=el('label','تصميم اللوحة ');
-    const heritageStyle=el('select');
-    heritageStyle.id='posterHeritageStyle';
-    for(const [value,title] of [['growing','التوزيع المتسع'],['organic','التاج العضوي — نموذج ٥١'],['organic-improved','التاج العضوي المحسّن']]){
-      const option=el('option',title);option.value=value;heritageStyle.append(option);
+    const stylePicker=el('fieldset');
+    stylePicker.id='posterHeritageStyle';
+    stylePicker.append(el('legend','قالب اللوحة'));
+    const styleCards=el('div');styleCards.className='poster-style-cards';stylePicker.append(styleCards);
+    const styleInputs=new Map();
+    for(const [value,title] of [['organic-improved','التاج العضوي المحسّن'],['organic','التاج العضوي الأصلي'],['growing','التوزيع المتّسع']]){
+      const card=el('label'),input=el('input'),preview=el('span'),image=el('img');
+      input.type='radio';input.name='poster-heritage-style';input.value=value;
+      preview.className='poster-style-card';
+      image.src='poster-thumbnails/'+value+'.png';image.alt='';image.width=150;image.height=212;
+      preview.append(image,el('span',title));card.append(input,preview);styleCards.append(card);
+      styleInputs.set(value,input);
     }
-    stylePicker.append(heritageStyle);
+    let preferredHeritageStyle;
+    const selectedStyle=()=>stylePicker.querySelector('input:checked')?.value || 'growing';
     const width=el('input'),height=el('input');for(const [e,id,name]of[[width,'posterWidth','عرض اللوحة بالملّيمتر'],[height,'posterHeight','ارتفاع اللوحة بالملّيمتر']]){e.id=id;e.type='number';e.min='100';e.max='5000';e.setAttribute('aria-label',name);}
     const frame=el('iframe');frame.id='posterFrame';frame.title='معاينة صورة الشجرة كاملة في صفحة واحدة';frame.setAttribute('sandbox','allow-same-origin allow-modals');frame.style.cssText='display:block;width:100%;height:65vh;background:#ddd;border:1px solid #bca';
     const reviewFrame=el('iframe');reviewFrame.id='heritageReviewFrame';reviewFrame.title='معاينة تفاعلية للوحة الأنساب';reviewFrame.setAttribute('sandbox','allow-scripts');reviewFrame.style.cssText='width:100%;height:70vh;border:1px solid #a89260;border-radius:8px';reviewFrame.hidden=true;
@@ -27,7 +35,7 @@
       if(source.mode==='heritage'){
         const ctx=D.createElement('canvas').getContext('2d');
         const measure=(name,font)=>{ctx.font=font+'px Tahoma,Arial,sans-serif';return ctx.measureText(name).width;};
-        const art=scope.HeritagePoster.render(source.doc,w,h,measure,heritageStyle.value);
+        const art=scope.HeritagePoster.render(source.doc,w,h,measure,selectedStyle());
         return {...art,html:printHtml(source.doc.title,w,h,art.svg)};
       }
       const parsed=new DOMParser().parseFromString(source.svg,'image/svg+xml');if(parsed.querySelector('parsererror'))throw Error('رسم الشجرة غير صالح');
@@ -104,12 +112,15 @@
         if(job.obstructedBranches)warnings.push('بعض مسارات الأغصان تمر خلف أوراق أخرى.');
         else if(job.branchCrossings)warnings.push('توجد تقاطعات بين بعض مسارات الأغصان.');
         if(job.ribbonContacts)warnings.push(`تلامس حواف ${job.ribbonContacts} أزواج من الأغصان غير المتصلة.`);
-        if(heritageStyle.value==='organic-improved' && heritage)warnings.push(`أصغر خط على المقاس المحدد: ${job.pt.toFixed(1)} نقطة.`);
+        if(heritage)warnings.push(`أصغر خط على المقاس المحدد: ${job.pt.toFixed(1)} نقطة.`);
         status.textContent=heritage ? [`${job.count} اسمًا في لوحة واحدة.`,...warnings].join(' ') : [`لوحة واحدة كاملة · ${job.count} اسم · ${job.w}×${job.h} مم. أصغر خط تقريبي ${job.pt.toFixed(1)} نقطة.`,...warnings,'SVG أفضل جودة للمطبعة. PNG محدود بـ4096 بكسل.'].join(' ');
       }catch(e){job=null;frame.srcdoc='';reviewFrame.srcdoc='';status.textContent=e.message;}
     }
     width.oninput=height.oninput=lock;
-    heritageStyle.onchange=build;
+    stylePicker.onchange=()=>{
+      preferredHeritageStyle=selectedStyle();
+      build();
+    };
     const applySize=button('posterApplySize','تحديث مقاس اللوحة',build);
     const saveSvg=button('posterSvg','تنزيل صورة الشجرة SVG للمطبعة',()=>{if(job&&!dirty)download('family-tree-complete-poster.svg',job.svg,'image/svg+xml');});
     const saveHtml=button('posterHtml','تنزيل ملف الطباعة — صفحة واحدة',()=>{if(job&&!dirty)download('family-tree-complete-poster.html',job.html,'text/html;charset=utf-8');});
@@ -176,6 +187,10 @@
         const doc=C.copy(readDocument());
         const heritage=mode==='heritage';
         stylePicker.hidden=!heritage;
+        if(heritage){
+          const initialStyle=preferredHeritageStyle ?? (C.visible(doc).nodes.length<=80?'organic-improved':'growing');
+          styleInputs.get(initialStyle).checked=true;
+        }
         captured={doc,mode,svg:heritage?null:readSvg()};
         heading.textContent=heritage?'لوحة الأنساب التراثية':'صورة الشجرة كاملة — لوحة واحدة';
         instructions.textContent=heritage?'كبّر اللوحة أو ابحث عن اسم. اختر شخصًا لتتبّع نسبه حتى الجذر.':'اختر مقاس اللوحة عند الطباعة وأوقف ترويسات المتصفح. يمكن تكبير الورق إذا صغرت الأسماء.';

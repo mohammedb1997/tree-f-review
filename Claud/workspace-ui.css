@@ -145,3 +145,60 @@
   .tree-workspace .workspace,.tree-workspace .canvas-wrap{overflow:visible;height:auto!important;display:block!important;width:100%!important}
   .tree-workspace #treeSvg{height:auto!important;min-height:0}
 }
+#posterHeritageStyle {
+  min-inline-size: 0;
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+#posterHeritageStyle legend {
+  margin-block-end: .4rem;
+  font-weight: 700;
+}
+.poster-style-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(.35rem, 1.5vw, .75rem);
+  max-inline-size: 40rem;
+}
+.poster-style-cards label {
+  position: relative;
+  min-inline-size: 0;
+  cursor: pointer;
+}
+.poster-style-cards input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: 0;
+  opacity: 0;
+}
+.poster-style-card {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  justify-items: center;
+  gap: .35rem;
+  height: 100%;
+  padding: .35rem;
+  border: 2px solid #c9b894;
+  border-radius: .6rem;
+  background: #fffaf0;
+  text-align: center;
+  font-size: clamp(.82rem, 2.7vw, .95rem);
+  line-height: 1.35;
+}
+.poster-style-card img {
+  display: block;
+  inline-size: min(100%, 3.5rem);
+  block-size: auto;
+  aspect-ratio: 150 / 212;
+}
+.poster-style-cards input:checked + .poster-style-card {
+  border-color: #33654b;
+  background: #e9f0e5;
+  font-weight: 700;
+}
+.poster-style-cards input:focus-visible + .poster-style-card {
+  outline: 2px solid #263e35;
+  outline-offset: 2px;
+}

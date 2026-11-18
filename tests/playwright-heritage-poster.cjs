@@ -119,13 +119,27 @@ async function run() {
     await app.reload();
     await app.waitForFunction(() => window.familyTreeDiagnostics?.snapshot().persons.length === 51);
     await app.locator('#workspaceHeritagePoster').click();
-    await app.locator('#posterHeritageStyle').selectOption('organic');
+    const picker = app.locator('#posterHeritageStyle');
+    const radio = value => picker.locator(`input[value="${value}"]`);
+    const choose = async value => {
+      await picker.locator(`label:has(input[value="${value}"])`).click();
+      assert.equal(await radio(value).isChecked(),true);
+    };
+    assert.equal(await radio('organic-improved').isChecked(),true);
+    assert.equal(await picker.getByRole('radio').count(),3);
+    await app.setViewportSize({width:390,height:844});
+    assert(await picker.locator('img').evaluateAll(images=>images.every(img=>img.complete && img.naturalWidth>0)));
+    await radio('organic-improved').focus();
+    await radio('organic-improved').press('ArrowDown');
+    assert.equal(await radio('organic').isChecked(),true);
+    await app.screenshot({path:path.join(output,'51-template-picker-mobile.png')});
     const preferredSvg = await save(app, 'posterSvg', '51-organic-from-app.svg');
     const preferredHtml = await save(app, 'posterReviewHtml', '51-organic-from-app.html');
     const originalSvg = fs.readFileSync('evidence/organic-preview/51.svg','utf8');
     assert.equal(fs.readFileSync(preferredSvg,'utf8'), originalSvg, 'The UI must reproduce the accepted 51-person SVG');
     assert(fs.readFileSync(preferredHtml,'utf8').includes(originalSvg));
-    await app.locator('#posterHeritageStyle').selectOption('organic-improved');
+    await app.setViewportSize({width:1366,height:1000});
+    await choose('organic-improved');
     assert.doesNotMatch(await app.locator('#posterStatus').textContent(), /تقاطعات|متداخلة|تمر خلف/);
     const improved = await save(app,'posterReviewHtml','51-organic-improved.html');
     const measured = await app.evaluate(() => {
@@ -167,9 +181,17 @@ async function run() {
     await check.evaluate(() => window.dispatchEvent(new Event('afterprint')));
     assert.equal(await check.locator('#art svg').getAttribute('viewBox'),zoomed);
     await check.close();
-    await app.locator('#posterHeritageStyle').selectOption('growing');
+    await choose('growing');
+    const growingSvg = await save(app,'posterSvg','51-growing-from-app.svg');
+    const growingMarkup = fs.readFileSync(growingSvg,'utf8');
+    assert.notEqual(growingMarkup,originalSvg);
+    assert((await app.locator('#posterFrame').getAttribute('srcdoc')).includes(growingMarkup));
     await app.locator('#posterClose').click();
-    report.preferredStyle = { count: 51, svgMatches: true, interactiveDownload: true, measured };
+    await app.locator('#workspaceHeritagePoster').click();
+    assert.equal(await radio('growing').isChecked(),true);
+    await app.locator('#posterClose').click();
+    report.preferredStyle = { count: 51, svgMatches: true, interactiveDownload: true,
+      templatePicker:{mobileKeyboard:true, thumbnails:3, reopenRetained:true}, measured };
     for (const count of [30, 150, 280, 500]) {
       const fixture = core.fixture(count);
       fixture.title = 'شجرة عائلة السند · نموذج تجريبي';
@@ -229,9 +251,12 @@ async function run() {
       }
       await app.locator('#workspacePoster').click();
       await app.waitForFunction(() => document.getElementById('posterDialog').open && !document.getElementById('posterPrintNow').disabled);
+      assert.equal(await picker.isVisible(),false);
       const original = await save(app, 'posterHtml', `${count}-original.html`);
       await app.locator('#posterClose').click();
       await app.locator('#workspaceHeritagePoster').click();
+      const posterStyle = count <= 80 ? 'organic-improved' : 'growing';
+      assert.equal(await radio(posterStyle).isChecked(),true);
       const preview = app.locator('#heritageReviewFrame').contentFrame();
       await preview.locator('#zoom').getByText('100%').waitFor();
       await preview.locator('#zoomIn').click();
@@ -326,7 +351,7 @@ async function run() {
       assert(selected.joins && selected.obstructedBranches === 0);
       if(adaptive) assert.equal(selected.branchCrossings,0,'Adaptive regions must not cross');
       else if (count > 40) assert(selected.branchCrossings <= Math.min(...variants.filter(item=>['packed','distributed'].includes(item.style)).map(item=>item.branchCrossings)));
-      report.samples.push({ count, variants, selected, ...printCheck, interactiveReview:true, sourceUnchanged: true, fullNames: true, relations: verified.relationships.length, nameBounds: verified.textInsideViewport });
+      report.samples.push({ count, variants, selected, posterStyle, ...printCheck, interactiveReview:true, sourceUnchanged: true, fullNames: true, relations: verified.relationships.length, nameBounds: verified.textInsideViewport });
       console.log(JSON.stringify(report.samples.at(-1)));
     }
     assert.deepEqual(report.pageErrors, []);
