@@ -10,7 +10,7 @@ const {request:send} = require('node:http');
 const {createPortal} = require('./server.cjs');
 const core = require('../Claud/botanical-core.js');
 
-test('يدير المدير الحسابات ويعدل الأفراد داخل نطاق ذريتهم فقط',async()=>{
+test('صلاحيات الفروع والبث الحي ولقطة ما قبل التعديل',{timeout:15000},async()=>{
   const directory=mkdtempSync(path.join(os.tmpdir(),'treef-portal-'));
   const filename=path.join(directory,'family.sqlite');
   const origin='http://127.0.0.1:4178';
@@ -21,6 +21,7 @@ test('يدير المدير الحسابات ويعدل الأفراد داخل 
   document.persons[1].notes='private-test-note';
   document.persons[1].customField={value:'retained'};
   let localAddress;
+  let liveResponse;
   async function start(){
     await once(portal.server.listen(0,'127.0.0.1'),'listening');
     localAddress='http://127.0.0.1:'+portal.server.address().port;
@@ -43,6 +44,21 @@ test('يدير المدير الحسابات ويعدل الأفراد داخل 
     const header=response.headers['set-cookie']?.[0];
     return {json,cookie:header?.split(';')[0],header};
   }
+  async function* events(response){
+    response.setEncoding('utf8');
+    let buffer='';
+    for await(const chunk of response){
+      buffer+=chunk;
+      let boundary;
+      while((boundary=buffer.indexOf('\n\n'))!==-1){
+        const message=buffer.slice(0,boundary);
+        buffer=buffer.slice(boundary+2);
+        if(!message.startsWith('event: '))continue;
+        const [label,data]=message.split('\n');
+        yield {name:label.slice(7),data:JSON.parse(data.slice(6))};
+      }
+    }
+  }
   try{
     await portal.initialize({login:adminIdentifier,password,document});
     await assert.rejects(()=>portal.initialize({login:adminIdentifier,password,document}),/already initialized/);
@@ -59,6 +75,18 @@ test('يدير المدير الحسابات ويعدل الأفراد داخل 
     await request('/api/activate',{method:'POST',data:{code,password},status:400});
     await login('+966501234567');
     const tree=(await request('/api/tree',{cookie:member})).json;
+    assert.equal(tree.revision,0);
+    await request('/api/live',{status:401});
+    liveResponse=await new Promise((resolve,reject)=>{
+      const req=send(localAddress+'/api/live',{headers:{host:new URL(origin).host,cookie:member}},resolve);
+      req.once('error',reject);req.end();
+    });
+    assert.match(liveResponse.headers['content-type'],/^text\/event-stream/);
+    const live=events(liveResponse);
+    const initial=(await live.next()).value;
+    assert.equal(initial.name,'tree');
+    assert.equal(initial.data.revision,0);
+    assert(!initial.data.before);
     assert.equal(tree.people.length,10);
     assert.equal(tree.people.find(p=>p.id==='test-1').writable,true);
     assert.equal(tree.people.find(p=>p.id==='test-2').writable,false);
@@ -71,6 +99,13 @@ test('يدير المدير الحسابات ويعدل الأفراد داخل 
     await add('test-2','خارج الفرع',member,403);
     await add('test-1','طلب من أصل آخر',member,403,'https://example.test');
     const son=(await add('test-1','ابن تجريبي')).json.id;
+    const added=(await live.next()).value.data;
+    assert.equal(added.revision,1);
+    assert.equal(added.before.revision,0);
+    assert(added.before.people.every(p=>p.writable===false));
+    assert(!added.before.people.some(p=>p.id===son));
+    assert(added.people.some(p=>p.id===son&&p.writable));
+    assert(!JSON.stringify(added).includes('private-test-note'));
     const [first,second]=await Promise.all([add(son,'حفيد أول'),add(son,'حفيد ثان')]);
     assert.notEqual(first.json.id,second.json.id);
     const edit=(id,name,cookie=member,status=200)=>request('/api/people/'+id,
@@ -89,6 +124,10 @@ test('يدير المدير الحسابات ويعدل الأفراد داخل 
     core.validate(backup);
     const account=(await request('/api/accounts',{cookie:admin.cookie})).json.accounts.find(a=>a.role==='member');
     await request('/api/accounts/'+account.id+'/revoke',{method:'POST',cookie:admin.cookie});
+    let notification;
+    do {notification=await live.next();} while(!notification.done&&notification.value.name!=='session-expired');
+    assert.equal(notification.value?.name,'session-expired');
+    liveResponse.destroy();
     await request('/api/me',{cookie:member,status:401});
     await login('0501234567',{status:401});
     const replacement=(await invite('member@example.test','test-1')).json.code;
@@ -99,9 +138,12 @@ test('يدير المدير الحسابات ويعدل الأفراد داخل 
     const restored=await login('member@example.test');
     const saved=(await request('/api/tree',{cookie:restored.cookie})).json;
     assert(saved.people.some(p=>p.id===first.json.id&&p.parentId===son&&p.name==='حفيد معدّل'&&p.writable));
+    assert.equal(saved.before.revision,saved.revision-1);
+    assert.notEqual(saved.before.title,saved.title);
     await request('/api/logout',{method:'POST',cookie:restored.cookie});
     await request('/api/me',{cookie:restored.cookie,status:401});
   }finally{
+    liveResponse?.destroy();
     if(portal.server.listening)await stop();
     for(const file of readdirSync(directory))unlinkSync(path.join(directory,file));
     rmdirSync(directory);

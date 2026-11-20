@@ -43,6 +43,17 @@
     </section>
     <section id="workspace" hidden>
       <div class="workspace-heading"><div><p class="eyebrow">شجرة العائلة</p><h1>الأفراد والفروع</h1><p id="permission-summary"></p></div><button id="refresh" type="button">تحديث الشجرة</button></div>
+      <section class="panel live-panel" aria-labelledby="live-tree-title">
+        <div class="tree-heading"><div><h2 id="live-tree-title">موقعك في شجرة العائلة</h2><p id="live-status" class="hint" role="status">جارٍ الاتصال بالتحديثات…</p></div>
+          <div class="tree-tools"><button id="locate-me" type="button">موقعي في الشجرة</button><label for="tree-scope" class="sr-only">نطاق عرض الشجرة</label><select id="tree-scope"><option value="all">العائلة كاملة</option><option value="branch">الفرع المحدد</option></select></div></div>
+        <p class="hint">الإطار الذهبي يحدد موقعك، والأخضر يبيّن الشخص المحدد وذريته. اختر اسمًا لعرض بياناته.</p>
+        <div id="tree-view" class="tree-canvas" tabindex="0" aria-label="شجرة العائلة الحية"></div>
+      </section>
+      <section id="comparison" class="panel comparison-panel" hidden aria-labelledby="comparison-title">
+        <h2 id="comparison-title">الشجرة قبل آخر تعديل وبعده</h2>
+        <p id="comparison-description" class="hint"></p>
+        <div class="comparison-grid"><section><h3>قبل التعديل</h3><div id="before-tree" class="tree-canvas" tabindex="0" aria-label="الشجرة قبل التعديل"></div></section><section><h3>بعد التعديل</h3><div id="after-tree" class="tree-canvas" tabindex="0" aria-label="الشجرة بعد التعديل"></div></section></div>
+      </section>
       <div class="workspace-grid">
         <section class="panel family-panel" aria-labelledby="family-title">
           <h2 id="family-title">أفراد العائلة</h2>
@@ -54,6 +65,8 @@
         <aside class="panel details" aria-labelledby="person-title">
           <h2 id="person-title">اختر شخصًا من الشجرة</h2>
           <p id="person-parent"></p>
+          <p id="person-lineage" class="hint"></p>
+          <p id="person-descendants" class="hint"></p>
           <p id="person-access" class="hint"></p>
           <form id="edit-form" method="post" hidden>
             <label for="person-name">الاسم الكامل</label>

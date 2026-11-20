@@ -4,6 +4,171 @@ const byId = id => document.getElementById(id);
 let user = null;
 let people = [];
 let selectedId = null;
+let treeSnapshot = null;
+let beforeSnapshot = null;
+let liveConnection = null;
+let connectionGeneration = 0;
+
+function descendants(rows, id) {
+  const children = new Map();
+  for (const person of rows) {
+    if (!children.has(person.parentId)) children.set(person.parentId, []);
+    children.get(person.parentId).push(person.id);
+  }
+  const found = new Set();
+  const pending = id ? [id] : [];
+  while (pending.length) {
+    const current = pending.pop();
+    if (found.has(current)) continue;
+    found.add(current);
+    pending.push(...children.get(current) || []);
+  }
+  return found;
+}
+
+function svgElement(tag, attributes = {}, text) {
+  const element = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const [name, value] of Object.entries(attributes)) element.setAttribute(name, String(value));
+  if (text !== undefined) element.textContent = text;
+  return element;
+}
+
+function drawTree(container, snapshot) {
+  container.replaceChildren();
+  if (!snapshot?.people.length) return;
+  const source = snapshot.people;
+  if(byId('tree-scope').value==='branch' && selectedId &&
+      !source.some(person=>person.id===selectedId)){
+    const empty = document.createElement('p');
+    empty.className = 'tree-empty';
+    empty.textContent = 'هذا الشخص أُضيف بعد النسخة السابقة، ويظهر فرعه في الرسم بعد التعديل.';
+    container.append(empty);
+    return;
+  }
+  const family = descendants(source, selectedId);
+  const shown = byId('tree-scope').value === 'branch' && family.size
+    ? source.filter(person => family.has(person.id)) : source;
+  const map = new Map(shown.map(person => [person.id, person]));
+  const children = new Map();
+  for (const person of shown) {
+    const parentId = map.has(person.parentId) ? person.parentId : null;
+    if (!children.has(parentId)) children.set(parentId, []);
+    children.get(parentId).push(person);
+  }
+  const context = document.createElement('canvas').getContext('2d');
+  context.font = '15px Tahoma,Arial,sans-serif';
+  const positions = new Map();
+  let cursor = 25;
+  let maximumDepth = 0;
+  const gap = 32;
+  function place(person, depth) {
+    if (positions.has(person.id)) return;
+    const width = Math.max(150, Math.ceil(context.measureText(person.name).width + 38));
+    const position = {x:0, y:depth * 120 + 65, width};
+    positions.set(person.id, position);
+    maximumDepth = Math.max(maximumDepth, depth);
+    const start = cursor;
+    const childrenHere = children.get(person.id) || [];
+    for (const child of childrenHere) place(child, depth + 1);
+    const subtreeWidth = Math.max(width, cursor - start - (childrenHere.length ? gap : 0));
+    position.x = start + subtreeWidth / 2;
+    cursor = start + subtreeWidth + gap;
+  }
+  for (const root of children.get(null) || []) place(root, 0);
+  const width = Math.max(650, cursor + 25);
+  const height = maximumDepth * 120 + 140;
+  const svg = svgElement('svg', {width, height, viewBox:`0 0 ${width} ${height}`, role:'group', 'aria-label':snapshot.title || 'شجرة العائلة'});
+  for (const person of shown) {
+    const child = positions.get(person.id);
+    const parent = positions.get(person.parentId);
+    if (!parent || !child) continue;
+    const path = svgElement('path', {
+      d:`M${width-parent.x} ${parent.y+25}C${width-parent.x} ${parent.y+77} ${width-child.x} ${child.y-77} ${width-child.x} ${child.y-25}`,
+      class:'tree-branch' + (family.has(person.id) && family.has(person.parentId) ? ' is-related' : ''),
+      'data-parent-id':person.parentId, 'data-child-id':person.id
+    });
+    svg.append(path);
+  }
+  for (const person of shown) {
+    const position = positions.get(person.id);
+    if (!position) continue;
+    const previous = beforeSnapshot?.people.find(candidate=>candidate.id===person.id);
+    const change = snapshot===treeSnapshot && beforeSnapshot
+      ? !previous ? 'added' : previous.name!==person.name ? 'renamed' : null
+      : null;
+    const className = ['tree-person',family.has(person.id)?'is-related':'',person.id===user?.personId?'is-self':'',person.id===selectedId?'is-selected':'',change?'is-changed':''].filter(Boolean).join(' ');
+    const group = svgElement('g', {transform:`translate(${width-position.x} ${position.y})`, class:className,
+      tabindex:0, role:'button','aria-label':person.name, 'aria-pressed':String(person.id===selectedId), 'data-person-id':person.id});
+    if(change){
+      group.dataset.change=change;
+      group.append(svgElement('title',{},change==='added'?'أُضيف في آخر تعديل':'تغيّر الاسم في آخر تعديل'));
+    }
+    group.append(svgElement('rect',{x:-position.width/2,y:-25,width:position.width,height:50,rx:23}));
+    group.append(svgElement('text',{'text-anchor':'middle',y:5,direction:'rtl'},person.name));
+    group.addEventListener('click',()=>selectPerson(person.id));
+    group.addEventListener('keydown',event=>{
+      if(event.key==='Enter'||event.key===' '){event.preventDefault();selectPerson(person.id);}
+    });
+    svg.append(group);
+  }
+  container.append(svg);
+}
+
+function renderTrees() {
+  const active = document.activeElement;
+  const focusPersonId = active?.dataset?.personId;
+  const focusContainer = active?.closest('.tree-canvas')?.id;
+  drawTree(byId('tree-view'), treeSnapshot);
+  const comparison = byId('comparison');
+  comparison.hidden = !beforeSnapshot;
+  if (beforeSnapshot) {
+    drawTree(byId('before-tree'), beforeSnapshot);
+    drawTree(byId('after-tree'), treeSnapshot);
+    byId('comparison-description').textContent = 'من النسخة ' + beforeSnapshot.revision + ' إلى النسخة ' + treeSnapshot.revision;
+  }
+  if(focusPersonId && focusContainer){
+    const replacement=[...byId(focusContainer).querySelectorAll('[data-person-id]')]
+      .find(element=>element.dataset.personId===focusPersonId);
+    replacement?.focus({preventScroll:true});
+  }
+}
+
+function locatePerson(id) {
+  const container = byId('tree-view');
+  const node = [...container.querySelectorAll('[data-person-id]')].find(element=>element.dataset.personId===id);
+  if (!node) return;
+  const bounds = node.getBoundingClientRect();
+  const parent = container.getBoundingClientRect();
+  container.scrollLeft += bounds.left - parent.left - (parent.width - bounds.width)/2;
+  container.scrollTop += bounds.top - parent.top - (parent.height - bounds.height)/2;
+}
+
+function stopLive() {
+  connectionGeneration++;
+  liveConnection?.close();
+  liveConnection = null;
+}
+
+function startLive() {
+  stopLive();
+  const generation = connectionGeneration;
+  const connection = new EventSource('/api/live');
+  liveConnection = connection;
+  connection.addEventListener('open',()=>{
+    if(generation===connectionGeneration)byId('live-status').textContent='متصل · التحديثات تصل مباشرة';
+  });
+  connection.addEventListener('tree',event=>{
+    if(generation!==connectionGeneration || !user)return;
+    try { applyTree(JSON.parse(event.data)); }
+    catch { byId('live-status').textContent='تعذر عرض التحديث. جارٍ إعادة المزامنة…'; }
+  });
+  connection.addEventListener('session-expired',()=>{
+    if(generation===connectionGeneration){showSignedOut();notify('انتهت الجلسة. سجّل الدخول مجددًا.');}
+  });
+  connection.addEventListener('error',()=>{
+    if(generation===connectionGeneration)byId('live-status').textContent='انقطع الاتصال · جارٍ إعادة الاتصال';
+  });
+}
 
 function notify(message, error = false) {
   const notice = byId('notice');
@@ -37,9 +202,17 @@ async function submit(form, action) {
 }
 
 function showSignedOut() {
+  stopLive();
   user = null;
   people = [];
   selectedId = null;
+  treeSnapshot = null;
+  beforeSnapshot = null;
+  byId('tree-view').replaceChildren();
+  byId('before-tree').replaceChildren();
+  byId('after-tree').replaceChildren();
+  byId('comparison').hidden = true;
+  byId('live-status').textContent = '';
   byId('workspace').hidden = true;
   byId('administration').hidden = true;
   byId('session').hidden = true;
@@ -48,7 +221,7 @@ function showSignedOut() {
   byId('accounts').replaceChildren();
   byId('parent').replaceChildren();
   byId('invite-person').replaceChildren();
-  for(const id of ['identity','person-title','person-parent','person-access','family-title','tree-count']){
+  for(const id of ['identity','person-title','person-parent','person-access','person-lineage','person-descendants','family-title','tree-count']){
     byId(id).textContent='';
   }
   for(const id of ['person-name','child-name','tree-title','invite-identifier','search']){
@@ -80,6 +253,18 @@ function selectPerson(id) {
   const parent = people.find(candidate => candidate.id === person.parentId);
   byId('person-title').textContent = person.name;
   byId('person-parent').textContent = parent ? 'الأب · ' + parent.name : 'أصل الشجرة';
+  const family = descendants(people,id);
+  const children = people.filter(candidate=>candidate.parentId===id).length;
+  byId('person-descendants').textContent = children + ' أبناء · ' + Math.max(0,family.size-1-children) + ' أحفاد وذرية';
+  const lineage = [person.name];
+  let ancestor = parent;
+  const seen = new Set([id]);
+  while(ancestor && !seen.has(ancestor.id)){
+    seen.add(ancestor.id);
+    lineage.push(ancestor.name);
+    ancestor=people.find(candidate=>candidate.id===ancestor.parentId);
+  }
+  byId('person-lineage').textContent = 'النسب · ' + lineage.join(' ← ');
   byId('person-access').textContent = person.writable
     ? 'يمكنك تعديل هذا الاسم وإضافة الأبناء لهذا الفرع.'
     : 'يمكنك الاطلاع على هذا الفرع. التعديل متاح لصاحب الفرع والمدير.';
@@ -90,6 +275,7 @@ function selectPerson(id) {
   for (const button of byId('people').querySelectorAll('button')) {
     button.setAttribute('aria-pressed', String(button.dataset.personId === id));
   }
+  renderTrees();
 }
 
 function renderPeople() {
@@ -190,8 +376,14 @@ async function loadAccounts() {
   }
 }
 
-async function loadTree() {
-  const result = await api('/api/tree');
+function applyTree(result) {
+  if(!user || !Array.isArray(result.people))return false;
+  if(treeSnapshot && Number.isFinite(result.revision) && result.revision<=treeSnapshot.revision)return false;
+  const firstSnapshot = !treeSnapshot;
+  const editing = document.activeElement?.closest('#edit-form, #add-form, #title-form');
+  const draft = editing ? [...editing.querySelectorAll('input,select')].map(input=>[input,input.value]) : [];
+  beforeSnapshot = result.before || treeSnapshot;
+  treeSnapshot = {title:result.title,people:result.people,revision:result.revision};
   people = result.people;
   byId('tree-title').value = result.title || 'شجرة العائلة';
   byId('family-title').textContent = byId('tree-title').value;
@@ -203,7 +395,19 @@ async function loadTree() {
   const initial = current || people.find(person => person.id === user.personId) || writable[0] || people[0];
   if (initial) selectPerson(initial.id);
   byId('add-form').hidden = writable.length === 0;
-  if (user.role === 'admin') await loadAccounts();
+  for(const [input,value] of draft){
+    if(input.tagName!=='SELECT' || [...input.options].some(option=>option.value===value))input.value=value;
+  }
+  if (firstSnapshot) locatePerson(initial?.id);
+  return true;
+}
+
+async function loadTree() {
+  const account = user;
+  const result = await api('/api/tree');
+  if(!account || user!==account)return;
+  applyTree(result);
+  if (account.role === 'admin') await loadAccounts();
 }
 
 async function enter() {
@@ -217,11 +421,17 @@ async function enter() {
     : 'يمكنك تعديل بياناتك وبيانات أبنائك وأحفادك، والاطلاع على شجرة العائلة.';
   byId('administration').hidden = user.role !== 'admin';
   await loadTree();
+  startLive();
 }
 
 byId('show-login').addEventListener('click', () => setAccessMode(false));
 byId('show-activate').addEventListener('click', () => setAccessMode(true));
 byId('search').addEventListener('input', renderPeople);
+byId('tree-scope').addEventListener('change',()=>{renderTrees();locatePerson(selectedId);});
+byId('locate-me').addEventListener('click',()=>{
+  const id=user?.personId || people.find(person=>!person.parentId)?.id;
+  if(id){byId('tree-scope').value='all';selectPerson(id);locatePerson(id);}
+});
 
 byId('login-form').addEventListener('submit', event => {
   event.preventDefault();

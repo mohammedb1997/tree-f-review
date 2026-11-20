@@ -55,6 +55,28 @@ p{margin:.6rem 0}
 .account small{color:#65735f}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 [hidden]{display:none!important}
+.live-panel,.comparison-panel{margin-bottom:1.3rem}
+.tree-heading{display:flex;align-items:start;justify-content:space-between;gap:1rem}
+.tree-tools{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+.tree-tools select{width:auto;max-width:100%}
+.tree-canvas{max-width:100%;height:480px;overflow:auto;background:radial-gradient(ellipse at center,#fffdf5,#f1ead7);border:1px solid #d6c9a7;border-radius:.7rem;direction:ltr;overscroll-behavior:contain}
+.tree-canvas svg{display:block;max-width:none;font-family:Tahoma,Arial,sans-serif}
+.tree-branch{fill:none;stroke:#9b8155;stroke-width:2.5}
+.tree-branch.is-related{stroke:#426a47;stroke-width:3.5}
+.tree-person{cursor:pointer}
+.tree-person rect{fill:#fffdf6;stroke:#c8b995;stroke-width:1.5}
+.tree-person text{fill:#293d30;font-size:15px;unicode-bidi:plaintext}
+.tree-person.is-related rect{fill:#eaf0e2;stroke:#537b4b}
+.tree-person.is-self rect{stroke:#b58a28;stroke-width:4}
+.tree-person.is-selected rect{fill:#dbe8cf;stroke-width:3}
+.tree-person.is-changed rect{fill:#fff0c6;stroke:#a67720;stroke-width:3;stroke-dasharray:6 3}
+.tree-empty{margin:1.5rem;direction:rtl;text-align:start;color:#65552e}
+.tree-person:focus-visible{outline:none}
+.tree-person:focus-visible rect{stroke:#a16b14;stroke-width:4}
+.comparison-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}
+.comparison-grid>*{min-width:0}
+.comparison-grid .tree-canvas{height:330px}
+.comparison-grid h3{margin-top:0}
 @media(max-width:760px){
   main{padding:1rem .8rem 3rem}
   .site-header{padding:.8rem 1rem;align-items:start}
@@ -67,4 +89,8 @@ p{margin:.6rem 0}
   .people{max-height:48vh}
   .account{align-items:start}
   #identity{font-size:.85rem}
+  .tree-heading{display:block}
+  .tree-tools{margin-bottom:1rem}
+  .tree-canvas{height:430px}
+  .comparison-grid{grid-template-columns:minmax(0,1fr)}
 }

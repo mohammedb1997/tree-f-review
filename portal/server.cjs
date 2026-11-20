@@ -66,6 +66,10 @@ function createPortal({filename,origin}) {
     PRAGMA journal_mode=WAL;
     PRAGMA busy_timeout=5000;
     CREATE TABLE IF NOT EXISTS tree (id INTEGER PRIMARY KEY CHECK(id=1), document TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS tree_revision (
+      id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL, previous TEXT
+    );
+    INSERT OR IGNORE INTO tree_revision VALUES(1,0,NULL);
     CREATE TABLE IF NOT EXISTS accounts (
       id TEXT PRIMARY KEY, identifier TEXT UNIQUE NOT NULL, person_id TEXT UNIQUE,
       role TEXT NOT NULL CHECK(role IN ('admin','member')), password TEXT,
@@ -109,17 +113,78 @@ function createPortal({filename,origin}) {
     try {return await verify();}finally{pendingHashes--;}
   }
 
-  function projection(doc,account){
+  function publicTree(doc){
     const {nodes}=core.visible(doc);
+    return {
+      title:doc.title,
+      people:nodes.map(({personId,parentId,fullName})=>({id:personId,parentId,name:fullName}))
+    };
+  }
+
+  function projection(snapshot,account){
     const writable=new Set();
-    const rows=[];
-    for(const person of nodes){
-      const {personId:id,parentId}=person;
+    const rows=snapshot.people.map(person=>{
+      const {id,parentId}=person;
       if(account.role==='admin'||id===account.person_id||writable.has(parentId))writable.add(id);
-      rows.push({id,parentId,name:person.fullName,writable:writable.has(id)});
-    }
+      return {...person,writable:writable.has(id)};
+    });
     return {rows,writable};
   }
+
+  function version(){
+    const row=db.prepare(`SELECT document,revision,previous FROM tree
+      JOIN tree_revision ON tree.id=tree_revision.id WHERE tree.id=1`).get();
+    return {current:publicTree(JSON.parse(row.document)),revision:row.revision,
+      previous:row.previous&&JSON.parse(row.previous)};
+  }
+
+  function treeView({current,revision,previous},account){
+    const view={title:current.title,people:projection(current,account).rows,revision};
+    if(previous)view.before={title:previous.title,revision:revision-1,
+      people:previous.people.map(person=>({...person,writable:false}))};
+    return view;
+  }
+
+  function saveTree(doc,previous){
+    db.prepare('UPDATE tree SET document=? WHERE id=1').run(JSON.stringify(doc));
+    db.prepare('UPDATE tree_revision SET revision=revision+1,previous=? WHERE id=1').run(JSON.stringify(previous));
+  }
+
+  const viewers=new Set();
+  const event=(res,name,data)=>res.write(`event: ${name}\ndata: ${JSON.stringify(data)}\n\n`);
+  function endExpired(viewer){
+    event(viewer.res,'session-expired',{});
+    viewer.res.end();
+    viewers.delete(viewer);
+  }
+  function publishTree(){
+    if(!viewers.size)return;
+    const snapshot=version();
+    for(const viewer of viewers){
+      const account=accountFor(viewer.req);
+      if(!account){endExpired(viewer);continue;}
+      if(snapshot.revision===viewer.revision)continue;
+      if(viewer.res.writableLength>2*1024*1024){viewer.res.destroy();continue;}
+      viewer.revision=snapshot.revision;
+      event(viewer.res,'tree',treeView(snapshot,account));
+    }
+  }
+  function stream(req,res,account){
+    if(viewers.size>=150)throw bad(503,'الاتصال المباشر مشغول. جرّب بعد قليل.');
+    const snapshot=version();
+    const viewer={req,res,revision:snapshot.revision};
+    res.writeHead(200,{'Content-Type':'text/event-stream;charset=utf-8','X-Accel-Buffering':'no'});
+    res.on('close',()=>viewers.delete(viewer));
+    viewers.add(viewer);
+    event(res,'tree',treeView(snapshot,account));
+  }
+  const heartbeat=setInterval(()=>{
+    for(const viewer of viewers){
+      if(!accountFor(viewer.req)){endExpired(viewer);continue;}
+      viewer.res.write(': heartbeat\n\n');
+    }
+  },20000);
+  heartbeat.unref();
 
   async function input(req) {
     if(!/^application\/json(?:;|$)/i.test(req.headers['content-type']||''))throw bad(415,error.invalid);
@@ -143,7 +208,8 @@ function createPortal({filename,origin}) {
   function updatePerson(account,personId,data,method){
     return transaction(()=>{
       const doc=tree();
-      const {writable}=projection(doc,account);
+      const before=publicTree(doc);
+      const {writable}=projection(before,account);
       const name=personName(data.name);
       if(!writable.has(personId))throw bad(403,error.forbidden);
       let id=personId;
@@ -154,9 +220,13 @@ function createPortal({filename,origin}) {
           .reduce((max,relation)=>Math.max(max,Number(relation.siblingOrder)||0),-1)+1;
         doc.persons.push({personId:id,fullName:name,gender:'m',lifeStatus:'unknown'});
         doc.relationships.push({relationshipId:'father:'+id,type:'father',parentId:personId,childId:id,siblingOrder});
-      }else{doc.persons.find(person=>person.personId===id).fullName=name;}
+      }else{
+        const person=doc.persons.find(person=>person.personId===id);
+        if(person.fullName===name)return {id};
+        person.fullName=name;
+      }
       try{core.validate(doc);}catch{throw bad(400,'تعذر حفظ التعديل ضمن حدود الشجرة الحالية.');}
-      db.prepare('UPDATE tree SET document=? WHERE id=1').run(JSON.stringify(doc));
+      saveTree(doc,before);
       return {id};
     });
   }
@@ -203,20 +273,21 @@ function createPortal({filename,origin}) {
     }else{
       if(!account)throw bad(401,error.auth);
       if(method==='GET'&&pathname==='/api/me')payload={role:account.role,personId:account.person_id,identifier:account.identifier};
-      else if(method==='GET'&&pathname==='/api/tree'){
-        const doc=tree();
-        payload={title:doc.title,people:projection(doc,account).rows};
-      }
+      else if(method==='GET'&&pathname==='/api/tree')payload=treeView(version(),account);
+      else if(method==='GET'&&pathname==='/api/live'){stream(req,res,account);return;}
       else if(method==='POST'&&pathname==='/api/logout'){
         const token=(req.headers.cookie||'').match(/(?:^|;\s*)treef_session=([\w-]{43})/)?.[1];
         if(token)db.prepare('DELETE FROM sessions WHERE token=? AND account_id=?').run(digest(token),account.id);
+        for(const viewer of viewers)if(!accountFor(viewer.req))endExpired(viewer);
         setCookie(res,'',0);payload={ok:true};
       }else if(method==='POST'&&pathname==='/api/people'){
         const data=await input(req);fields(data,['parentId','name']);
         payload=updatePerson(requireCurrent(req),data.parentId,data,method);
+        publishTree();
       }else if(method==='PATCH'&&/^\/api\/people\/[^/]+$/.test(pathname)){
         const data=await input(req);fields(data,['name']);
         payload=updatePerson(requireCurrent(req),decodeURIComponent(pathname.split('/').at(-1)),data,method);
+        publishTree();
       }else{
         if(account.role!=='admin')throw bad(403,error.forbidden);
         payload=await admin(req,pathname,method);
@@ -236,12 +307,17 @@ function createPortal({filename,origin}) {
     if(method==='PATCH'&&pathname==='/api/tree'){
       const data=await input(req);fields(data,['title']);
       requireCurrent(req);
-      return transaction(()=>{
+      const result=transaction(()=>{
         const doc=tree();
-        doc.title=personName(data.title,200);
-        db.prepare('UPDATE tree SET document=? WHERE id=1').run(JSON.stringify(doc));
+        const title=personName(data.title,200);
+        if(title===doc.title)return {ok:true};
+        const before=publicTree(doc);
+        doc.title=title;
+        saveTree(doc,before);
         return {ok:true};
       });
+      publishTree();
+      return result;
     }
     if(method==='GET'&&pathname==='/api/accounts'){
       const rows=db.prepare('SELECT id,identifier,person_id,role,password IS NOT NULL AS active FROM accounts ORDER BY identifier').all();
@@ -253,7 +329,7 @@ function createPortal({filename,origin}) {
       if(typeof data.personId!=='string')throw bad(400,error.invalid);
       const code=randomToken();
       return transaction(()=>{
-        if(!projection(tree(),requireCurrent(req)).writable.has(data.personId))throw bad(400,error.invalid);
+        if(!projection(publicTree(tree()),requireCurrent(req)).writable.has(data.personId))throw bad(400,error.invalid);
         const existing=db.prepare('SELECT * FROM accounts WHERE identifier=? OR person_id=?').all(login,data.personId);
         if(existing.some(record=>record.role!=='member'||record.password||record.person_id!==data.personId))
           throw bad(409,'البريد أو الرقم أو الشخص مرتبط بحساب آخر.');
@@ -266,12 +342,14 @@ function createPortal({filename,origin}) {
     }
     if(method==='POST'&&/^\/api\/accounts\/[\w-]+\/revoke$/.test(pathname)){
       const id=pathname.split('/')[3];
-      return transaction(()=>{
+      const result=transaction(()=>{
         const revoked=db.prepare(`UPDATE accounts SET password=NULL,invitation=NULL,invite_until=NULL WHERE id=? AND role='member'`).run(id);
         if(revoked.changes!==1)throw bad(404,'الحساب غير موجود.');
         db.prepare('DELETE FROM sessions WHERE account_id=?').run(id);
         return {ok:true};
       });
+      for(const viewer of viewers)if(!accountFor(viewer.req))endExpired(viewer);
+      return result;
     }
     if(method==='GET'&&pathname==='/api/backup')return tree();
     throw bad(404,'المسار غير موجود.');
@@ -289,7 +367,7 @@ function createPortal({filename,origin}) {
       if(!e.status)console.error(e.name,e.code||'');
     });
   });
-  server.on('close',()=>db.close());
+  server.on('close',()=>{clearInterval(heartbeat);db.close();});
   async function initialize({login,password,document}){
     const id=identifier(login),hash=await passwordHash(credential(password));
     const doc=core.normalize(document);
@@ -303,11 +381,12 @@ function createPortal({filename,origin}) {
 }
 
 if(require.main===module){
-  const port=Number(process.env.TREEF_PORT||4178);
+  const mode=process.argv[2];
+  const port=Number((mode==='demo'&&process.argv[3])||process.env.TREEF_PORT||4178);
+  if(!Number.isInteger(port)||port<1||port>65535)throw Error('Invalid port');
   const localOrigin=`http://127.0.0.1:${port}`;
   const listen=portal=>portal.server.listen(port,'127.0.0.1',()=>console.log(localOrigin));
   const filename=process.env.TREEF_DB;
-  const mode=process.argv[2];
   const fail=e=>{console.error(e.message);process.exitCode=1;};
   if(mode==='demo'){
     const portal=createPortal({filename:':memory:',origin:localOrigin});
