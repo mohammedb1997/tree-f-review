@@ -221,13 +221,14 @@ function showSignedOut() {
   byId('accounts').replaceChildren();
   byId('parent').replaceChildren();
   byId('invite-person').replaceChildren();
-  for(const id of ['identity','person-title','person-parent','person-access','person-lineage','person-descendants','family-title','tree-count']){
+  for(const id of ['identity','person-title','person-parent','person-access','person-lineage','person-descendants','family-title','tree-count','invitation-person']){
     byId(id).textContent='';
   }
-  for(const id of ['person-name','child-name','tree-title','invite-identifier','search']){
+  for(const id of ['person-name','child-name','tree-title','search']){
     byId(id).value='';
   }
   byId('invitation-code').value = '';
+  byId('invitation-password').value = '';
   byId('invitation').hidden = true;
 }
 
@@ -445,7 +446,10 @@ byId('login-form').addEventListener('submit', event => {
 byId('activate-form').addEventListener('submit', event => {
   event.preventDefault();
   submit(event.currentTarget, async () => {
-    await api('/api/activate', {code:byId('code').value.trim(), password:byId('new-password').value});
+    await api('/api/activate', {
+      code:byId('code').value.trim(), initialPassword:byId('initial-password').value.trim(),
+      password:byId('new-password').value
+    });
     byId('activate-form').reset();
     setAccessMode(false);
     await enter();
@@ -486,14 +490,20 @@ byId('add-form').addEventListener('submit', event => {
 byId('invite-form').addEventListener('submit', event => {
   event.preventDefault();
   submit(event.currentTarget, async () => {
+    const personId=byId('invite-person').value;
+    const person=people.find(candidate=>candidate.id===personId);
+    byId('invitation').hidden=true;
+    byId('invitation-code').value='';
+    byId('invitation-password').value='';
     const invitation = await api('/api/invites', {
-      identifier:byId('invite-identifier').value.trim(),
-      personId:byId('invite-person').value
+      personId
     });
+    byId('invitation-person').textContent='دعوة لـ '+person.name;
     byId('invitation-code').value = invitation.code;
+    byId('invitation-password').value = invitation.initialPassword;
     byId('invitation').hidden = false;
     await loadAccounts();
-    notify('أُنشئت الدعوة. سلّم رمز التفعيل لصاحب الحساب.');
+    notify('أُنشئت الدعوة. سلّم الرمز وكلمة المرور المؤقتة لصاحب الحساب.');
   });
 });
 
@@ -509,12 +519,13 @@ byId('title-form').addEventListener('submit', event => {
 byId('copy-invitation').addEventListener('click', async () => {
   const input = byId('invitation-code');
   try {
-    await navigator.clipboard.writeText(input.value);
-    notify('نُسخ رمز الدعوة.');
+    await navigator.clipboard.writeText('رمز الدعوة: ' + input.value +
+      '\nكلمة المرور المؤقتة: ' + byId('invitation-password').value);
+    notify('نُسخت بيانات الدعوة.');
   } catch {
     input.focus();
     input.select();
-    notify('حُدد الرمز. يمكنك نسخه الآن.');
+    notify('يمكنك نسخ الرمز وكلمة المرور المؤقتة كلًّا على حدة.');
   }
 });
 

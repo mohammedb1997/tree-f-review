@@ -23,7 +23,7 @@
         </nav>
         <form id="login-form" method="post">
           <h2>أهلًا بك</h2>
-          <label for="identifier">البريد الإلكتروني أو رقم الجوال</label>
+          <label for="identifier">رمز الحساب أو معرّف حسابك السابق</label>
           <input id="identifier" name="identifier" autocomplete="username" dir="ltr" required maxlength="254">
           <label for="password">كلمة المرور</label>
           <input id="password" name="password" type="password" autocomplete="current-password" dir="ltr" required>
@@ -34,6 +34,9 @@
           <h2>فعّل حسابك</h2>
           <label for="code">رمز الدعوة</label>
           <input id="code" name="code" autocomplete="off" dir="ltr" required maxlength="256">
+          <label for="initial-password">كلمة المرور المؤقتة</label>
+          <input id="initial-password" name="initialPassword" type="password" autocomplete="off" dir="ltr" maxlength="32" aria-describedby="temporary-password-help">
+          <p id="temporary-password-help" class="hint">استخدم كلمة المرور التي سلّمها لك المدير مع الرمز. الدعوات القديمة تكتفي بالرمز.</p>
           <label for="new-password">اختر كلمة مرور</label>
           <input id="new-password" name="password" type="password" autocomplete="new-password" dir="ltr" minlength="12" required aria-describedby="password-help">
           <p id="password-help" class="hint">استخدم ١٢ محرفًا على الأقل.</p>
@@ -89,14 +92,15 @@
         <p><a href="/api/backup" download="family-tree-backup.json">تنزيل نسخة احتياطية للشجرة</a></p>
         <p class="hint">اربط الحساب بالشخص المعني. يمتد التعديل إلى هذا الشخص وأبنائه وأحفاده.</p>
         <form id="invite-form" class="invite-form" method="post">
-          <div><label for="invite-identifier">البريد الإلكتروني أو رقم الجوال</label><input id="invite-identifier" name="identifier" required dir="ltr" maxlength="254"></div>
           <div><label for="invite-person">صاحب الحساب في الشجرة</label><select id="invite-person" name="personId" required></select></div>
           <button class="primary" type="submit">إنشاء دعوة</button>
         </form>
         <div id="invitation" class="invitation" hidden>
-          <p>سلّم هذا الرمز لصاحب الحساب بطريقة خاصة لتفعيل حسابه خلال ٢٤ ساعة.</p>
+          <h3 id="invitation-person"></h3>
+          <p>سلّم الرمز وكلمة المرور المؤقتة لصاحب الحساب بطريقة خاصة. تبقى الدعوة صالحة ٢٤ ساعة ولمرة واحدة.</p>
           <label for="invitation-code">رمز الدعوة</label><input id="invitation-code" readonly dir="ltr" autocomplete="off">
-          <button id="copy-invitation" type="button">نسخ الرمز</button>
+          <label for="invitation-password">كلمة المرور المؤقتة</label><input id="invitation-password" readonly dir="ltr" autocomplete="off">
+          <button id="copy-invitation" type="button">نسخ بيانات الدعوة</button>
         </div>
         <div id="accounts" class="accounts"></div>
       </section>

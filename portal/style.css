@@ -45,7 +45,7 @@ p{margin:.6rem 0}
 .person-row small{color:#62705c;font-size:.75rem}
 .details form+form{border-top:1px solid #ddd7c7;margin-top:1.5rem;padding-top:.5rem}
 .administration{margin-top:1.5rem}
-.invite-form{display:grid;grid-template-columns:1fr 1fr auto;gap:1rem;align-items:end}
+.invite-form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:1rem;align-items:end}
 .invite-form button[type=submit]{margin:0}
 .invitation{margin:1.5rem 0;padding:1rem;border:1px solid #bda56c;border-radius:.6rem;background:#faf1d9}
 .invitation input{margin-bottom:.6rem}

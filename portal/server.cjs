@@ -11,6 +11,7 @@ const core = require('../Claud/botanical-core.js');
 const derive = promisify(scrypt);
 const digest = value => createHash('sha256').update(value).digest('hex');
 const randomToken = () => randomBytes(32).toString('base64url');
+const familyCodePattern = /^fam-[0-9a-f]{16}$/;
 const duration = 12 * 60 * 60 * 1000;
 const cookieName = 'treef_session';
 const bad = (status,message) => Object.assign(new Error(message),{status});
@@ -31,11 +32,12 @@ const assets = new Map([
 function identifier(value) {
   if(typeof value!=='string'||value.length>254)throw bad(400,error.invalid);
   const clean=value.trim().toLowerCase().replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+  if(familyCodePattern.test(clean))return clean;
   if(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean))return clean;
   const phone=clean.replace(/[\s()-]/g,'');
   if(/^05\d{8}$/.test(phone))return '+966'+phone.slice(1);
   if(/^\+[1-9]\d{7,14}$/.test(phone))return phone;
-  throw bad(400,'أدخل بريدًا إلكترونيًا أو رقم جوال مع رمز الدولة.');
+  throw bad(400,'أدخل رمز الحساب أو معرّف حسابك السابق.');
 }
 
 async function passwordHash(password,salt=randomBytes(16).toString('hex')) {
@@ -259,11 +261,24 @@ function createPortal({filename,origin}) {
       attemptWindow.delete((req.socket.remoteAddress||'local')+'\0'+id);
       startSession(res,record.id);payload={ok:true};
     }else if(method==='POST'&&pathname==='/api/activate'){
-      const data=await input(req);fields(data,['code','password']);
+      const data=await input(req);fields(data,['code','initialPassword','password']);
       const password=credential(data.password);
-      if(typeof data.code!=='string'||!/^[-\w]{43}$/.test(data.code))throw bad(400,error.invite);
-      const invitation=digest(data.code);
-      const record=db.prepare('SELECT id FROM accounts WHERE invitation=? AND invite_until>?').get(invitation,Date.now());
+      if(typeof data.code!=='string')throw bad(400,error.invite);
+      const code=data.code.trim();
+      const isFamilyCode=familyCodePattern.test(code.toLowerCase());
+      const initial=data.initialPassword;
+      if(isFamilyCode){
+        if(typeof initial!=='string'||!/^[-\w]{22}$/.test(initial))throw bad(400,error.invite);
+        if(initial===password)throw bad(400,'اختر كلمة مرور مختلفة عن كلمة المرور المؤقتة.');
+      }else if(!/^[-\w]{43}$/.test(code)||initial){
+        throw bad(400,error.invite);
+      }
+      const invitation=digest(isFamilyCode?initial:code);
+      const record=isFamilyCode
+        ? db.prepare('SELECT id FROM accounts WHERE identifier=? AND invitation=? AND invite_until>?')
+          .get(code.toLowerCase(),invitation,Date.now())
+        : db.prepare("SELECT id FROM accounts WHERE identifier NOT LIKE 'fam-%' AND invitation=? AND invite_until>?")
+          .get(invitation,Date.now());
       if(!record)throw bad(400,error.invite);
       const hashed=await limited(req,'activation',()=>passwordHash(password));
       const result=db.prepare(`UPDATE accounts SET password=?,invitation=NULL,invite_until=NULL
@@ -325,19 +340,26 @@ function createPortal({filename,origin}) {
     }
     if(method==='POST'&&pathname==='/api/invites'){
       const data=await input(req);fields(data,['identifier','personId']);
-      const login=identifier(data.identifier);
       if(typeof data.personId!=='string')throw bad(400,error.invalid);
-      const code=randomToken();
+      const legacyLogin=data.identifier===undefined?null:identifier(data.identifier);
+      if(legacyLogin&&familyCodePattern.test(legacyLogin))throw bad(400,error.invalid);
+      const initialPassword=legacyLogin?null:randomBytes(16).toString('base64url');
+      const secret=initialPassword||randomToken();
       return transaction(()=>{
-        if(!projection(publicTree(tree()),requireCurrent(req)).writable.has(data.personId))throw bad(400,error.invalid);
+        const acting=requireCurrent(req);
+        if(acting.role!=='admin'||!projection(publicTree(tree()),acting).writable.has(data.personId))
+          throw bad(400,error.invalid);
+        const existingPerson=db.prepare('SELECT identifier FROM accounts WHERE person_id=?').get(data.personId);
+        const previousCode=existingPerson?.identifier;
+        const login=legacyLogin||(familyCodePattern.test(previousCode||'')?previousCode:'fam-'+randomBytes(8).toString('hex'));
         const existing=db.prepare('SELECT * FROM accounts WHERE identifier=? OR person_id=?').all(login,data.personId);
         if(existing.some(record=>record.role!=='member'||record.password||record.person_id!==data.personId))
           throw bad(409,'البريد أو الرقم أو الشخص مرتبط بحساب آخر.');
         if(existing.length)db.prepare('UPDATE accounts SET identifier=?,invitation=?,invite_until=? WHERE id=?')
-          .run(login,digest(code),Date.now()+86400000,existing[0].id);
+          .run(login,digest(secret),Date.now()+86400000,existing[0].id);
         else db.prepare('INSERT INTO accounts VALUES(?,?,?,?,?,?,?)')
-          .run(randomUUID(),login,data.personId,'member',null,digest(code),Date.now()+86400000);
-        return {code};
+          .run(randomUUID(),login,data.personId,'member',null,digest(secret),Date.now()+86400000);
+        return initialPassword?{code:login.toUpperCase(),initialPassword}:{code:secret};
       });
     }
     if(method==='POST'&&/^\/api\/accounts\/[\w-]+\/revoke$/.test(pathname)){
