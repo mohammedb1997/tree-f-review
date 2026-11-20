@@ -6,6 +6,17 @@
     const button=(id,text,fn)=>{const b=el('button',text);b.id=id;b.type='button';b.className='btn';b.onclick=fn;return b;};
     const dialog=el('dialog');dialog.id='posterDialog';dialog.dir='rtl';dialog.style.cssText='width:min(1100px,96vw);max-height:94vh;overflow:auto;background:#fffdf6;color:#203c2b;padding:16px;border-radius:12px';
     const status=el('p');status.id='posterStatus';status.setAttribute('role','status');
+    const printNameTargetPt=9;
+    let suggestedSize;
+    const applySuggestedSize=button('posterSuggestedSize','',()=>{
+      if(!suggestedSize)return;
+      width.value=suggestedSize.width;
+      height.value=suggestedSize.height;
+      printSettings.open=true;
+      build();
+      applySize.focus();
+    });
+    applySuggestedSize.hidden=true;
     const stylePicker=el('fieldset');
     stylePicker.id='posterHeritageStyle';
     stylePicker.append(el('legend','قالب اللوحة'));
@@ -89,7 +100,18 @@
       const html=printHtml(source.doc.title,w,h,markup);
       return{svg:markup,html,w,h,pt,count:visible.length};
     }
-    const controls=[];function lock(){ready=false;dirty=true;ticket++;for(const b of controls)b.disabled=true;}
+    const controls=[];function lock(){ready=false;dirty=true;ticket++;suggestedSize=null;applySuggestedSize.hidden=true;for(const b of controls)b.disabled=true;}
+    function recommendSize({pt,w,h,boardWidth=w,boardHeight=h}){
+      if(!Number.isFinite(pt)||pt<=0||pt>=printNameTargetPt)return '';
+      const factor=Math.min(w/boardWidth,h/boardHeight)*printNameTargetPt/pt;
+      const roundUp=mm=>Math.ceil(mm*factor/5)*5;
+      const width=Math.max(100,roundUp(boardWidth)),height=Math.max(100,roundUp(boardHeight));
+      if(width>5000||height>5000)return 'للوصول إلى ٩ نقاط، جرّب تصدير لوحات الفروع.';
+      suggestedSize={width,height};
+      applySuggestedSize.textContent=`جرّب مقاس ${width} × ${height} مم`;
+      applySuggestedSize.hidden=false;
+      return 'أصغر خط دون ٩ نقاط. يمكنك تجربة المقاس المقترح أو تصدير لوحات الفروع.';
+    }
     frame.onload=()=>{try{ready=!!job&&!dirty&&frame.contentDocument?.body?.getAttribute('data-poster-token')===job.token;}catch{ready=false;}print.disabled=!ready;};
     function build(){
       lock();
@@ -112,7 +134,11 @@
         if(job.obstructedBranches)warnings.push('بعض مسارات الأغصان تمر خلف أوراق أخرى.');
         else if(job.branchCrossings)warnings.push('توجد تقاطعات بين بعض مسارات الأغصان.');
         if(job.ribbonContacts)warnings.push(`تلامس حواف ${job.ribbonContacts} أزواج من الأغصان غير المتصلة.`);
-        if(heritage)warnings.push(`أصغر خط على المقاس المحدد: ${job.pt.toFixed(1)} نقطة.`);
+        if(heritage){
+          warnings.push(`أصغر خط على المقاس المحدد: ${job.pt.toFixed(1)} نقطة.`);
+          const recommendation=recommendSize(job);
+          if(recommendation)warnings.push(recommendation);
+        }
         status.textContent=heritage ? [`${job.count} اسمًا في لوحة واحدة.`,...warnings].join(' ') : [`لوحة واحدة كاملة · ${job.count} اسم · ${job.w}×${job.h} مم. أصغر خط تقريبي ${job.pt.toFixed(1)} نقطة.`,...warnings,'SVG أفضل جودة للمطبعة. PNG محدود بـ4096 بكسل.'].join(' ');
       }catch(e){job=null;frame.srcdoc='';reviewFrame.srcdoc='';status.textContent=e.message;}
     }
@@ -177,7 +203,7 @@
     const instructions=el('p');
     const printSettings=el('details');printSettings.id='posterPrintSettings';
     printSettings.append(el('summary','خيارات الطباعة'),el('label','العرض بالملّيمتر'),width,el('label','الارتفاع بالملّيمتر'),height,applySize,saveHtml,print,saveBranches);
-    dialog.append(heading,instructions,stylePicker,status,saveReview,saveSvg,png,close,reviewFrame,printSettings,frame);D.body.append(dialog);
+    dialog.append(heading,instructions,stylePicker,status,applySuggestedSize,saveReview,saveSvg,png,close,reviewFrame,printSettings,frame);D.body.append(dialog);
     async function open(mode){
       if(dialog.open||gestureActive?.())return;
       try{

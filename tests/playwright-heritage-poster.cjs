@@ -166,8 +166,12 @@ async function run() {
     if(process.argv.includes('--preferred-pdf')){
       const file=path.resolve('output/pdf/organic-51-improved-a2.pdf');
       fs.mkdirSync(path.dirname(file),{recursive:true});
-      const svg=await check.locator('#art svg').evaluate(el=>el.outerHTML);
-      await check.setContent(`<!doctype html><meta charset="utf-8"><style>@page{size:420mm 594mm;margin:0}body{margin:0}svg{display:block;width:420mm;height:594mm}</style>${svg}`);
+      await app.locator('#posterPrintSettings summary').click();
+      await app.locator('#posterWidth').fill('420');
+      await app.locator('#posterHeight').fill('594');
+      await app.locator('#posterApplySize').click();
+      const printFile=await save(app,'posterHtml','51-organic-improved-a2-print.html');
+      await check.goto(pathToFileURL(printFile).href);
       await check.evaluate(()=>document.fonts.ready);
       await check.pdf({path:file,preferCSSPageSize:true,printBackground:true});
       await check.goto(pathToFileURL(improved).href);
@@ -266,6 +270,34 @@ async function run() {
       await app.waitForFunction(() => document.getElementById('posterDialog').open && !document.getElementById('posterPrintNow').disabled);
       const svg = await save(app, 'posterSvg', `${count}-heritage.svg`);
       const html = await save(app, 'posterHtml', `${count}-heritage.html`);
+      if (count === 500) {
+        const suggestion=app.locator('#posterSuggestedSize');
+        assert.equal(await suggestion.isVisible(),true);
+        await suggestion.click();
+        assert(Number(await app.locator('#posterWidth').inputValue())>700);
+        assert(Number(await app.locator('#posterHeight').inputValue())>1000);
+        const larger=await save(app,'posterHtml','500-recommended-size.html');
+        const largerCheck=await print(context,larger,count);
+        assert(largerCheck.minimumPt>=9);
+        assert.equal(await suggestion.isVisible(),false);
+        const dimensions = await app.locator('#posterFrame').contentFrame().locator('svg').evaluate(svg=>{
+          const {width,height}=svg.viewBox.baseVal;
+          return {widthMm:parseFloat(svg.getAttribute('width')),heightMm:parseFloat(svg.getAttribute('height')),width,height};
+        });
+        const paperAspect=dimensions.widthMm/dimensions.heightMm;
+        assert(Math.abs(paperAspect-dimensions.width/dimensions.height)<.01);
+        report.printRecommendation={count,minimumPt:largerCheck.minimumPt,...dimensions};
+        if(process.argv.includes('--preferred-pdf')){
+          const proof=await context.newPage();
+          try {
+            await proof.goto(pathToFileURL(larger).href);
+            await proof.evaluate(()=>document.fonts.ready);
+            await proof.pdf({path:'output/pdf/heritage-500-recommended.pdf',preferCSSPageSize:true,printBackground:true});
+          } finally {
+            await proof.close();
+          }
+        }
+      }
       if (count === 150 || count === 500) {
         await app.locator('#posterWidth').fill('420');
         await app.locator('#posterHeight').fill('594');
