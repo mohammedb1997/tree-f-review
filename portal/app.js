@@ -151,6 +151,10 @@ function stopLive() {
 
 function startLive() {
   stopLive();
+  if(globalThis.familyPortalPreview){
+    byId('live-status').textContent='تجربة محلية في هذا التبويب';
+    return;
+  }
   const generation = connectionGeneration;
   const connection = new EventSource('/api/live');
   liveConnection = connection;
@@ -177,6 +181,7 @@ function notify(message, error = false) {
 }
 
 async function api(url, data, method = 'POST') {
+  if(globalThis.familyPortalPreview)return globalThis.familyPortalPreview.request(url,data,method);
   const response = await fetch(url, data === undefined
     ? {credentials:'same-origin'}
     : {method, credentials:'same-origin', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
