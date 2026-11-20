@@ -46,6 +46,17 @@ test('دعوة وتحديد موقع العضو ومقارنة تعديل حي �
     await member.locator('#activate-form button[type=submit]').click();
     await member.locator('#workspace').waitFor();
     assert.equal(await member.locator('#administration').isVisible(),false);
+    assert.equal(await admin.locator('#private-daughters').isVisible(),false);
+    assert.equal(await admin.locator('#child-gender option[value="f"]').isDisabled(),true);
+    await member.locator('#child-gender').selectOption('f');
+    assert.equal(await member.locator('#parent').isDisabled(),true);
+    assert.equal(await member.locator('#parent').inputValue(),'test-1');
+    await member.locator('#child-name').fill('ابنة اختبار خصوصية الأب');
+    await member.locator('#add-form button[type=submit]').click();
+    await member.locator('#private-daughters-list').getByText('ابنة اختبار خصوصية الأب').waitFor();
+    assert(!(await member.locator('#tree-view').textContent()).includes('ابنة اختبار خصوصية الأب'));
+    assert(!(await admin.locator('#workspace').textContent()).includes('ابنة اختبار خصوصية الأب'));
+    await member.locator('#child-gender').selectOption('m');
     await member.locator('#tree-view svg [data-person-id="test-1"]').waitFor();
     assert.match(await member.locator('#person-title').textContent(),/أحمد 1/);
     await member.locator('#parent').selectOption('test-1');
@@ -94,6 +105,7 @@ test('دعوة وتحديد موقع العضو ومقارنة تعديل حي �
     await member.locator('#password').fill(password);
     await member.locator('#login-form button[type=submit]').click();
     await member.locator('#workspace').waitFor();
+    await member.locator('#private-daughters-list').getByText('ابنة اختبار خصوصية الأب').waitFor();
     mkdirSync('evidence/family-portal',{recursive:true});
     await member.screenshot({path:'evidence/family-portal/member-mobile.png',fullPage:true});
     assert.deepEqual(errors,[]);

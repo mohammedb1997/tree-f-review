@@ -85,6 +85,23 @@ test('صلاحيات الفروع والبث الحي ولقطة ما قبل ا�
     await activate(nextInvite,400);
     await login(nextInvite.code.toLowerCase());
     const member=(await request('/api/activate',{method:'POST',data:{code,password}})).cookie;
+    const grandchildFather=(await request('/api/invites',{method:'POST',data:{personId:'test-4'},cookie:admin.cookie})).json;
+    const father=(await activate(grandchildFather)).cookie;
+    const daughter='حفيدة خاصة للاختبار';
+    const addDaughter=(parentId,cookie,status=200)=>request('/api/people',{
+      method:'POST',data:{parentId,name:daughter,gender:'f'},cookie,status
+    });
+    await addDaughter('test-4',member,403);
+    await addDaughter('test-4',admin.cookie,403);
+    await addDaughter('test-4',codeMember.cookie,403);
+    assert.equal((await addDaughter('test-4',father)).json.private,true);
+    await request('/api/private-daughters',{status:401});
+    await request('/api/private-daughters',{cookie:admin.cookie,status:403});
+    assert.deepEqual((await request('/api/private-daughters',{cookie:member})).json.daughters,[]);
+    assert.deepEqual((await request('/api/private-daughters',{cookie:codeMember.cookie})).json.daughters,[]);
+    assert.equal((await request('/api/private-daughters',{cookie:father})).json.daughters[0].name,daughter);
+    assert(!JSON.stringify((await request('/api/tree',{cookie:father})).json).includes(daughter));
+    assert(!JSON.stringify((await request('/api/backup',{cookie:admin.cookie})).json).includes(daughter));
     await request('/api/activate',{method:'POST',data:{code,password},status:400});
     await login('+966501234567');
     const tree=(await request('/api/tree',{cookie:member})).json;
@@ -148,6 +165,8 @@ test('صلاحيات الفروع والبث الحي ولقطة ما قبل ا�
     await stop();
     portal=createPortal({filename,origin});
     await start();
+    const restoredFather=(await login(grandchildFather.code)).cookie;
+    assert.equal((await request('/api/private-daughters',{cookie:restoredFather})).json.daughters[0].name,daughter);
     const restored=await login('member@example.test');
     const saved=(await request('/api/tree',{cookie:restored.cookie})).json;
     assert(saved.people.some(p=>p.id===first.json.id&&p.parentId===son&&p.name==='حفيد معدّل'&&p.writable));

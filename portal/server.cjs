@@ -72,6 +72,10 @@ function createPortal({filename,origin}) {
       id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL, previous TEXT
     );
     INSERT OR IGNORE INTO tree_revision VALUES(1,0,NULL);
+    CREATE TABLE IF NOT EXISTS private_daughters (
+      id TEXT PRIMARY KEY, father_id TEXT NOT NULL, name TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS private_daughters_father ON private_daughters(father_id);
     CREATE TABLE IF NOT EXISTS accounts (
       id TEXT PRIMARY KEY, identifier TEXT UNIQUE NOT NULL, person_id TEXT UNIQUE,
       role TEXT NOT NULL CHECK(role IN ('admin','member')), password TEXT,
@@ -233,6 +237,20 @@ function createPortal({filename,origin}) {
     });
   }
 
+  function privateDaughters(account){
+    if(!account.person_id)throw bad(403,error.forbidden);
+    return {daughters:db.prepare('SELECT id,name FROM private_daughters WHERE father_id=? ORDER BY rowid')
+      .all(account.person_id)};
+  }
+
+  function addPrivateDaughter(account,data){
+    if(!account.person_id||account.person_id!==data.parentId)
+      throw bad(403,'إضافة الابنة متاحة للأب المباشر من حسابه فقط.');
+    const id=randomUUID();
+    db.prepare('INSERT INTO private_daughters VALUES(?,?,?)').run(id,account.person_id,personName(data.name));
+    return {id,private:true};
+  }
+
   async function handle(req,res){
     if(req.headers.host!==url.host)throw bad(403,error.forbidden);
     const method=req.method;
@@ -289,6 +307,7 @@ function createPortal({filename,origin}) {
       if(!account)throw bad(401,error.auth);
       if(method==='GET'&&pathname==='/api/me')payload={role:account.role,personId:account.person_id,identifier:account.identifier};
       else if(method==='GET'&&pathname==='/api/tree')payload=treeView(version(),account);
+      else if(method==='GET'&&pathname==='/api/private-daughters')payload=privateDaughters(account);
       else if(method==='GET'&&pathname==='/api/live'){stream(req,res,account);return;}
       else if(method==='POST'&&pathname==='/api/logout'){
         const token=(req.headers.cookie||'').match(/(?:^|;\s*)treef_session=([\w-]{43})/)?.[1];
@@ -296,9 +315,14 @@ function createPortal({filename,origin}) {
         for(const viewer of viewers)if(!accountFor(viewer.req))endExpired(viewer);
         setCookie(res,'',0);payload={ok:true};
       }else if(method==='POST'&&pathname==='/api/people'){
-        const data=await input(req);fields(data,['parentId','name']);
-        payload=updatePerson(requireCurrent(req),data.parentId,data,method);
-        publishTree();
+        const data=await input(req);fields(data,['parentId','name','gender']);
+        if(data.gender!==undefined&&!['m','f'].includes(data.gender))throw bad(400,error.invalid);
+        const acting=requireCurrent(req);
+        if(data.gender==='f')payload=addPrivateDaughter(acting,data);
+        else{
+          payload=updatePerson(acting,data.parentId,data,method);
+          publishTree();
+        }
       }else if(method==='PATCH'&&/^\/api\/people\/[^/]+$/.test(pathname)){
         const data=await input(req);fields(data,['name']);
         payload=updatePerson(requireCurrent(req),decodeURIComponent(pathname.split('/').at(-1)),data,method);

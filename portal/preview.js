@@ -7,6 +7,7 @@
   let user=admin;
   let sequence=0;
   let previous;
+  const privateDaughters=new Map();
   let tree={revision:0,title:'شجرة عائلة تجريبية',people:[
     {id:'grandfather',name:'جد العائلة التجريبية',parentId:null},
     {id:'father',name:'أحمد التجريبي',parentId:'grandfather'},
@@ -46,7 +47,18 @@
     if(route==='/api/logout'){user=null;return {};}
     if(route==='/api/me')return publicAccount(user);
     if(route==='/api/tree'&&data===undefined)return {...tree,before:previous,people:tree.people.map(person=>({...person,writable:writable(person.id)}))};
+    if(route==='/api/private-daughters'){
+      if(!user.personId)fail('السجل متاح للأب المباشر فقط.');
+      return {daughters:structuredClone(privateDaughters.get(user.personId)||[])};
+    }
     if(route==='/api/people'){
+      if(data.gender==='f'){
+        if(!user.personId||user.personId!==data.parentId)fail('إضافة الابنة متاحة للأب المباشر من حسابه فقط.');
+        const id='preview-daughter-'+(++sequence);
+        if(!privateDaughters.has(user.personId))privateDaughters.set(user.personId,[]);
+        privateDaughters.get(user.personId).push({id,name:data.name});
+        return {id,private:true};
+      }
       if(!writable(data.parentId))fail('الإضافة ضمن الفرع المخوّل.');
       const id='preview-person-'+(++sequence);
       update(()=>tree.people.push({id,parentId:data.parentId,name:data.name}));

@@ -256,6 +256,35 @@ function showSignedOut() {
   byId('invitation-code').value = '';
   byId('invitation-password').value = '';
   byId('invitation').hidden = true;
+  byId('private-daughters').hidden = true;
+  byId('private-daughters-list').replaceChildren();
+  byId('child-gender').value='m';
+  setChildForm();
+}
+
+function setChildForm(){
+  const daughter=byId('child-gender').value==='f';
+  const parent=byId('parent');
+  if(daughter&&user?.personId)parent.value=user.personId;
+  parent.disabled=daughter;
+  byId('child-name-label').textContent=daughter?'اسم الابنة الكامل':'اسم الابن الكامل';
+  byId('private-child-hint').hidden=!daughter;
+  byId('add-child-button').textContent=daughter?'إضافة إلى بناتي':'إضافة إلى الشجرة';
+}
+
+async function loadPrivateDaughters(){
+  const account=user;
+  if(!account?.personId)return;
+  const {daughters}=await api('/api/private-daughters');
+  if(user!==account)return;
+  const items=daughters.map(daughter=>{
+    const item=document.createElement('li');
+    item.textContent=daughter.name;
+    return item;
+  });
+  byId('private-daughters-list').replaceChildren(...items);
+  byId('private-daughters-empty').hidden=items.length>0;
+  byId('private-daughters').hidden=false;
 }
 
 function setAccessMode(activate) {
@@ -298,7 +327,7 @@ function selectPerson(id) {
   byId('edit-form').hidden = !person.writable;
   byId('person-name').value = person.name;
   byId('add-form').hidden = !people.some(candidate => candidate.writable);
-  if (person.writable) byId('parent').value = person.id;
+  if (person.writable && byId('child-gender').value==='m') byId('parent').value = person.id;
   for (const button of byId('people').querySelectorAll('button')) {
     button.setAttribute('aria-pressed', String(button.dataset.personId === id));
   }
@@ -425,6 +454,7 @@ function applyTree(result) {
   for(const [input,value] of draft){
     if(input.tagName!=='SELECT' || [...input.options].some(option=>option.value===value))input.value=value;
   }
+  setChildForm();
   if (firstSnapshot) locatePerson(initial?.id);
   return true;
 }
@@ -447,13 +477,16 @@ async function enter() {
     ? 'أنت المدير العام. يمكنك إدارة جميع الأفراد وحسابات العائلة.'
     : 'يمكنك تعديل بياناتك وبيانات أبنائك وأحفادك، والاطلاع على شجرة العائلة.';
   byId('administration').hidden = user.role !== 'admin';
+  byId('child-gender').querySelector('option[value="f"]').disabled=!user.personId;
   await loadTree();
+  await loadPrivateDaughters();
   startLive();
 }
 
 byId('show-login').addEventListener('click', () => setAccessMode(false));
 byId('show-activate').addEventListener('click', () => setAccessMode(true));
 byId('search').addEventListener('input', renderPeople);
+byId('child-gender').addEventListener('change',setChildForm);
 byId('tree-scope').addEventListener('change',()=>{renderTrees();locatePerson(selectedId);});
 byId('locate-me').addEventListener('click',()=>{
   const id=user?.personId || people.find(person=>!person.parentId)?.id;
@@ -491,6 +524,7 @@ byId('logout').addEventListener('click', () => submit(byId('session'), async () 
 
 byId('refresh').addEventListener('click', () => submit(byId('workspace'), async () => {
   await loadTree();
+  await loadPrivateDaughters();
   showTreeChange(lastChangedPerson());
   notify('حُدّثت الشجرة.');
 }));
@@ -507,13 +541,20 @@ byId('edit-form').addEventListener('submit', event => {
 byId('add-form').addEventListener('submit', event => {
   event.preventDefault();
   submit(event.currentTarget, async () => {
-    const parentId=byId('parent').value;
-    const {id}=await api('/api/people', {parentId, name:byId('child-name').value.trim()});
+    const gender=byId('child-gender').value;
+    const parentId=gender==='f'?user?.personId:byId('parent').value;
+    const result=await api('/api/people', {parentId, gender, name:byId('child-name').value.trim()});
     byId('child-name').value = '';
+    if(result.private){
+      await loadPrivateDaughters();
+      byId('private-daughters-title').focus();
+      notify('حُفظ اسم الابنة في قسم بناتي.');
+      return;
+    }
     await loadTree();
     if(!user)return;
     selectPerson(parentId);
-    showTreeChange(id);
+    showTreeChange(result.id);
     notify('أُضيف الابن إلى الشجرة.');
   });
 });

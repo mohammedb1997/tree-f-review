@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>تجربة بوابة العائلة</title>
   <link rel="stylesheet" href="style.css">
-  <script src="preview.js?v=b3594b1016" defer></script>
-  <script src="app.js?v=b3594b1016" defer></script>
+  <script src="preview.js?v=a1c25c0883" defer></script>
+  <script src="app.js?v=a1c25c0883" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -79,15 +79,24 @@
             <button type="submit">حفظ الاسم</button>
           </form>
           <form id="add-form" method="post" hidden>
-            <h3>إضافة ابن</h3>
+            <h3>إضافة إلى الأسرة</h3>
+            <label for="child-gender">الجنس</label>
+            <select id="child-gender" name="gender"><option value="m">ابن</option><option value="f">ابنة — خاصة بالأب</option></select>
             <label for="parent">الأب</label>
             <select id="parent" name="parentId" required></select>
-            <label for="child-name">اسم الابن الكامل</label>
+            <label id="child-name-label" for="child-name">اسم الابن الكامل</label>
             <input id="child-name" name="name" required maxlength="300">
-            <button class="primary" type="submit">إضافة إلى الشجرة</button>
+            <p id="private-child-hint" class="hint" hidden>يظهر سجل الابنة في قسم «بناتي» لحساب الأب المباشر.</p>
+            <button id="add-child-button" class="primary" type="submit">إضافة إلى الشجرة</button>
           </form>
         </aside>
       </div>
+      <section id="private-daughters" class="panel" hidden aria-labelledby="private-daughters-title">
+        <h2 id="private-daughters-title" tabindex="-1">بناتي</h2>
+        <p class="hint">سجلاتك الخاصة بصفتك الأب المباشر.</p>
+        <p id="private-daughters-empty">لم تضف بنات بعد.</p>
+        <ul id="private-daughters-list"></ul>
+      </section>
       <section id="administration" class="panel administration" hidden aria-labelledby="admin-title">
         <h2 id="admin-title">إدارة الحسابات والصلاحيات</h2>
         <form id="title-form" class="title-form" method="post"><label for="tree-title">عنوان شجرة العائلة</label><input id="tree-title" name="title" maxlength="200" required><button type="submit">حفظ العنوان</button></form>
