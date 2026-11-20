@@ -1,12 +1,17 @@
 'use strict';
 const fs=require('node:fs');
 const path=require('node:path');
+const {createHash}=require('node:crypto');
 
 const source=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const revision=createHash('sha256')
+  .update(fs.readFileSync(path.join(__dirname,'app.js')))
+  .update(fs.readFileSync(path.join(__dirname,'preview.js')))
+  .digest('hex').slice(0,10);
 const preview=source
   .replace('<title>بوابة العائلة</title>','<title>تجربة بوابة العائلة</title>')
   .replace('href="/portal/style.css"','href="style.css"')
-  .replace('<script src="/portal/app.js" defer></script>','<script src="preview.js" defer></script>\n  <script src="app.js" defer></script>')
+  .replace('<script src="/portal/app.js" defer></script>',`<script src="preview.js?v=${revision}" defer></script>\n  <script src="app.js?v=${revision}" defer></script>`)
   .replace('href="/portal/"','href="../"')
   .replace('<main>','<main>\n    <p class="panel">هذه معاينة عامة ببيانات وهمية. جرّب التعديل أو الدعوة داخل هذا التبويب. تعود العينة الأصلية بعد إعادة تحميل الصفحة. استخدم أسماء وهمية فقط.</p>')
   .replace(/ *<p><a href="\/api\/backup".*?<\/p>\r?\n/,'')

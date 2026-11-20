@@ -62,6 +62,33 @@ test('دعوة وتحديد موقع العضو ومقارنة تعديل حي �
     await member.locator('#people').getByRole('button',{name:/ابن تجريبي جديد/}).waitFor();
     assert((await member.locator('#after-tree').textContent()).includes('ابن تجريبي جديد'));
     assert(await member.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+    await member.locator('#tree-scope').selectOption('branch');
+    await member.locator('#parent').selectOption('test-4');
+    await member.locator('#child-name').fill('حفيد اختبار التحديث');
+    await member.locator('#add-form button[type=submit]').click();
+    const grandchild=page=>page.evaluate(()=>{
+      function centered(containerId,selector){
+        const canvas=document.getElementById(containerId);
+        const node=canvas.querySelector(selector);
+        if(!node)return false;
+        const rect=node.getBoundingClientRect(),view=canvas.getBoundingClientRect();
+        const x=(rect.left+rect.right)/2,y=(rect.top+rect.bottom)/2;
+        return x>=view.left&&x<=view.right&&y>=view.top&&y<=view.bottom;
+      }
+      const view=document.getElementById('tree-view').getBoundingClientRect();
+      return {openOnScreen:view.top<innerHeight&&view.bottom>0,
+        tree:centered('tree-view','[data-change="added"]'),
+        before:centered('before-tree','[data-person-id="test-4"]'),
+        after:centered('after-tree','[data-change="added"]')};
+    });
+    await member.locator('#notice').filter({hasText:'أُضيف الابن إلى الشجرة.'}).waitFor();
+    const visible={openOnScreen:true,tree:true,before:true,after:true};
+    assert.deepEqual(await grandchild(member),visible);
+    await member.locator('#refresh').click();
+    await member.locator('#notice').filter({hasText:'حُدّثت الشجرة.'}).waitFor();
+    assert.deepEqual(await grandchild(member),visible);
+    assert((await member.locator('#after-tree [data-change="added"]').textContent()).includes('حفيد اختبار التحديث'));
+    assert(!(await member.locator('#before-tree').textContent()).includes('حفيد اختبار التحديث'));
     await member.locator('#logout').click();
     await member.locator('#identifier').fill(code);
     await member.locator('#password').fill(password);

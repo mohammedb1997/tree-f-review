@@ -133,14 +133,35 @@ function renderTrees() {
   }
 }
 
-function locatePerson(id) {
-  const container = byId('tree-view');
+function locatePerson(id, container = byId('tree-view')) {
   const node = [...container.querySelectorAll('[data-person-id]')].find(element=>element.dataset.personId===id);
-  if (!node) return;
+  if (!node) return false;
   const bounds = node.getBoundingClientRect();
   const parent = container.getBoundingClientRect();
   container.scrollLeft += bounds.left - parent.left - (parent.width - bounds.width)/2;
   container.scrollTop += bounds.top - parent.top - (parent.height - bounds.height)/2;
+  return true;
+}
+
+function showTreeChange(personId) {
+  const person = people.find(candidate => candidate.id === personId);
+  const tree = byId('tree-view');
+  if (!locatePerson(personId, tree)) locatePerson(selectedId, tree);
+  if (beforeSnapshot) {
+    const before = byId('before-tree');
+    const after = byId('after-tree');
+    if (!locatePerson(personId, before) && !locatePerson(person?.parentId, before))
+      locatePerson(selectedId, before);
+    if (!locatePerson(personId, after)) locatePerson(selectedId, after);
+  }
+  tree.scrollIntoView({block:'center',inline:'nearest'});
+}
+
+function lastChangedPerson() {
+  if (!beforeSnapshot) return selectedId;
+  const previous = new Map(beforeSnapshot.people.map(person => [person.id, person.name]));
+  return people.find(person => !previous.has(person.id))?.id ||
+    people.find(person => previous.get(person.id) !== person.name)?.id || selectedId;
 }
 
 function stopLive() {
@@ -470,6 +491,7 @@ byId('logout').addEventListener('click', () => submit(byId('session'), async () 
 
 byId('refresh').addEventListener('click', () => submit(byId('workspace'), async () => {
   await loadTree();
+  showTreeChange(lastChangedPerson());
   notify('حُدّثت الشجرة.');
 }));
 
@@ -485,9 +507,13 @@ byId('edit-form').addEventListener('submit', event => {
 byId('add-form').addEventListener('submit', event => {
   event.preventDefault();
   submit(event.currentTarget, async () => {
-    await api('/api/people', {parentId:byId('parent').value, name:byId('child-name').value.trim()});
+    const parentId=byId('parent').value;
+    const {id}=await api('/api/people', {parentId, name:byId('child-name').value.trim()});
     byId('child-name').value = '';
     await loadTree();
+    if(!user)return;
+    selectPerson(parentId);
+    showTreeChange(id);
     notify('أُضيف الابن إلى الشجرة.');
   });
 });
