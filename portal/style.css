@@ -1,0 +1,70 @@
+:root{font-family:Tahoma,Arial,sans-serif;color:#253c31;background:#f5f1e8;font-synthesis:none;line-height:1.65}
+*{box-sizing:border-box}
+body{margin:0}
+button,input,select{font:inherit}
+button{cursor:pointer;min-height:44px;padding:.55rem 1rem;border:1px solid #b5b9a8;border-radius:.6rem;background:#fffdf7;color:#253c31}
+button:hover{background:#edf1e7}
+button:disabled{opacity:.55;cursor:wait}
+input,select{width:100%;min-height:44px;padding:.6rem .75rem;border:1px solid #b4b9a9;border-radius:.5rem;background:#fff;color:#223b30}
+input:focus,select:focus,button:focus-visible,a:focus-visible{outline:3px solid #ba954d;outline-offset:3px}
+label{display:block;margin:.8rem 0 .3rem}
+form button[type=submit]{margin-top:1rem}
+.primary{background:#284f3c;color:#fff;border-color:#284f3c}
+.primary:hover{background:#1e3c2d}
+.site-header{min-height:78px;padding:1rem max(5vw,1rem);display:flex;align-items:center;justify-content:space-between;gap:1rem;border-bottom:1px solid #d1c5a7;background:#fffaf0}
+.brand{font-weight:700;font-size:1.25rem;text-decoration:none;color:#294936}
+#session{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap}
+#identity{overflow-wrap:anywhere}
+main{max-width:1300px;margin:auto;padding:1.3rem 1.5rem 4rem}
+h1{line-height:1.35;font-size:clamp(1.8rem,4vw,2.7rem);margin:.3rem 0 1rem}
+h2{font-size:1.2rem;margin:0 0 1rem}
+h3{font-size:1.05rem}
+p{margin:.6rem 0}
+.eyebrow{color:#7f693c;font-weight:700}
+.hint{font-size:.9rem;color:#5b675c}
+#notice{min-height:1.6rem;margin:0 0 1rem;overflow-wrap:anywhere}
+#notice[data-error=true]{color:#a33025;background:#fff0e9;border:1px solid #e4b3a1;padding:.7rem;border-radius:.6rem}
+.access{display:grid;grid-template-columns:1.1fr 1fr;gap:4rem;align-items:center;min-height:65vh;max-width:1000px;margin:auto}
+.intro{padding:1rem}
+.access-card,.panel{padding:1.4rem;border:1px solid #d0c7b2;border-radius:1rem;background:#fffdf7;box-shadow:0 8px 32px #39462f08}
+.tabs{display:flex;gap:.5rem;padding-bottom:1.2rem}
+.tabs button{flex:1}
+.tabs button[aria-pressed=true]{background:#e4ecdf;border-color:#557853;font-weight:700}
+.workspace-heading{display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-bottom:1.5rem}
+.workspace-grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(280px,1fr);gap:1.3rem;align-items:start}
+.people{max-height:65vh;overflow:auto;overscroll-behavior:contain}
+.person-row{display:flex;align-items:center;width:100%;text-align:start;margin:.35rem 0;padding:.65rem .8rem;gap:.6rem;border-color:#d9ddcf}
+.person-row[aria-pressed=true]{background:#e4ecdf;border-color:#557853}
+.person-row .person-name{flex:1;overflow-wrap:anywhere}
+.person-row.depth-1{padding-inline-start:1.45rem}
+.person-row.depth-2{padding-inline-start:2.1rem}
+.person-row.depth-3{padding-inline-start:2.75rem}
+.person-row.depth-4{padding-inline-start:3.4rem}
+.person-row.depth-5{padding-inline-start:4.05rem}
+.person-row.depth-6{padding-inline-start:4.7rem}
+.person-row small{color:#62705c;font-size:.75rem}
+.details form+form{border-top:1px solid #ddd7c7;margin-top:1.5rem;padding-top:.5rem}
+.administration{margin-top:1.5rem}
+.invite-form{display:grid;grid-template-columns:1fr 1fr auto;gap:1rem;align-items:end}
+.invite-form button[type=submit]{margin:0}
+.invitation{margin:1.5rem 0;padding:1rem;border:1px solid #bda56c;border-radius:.6rem;background:#faf1d9}
+.invitation input{margin-bottom:.6rem}
+.accounts{margin-top:1.4rem}
+.account{padding:1rem 0;border-top:1px solid #dedacb;display:flex;justify-content:space-between;align-items:center;gap:1rem}
+.account p{overflow-wrap:anywhere}
+.account small{color:#65735f}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+[hidden]{display:none!important}
+@media(max-width:760px){
+  main{padding:1rem .8rem 3rem}
+  .site-header{padding:.8rem 1rem;align-items:start}
+  .access{grid-template-columns:1fr;gap:1rem;min-height:auto}
+  .intro{padding:.5rem}
+  .access-card,.panel{padding:1rem}
+  .workspace-grid{grid-template-columns:1fr}
+  .workspace-heading{align-items:start}
+  .invite-form{grid-template-columns:1fr}
+  .people{max-height:48vh}
+  .account{align-items:start}
+  #identity{font-size:.85rem}
+}

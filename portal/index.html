@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>بوابة العائلة</title>
+  <link rel="stylesheet" href="/portal/style.css">
+  <script src="/portal/app.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/portal/">شجرة العائلة</a>
+    <div id="session" hidden><span id="identity" dir="ltr"></span><button id="logout" type="button">تسجيل الخروج</button></div>
+  </header>
+  <main>
+    <p id="notice" role="status" aria-live="polite" tabindex="-1"></p>
+    <section id="access" class="access">
+      <div class="intro"><p class="eyebrow">بوابة العائلة</p><h1>كل فرع يحفظ حكايته</h1><p>ادخل إلى شجرتك، وأضف أبناءك وأحفادك من حسابك.</p></div>
+      <div class="access-card">
+        <nav class="tabs" aria-label="الدخول إلى الحساب">
+          <button id="show-login" type="button" aria-pressed="true">تسجيل الدخول</button>
+          <button id="show-activate" type="button" aria-pressed="false">تفعيل دعوة</button>
+        </nav>
+        <form id="login-form" method="post">
+          <h2>أهلًا بك</h2>
+          <label for="identifier">البريد الإلكتروني أو رقم الجوال</label>
+          <input id="identifier" name="identifier" autocomplete="username" dir="ltr" required maxlength="254">
+          <label for="password">كلمة المرور</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" dir="ltr" required>
+          <button class="primary" type="submit">دخول</button>
+          <p class="hint">اطلب من المدير دعوة لحسابك أو إعادة تفعيله عند فقد كلمة المرور.</p>
+        </form>
+        <form id="activate-form" method="post" hidden>
+          <h2>فعّل حسابك</h2>
+          <label for="code">رمز الدعوة</label>
+          <input id="code" name="code" autocomplete="off" dir="ltr" required maxlength="256">
+          <label for="new-password">اختر كلمة مرور</label>
+          <input id="new-password" name="password" type="password" autocomplete="new-password" dir="ltr" minlength="12" required aria-describedby="password-help">
+          <p id="password-help" class="hint">استخدم ١٢ محرفًا على الأقل.</p>
+          <button class="primary" type="submit">تفعيل الحساب</button>
+        </form>
+      </div>
+    </section>
+    <section id="workspace" hidden>
+      <div class="workspace-heading"><div><p class="eyebrow">شجرة العائلة</p><h1>الأفراد والفروع</h1><p id="permission-summary"></p></div><button id="refresh" type="button">تحديث الشجرة</button></div>
+      <div class="workspace-grid">
+        <section class="panel family-panel" aria-labelledby="family-title">
+          <h2 id="family-title">أفراد العائلة</h2>
+          <label class="sr-only" for="search">ابحث عن اسم</label>
+          <input id="search" type="search" placeholder="ابحث عن اسم…" autocomplete="off">
+          <p id="tree-count" class="hint"></p>
+          <div id="people" class="people"></div>
+        </section>
+        <aside class="panel details" aria-labelledby="person-title">
+          <h2 id="person-title">اختر شخصًا من الشجرة</h2>
+          <p id="person-parent"></p>
+          <p id="person-access" class="hint"></p>
+          <form id="edit-form" method="post" hidden>
+            <label for="person-name">الاسم الكامل</label>
+            <input id="person-name" name="name" required maxlength="300">
+            <button type="submit">حفظ الاسم</button>
+          </form>
+          <form id="add-form" method="post" hidden>
+            <h3>إضافة ابن</h3>
+            <label for="parent">الأب</label>
+            <select id="parent" name="parentId" required></select>
+            <label for="child-name">اسم الابن الكامل</label>
+            <input id="child-name" name="name" required maxlength="300">
+            <button class="primary" type="submit">إضافة إلى الشجرة</button>
+          </form>
+        </aside>
+      </div>
+      <section id="administration" class="panel administration" hidden aria-labelledby="admin-title">
+        <h2 id="admin-title">إدارة الحسابات والصلاحيات</h2>
+        <form id="title-form" class="title-form" method="post"><label for="tree-title">عنوان شجرة العائلة</label><input id="tree-title" name="title" maxlength="200" required><button type="submit">حفظ العنوان</button></form>
+        <p><a href="/api/backup" download="family-tree-backup.json">تنزيل نسخة احتياطية للشجرة</a></p>
+        <p class="hint">اربط الحساب بالشخص المعني. يمتد التعديل إلى هذا الشخص وأبنائه وأحفاده.</p>
+        <form id="invite-form" class="invite-form" method="post">
+          <div><label for="invite-identifier">البريد الإلكتروني أو رقم الجوال</label><input id="invite-identifier" name="identifier" required dir="ltr" maxlength="254"></div>
+          <div><label for="invite-person">صاحب الحساب في الشجرة</label><select id="invite-person" name="personId" required></select></div>
+          <button class="primary" type="submit">إنشاء دعوة</button>
+        </form>
+        <div id="invitation" class="invitation" hidden>
+          <p>سلّم هذا الرمز لصاحب الحساب بطريقة خاصة لتفعيل حسابه خلال ٢٤ ساعة.</p>
+          <label for="invitation-code">رمز الدعوة</label><input id="invitation-code" readonly dir="ltr" autocomplete="off">
+          <button id="copy-invitation" type="button">نسخ الرمز</button>
+        </div>
+        <div id="accounts" class="accounts"></div>
+      </section>
+    </section>
+  </main>
+</body>
+</html>

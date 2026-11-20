@@ -1,0 +1,109 @@
+'use strict';
+
+const {test} = require('node:test');
+const assert = require('node:assert/strict');
+const {mkdtempSync, readdirSync, unlinkSync, rmdirSync} = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const {once} = require('node:events');
+const {request:send} = require('node:http');
+const {createPortal} = require('./server.cjs');
+const core = require('../Claud/botanical-core.js');
+
+test('يدير المدير الحسابات ويعدل الأفراد داخل نطاق ذريتهم فقط',async()=>{
+  const directory=mkdtempSync(path.join(os.tmpdir(),'treef-portal-'));
+  const filename=path.join(directory,'family.sqlite');
+  const origin='http://127.0.0.1:4178';
+  const password='sample-secret-for-test';
+  const adminIdentifier='admin@example.test';
+  let portal=createPortal({filename,origin});
+  const document=core.fixture(10);
+  document.persons[1].notes='private-test-note';
+  document.persons[1].customField={value:'retained'};
+  let localAddress;
+  async function start(){
+    await once(portal.server.listen(0,'127.0.0.1'),'listening');
+    localAddress='http://127.0.0.1:'+portal.server.address().port;
+  }
+  const stop=()=>new Promise((resolve,reject)=>portal.server.close(e=>e?reject(e):resolve()));
+  async function request(route,{method='GET',data,cookie,status=200,requestOrigin=origin}={}){
+    const headers={host:new URL(origin).host};
+    if(method!=='GET')headers.origin=requestOrigin;
+    if(cookie)headers.cookie=cookie;
+    if(data)headers['Content-Type']='application/json';
+    const response=await new Promise((resolve,reject)=>{
+      const req=send(localAddress+route,{method,headers},resolve);
+      req.once('error',reject);
+      req.end(data?JSON.stringify(data):undefined);
+    });
+    const chunks=[];
+    for await(const chunk of response)chunks.push(chunk);
+    const json=JSON.parse(Buffer.concat(chunks).toString());
+    assert.equal(response.statusCode,status,JSON.stringify(json));
+    const header=response.headers['set-cookie']?.[0];
+    return {json,cookie:header?.split(';')[0],header};
+  }
+  try{
+    await portal.initialize({login:adminIdentifier,password,document});
+    await assert.rejects(()=>portal.initialize({login:adminIdentifier,password,document}),/already initialized/);
+    await start();
+    await request('/api/tree',{status:401});
+    const login=(identifier,opts)=>request('/api/login',{method:'POST',data:{identifier,password},...opts});
+    const admin=await login(adminIdentifier);
+    assert.match(admin.header,/HttpOnly; SameSite=Strict/);
+    await login('unknown@example.test',{status:401});
+    const invite=(identifier,personId,cookie=admin.cookie,status=200)=>request('/api/invites',{method:'POST',data:{identifier,personId},cookie,status});
+    const code=(await invite('0501234567','test-1')).json.code;
+    await invite('0501234567','test-2',admin.cookie,409);
+    const member=(await request('/api/activate',{method:'POST',data:{code,password}})).cookie;
+    await request('/api/activate',{method:'POST',data:{code,password},status:400});
+    await login('+966501234567');
+    const tree=(await request('/api/tree',{cookie:member})).json;
+    assert.equal(tree.people.length,10);
+    assert.equal(tree.people.find(p=>p.id==='test-1').writable,true);
+    assert.equal(tree.people.find(p=>p.id==='test-2').writable,false);
+    assert(!JSON.stringify(tree).includes('private-test-note'));
+    await invite('member@example.test','test-3',member,403);
+    await request('/api/backup',{cookie:member,status:403});
+    await request('/api/accounts',{cookie:member,status:403});
+    const add=(parentId,name,cookie=member,status=200,requestOrigin=origin)=>request('/api/people',
+      {method:'POST',data:{parentId,name},cookie,status,requestOrigin});
+    await add('test-2','خارج الفرع',member,403);
+    await add('test-1','طلب من أصل آخر',member,403,'https://example.test');
+    const son=(await add('test-1','ابن تجريبي')).json.id;
+    const [first,second]=await Promise.all([add(son,'حفيد أول'),add(son,'حفيد ثان')]);
+    assert.notEqual(first.json.id,second.json.id);
+    const edit=(id,name,cookie=member,status=200)=>request('/api/people/'+id,
+      {method:'PATCH',data:{name},cookie,status});
+    await edit('test-1','اسم معدّل');
+    await edit(first.json.id,'حفيد معدّل');
+    await edit('test-0','جد خارج الفرع',member,403);
+    await edit('test-0','اسم الجد',admin.cookie);
+    await request('/api/tree',{method:'PATCH',data:{title:'عنوان المدير'},cookie:member,status:403});
+    await request('/api/tree',{method:'PATCH',data:{title:'عنوان المدير'},cookie:admin.cookie});
+    const backup=(await request('/api/backup',{cookie:admin.cookie})).json;
+    assert.equal(backup.title,'عنوان المدير');
+    assert.equal(backup.relationships.length,document.relationships.length+3);
+    assert.equal(backup.persons[1].notes,'private-test-note');
+    assert.deepEqual(backup.persons[1].customField,{value:'retained'});
+    core.validate(backup);
+    const account=(await request('/api/accounts',{cookie:admin.cookie})).json.accounts.find(a=>a.role==='member');
+    await request('/api/accounts/'+account.id+'/revoke',{method:'POST',cookie:admin.cookie});
+    await request('/api/me',{cookie:member,status:401});
+    await login('0501234567',{status:401});
+    const replacement=(await invite('member@example.test','test-1')).json.code;
+    await request('/api/activate',{method:'POST',data:{code:replacement,password}});
+    await stop();
+    portal=createPortal({filename,origin});
+    await start();
+    const restored=await login('member@example.test');
+    const saved=(await request('/api/tree',{cookie:restored.cookie})).json;
+    assert(saved.people.some(p=>p.id===first.json.id&&p.parentId===son&&p.name==='حفيد معدّل'&&p.writable));
+    await request('/api/logout',{method:'POST',cookie:restored.cookie});
+    await request('/api/me',{cookie:restored.cookie,status:401});
+  }finally{
+    if(portal.server.listening)await stop();
+    for(const file of readdirSync(directory))unlinkSync(path.join(directory,file));
+    rmdirSync(directory);
+  }
+});
