@@ -289,11 +289,14 @@ function showSignedOut() {
 function setChildForm(){
   const daughter=byId('child-gender').value==='f';
   const parent=byId('parent');
-  if(daughter&&user?.personId)parent.value=user.personId;
-  parent.disabled=daughter;
+  const chooseFather=daughter&&user?.role==='admin';
+  if(daughter&&!chooseFather&&user?.personId)parent.value=user.personId;
+  parent.disabled=daughter&&!chooseFather;
   byId('child-name-label').textContent=daughter?'اسم الابنة الكامل':'اسم الابن الكامل';
   byId('private-child-hint').hidden=!daughter;
-  byId('add-child-button').textContent=daughter?'إضافة إلى بناتي':'إضافة إلى الشجرة';
+  byId('add-child-button').textContent=daughter
+    ? chooseFather?'حفظ الابنة في فرع الأب':'إضافة إلى بناتي'
+    : 'إضافة إلى الشجرة';
 }
 
 async function loadPrivateDaughters(){
@@ -416,7 +419,7 @@ function selectPerson(id) {
   byId('edit-form').hidden = !person.writable;
   byId('person-name').value = person.name;
   byId('add-form').hidden = !people.some(candidate => candidate.writable);
-  if (person.writable && byId('child-gender').value==='m') byId('parent').value = person.id;
+  if (person.writable && (user?.role==='admin'||byId('child-gender').value==='m')) byId('parent').value = person.id;
   for (const button of byId('people').querySelectorAll('button')) {
     button.setAttribute('aria-pressed', String(button.dataset.personId === id));
   }
@@ -584,7 +587,7 @@ async function enter() {
       ? 'يمكنك تعديل بياناتك وبيانات أبنائك وأحفادك، والاطلاع على شجرة العائلة.'
       : 'يظهر حسابك عند موقعك في الشجرة. اختر «الكل» للاطلاع على أفراد العائلة المسجّلين.';
   byId('administration').hidden = user.role !== 'admin';
-  byId('child-gender').querySelector('option[value="f"]').disabled=!user.canAddDaughter;
+  byId('child-gender').querySelector('option[value="f"]').disabled=!(user.role==='admin'||user.canAddDaughter);
   await loadTree();
   await loadPrivateDaughters();
   startLive();
@@ -671,14 +674,18 @@ byId('add-form').addEventListener('submit', event => {
   event.preventDefault();
   submit(event.currentTarget, async () => {
     const gender=byId('child-gender').value;
-    const parentId=gender==='f'?user?.personId:byId('parent').value;
+    const parentId=byId('parent').value;
     const result=await api('/api/people', {parentId, gender, name:byId('child-name').value.trim()});
     byId('child-name').value = '';
     if(result.private){
-      await loadPrivateDaughters();
       await loadTree();
-      byId('private-daughters-title').focus();
-      notify('حُفظ اسم الابنة في قسم بناتي.');
+      if(user?.canAddDaughter && user.personId===parentId){
+        await loadPrivateDaughters();
+        byId('private-daughters-title').focus();
+        notify('حُفظ اسم الابنة في قسم بناتي.');
+      }else{
+        notify('حُفظت الابنة، وستظهر للأب في قسم «بناتي».');
+      }
       return;
     }
     await loadTree();

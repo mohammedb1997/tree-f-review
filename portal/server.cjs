@@ -278,10 +278,13 @@ function createPortal({filename,origin}) {
   }
 
   function addPrivateDaughter(account,data){
-    if(!canAddDaughter(account)||account.person_id!==data.parentId)
-      throw bad(403,'إضافة الابنة متاحة للأب المباشر من حسابه فقط.');
+    const fatherId=data.parentId;
+    const canAdd=account.role==='admin'
+      ? publicTree(tree()).people.some(person=>person.id===fatherId)
+      : canAddDaughter(account)&&account.person_id===fatherId;
+    if(!canAdd)throw bad(403,'اختر أبًا من الشجرة. يمكن للأب إضافة بناته المباشرات.');
     const id=randomUUID();
-    db.prepare('INSERT INTO private_daughters VALUES(?,?,?)').run(id,account.person_id,personName(data.name));
+    db.prepare('INSERT INTO private_daughters VALUES(?,?,?)').run(id,fatherId,personName(data.name));
     return {id,private:true};
   }
 

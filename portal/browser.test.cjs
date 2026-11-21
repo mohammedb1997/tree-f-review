@@ -50,7 +50,14 @@ test('دعوة وتحديد موقع العضو ومقارنة تعديل حي �
     assert.equal(await member.locator('#tree-scope').inputValue(),'mine');
     assert.equal(await member.locator('#tree-view [data-person-id="test-2"]').count(),0);
     assert.equal(await admin.locator('#private-daughters').isVisible(),false);
-    assert.equal(await admin.locator('#child-gender option[value="f"]').isDisabled(),true);
+    await admin.locator('#child-gender').selectOption('f');
+    assert.equal(await admin.locator('#parent').isEnabled(),true);
+    await admin.locator('#parent').selectOption('test-1');
+    await admin.locator('#child-name').fill('ابنة أضافها المدير');
+    await admin.locator('#add-form button[type=submit]').click();
+    await admin.locator('#notice').filter({hasText:'حُفظت الابنة'}).waitFor();
+    await member.locator('#private-daughters-list').getByText('ابنة أضافها المدير').waitFor();
+    assert(!(await admin.locator('#tree-view').textContent()).includes('ابنة أضافها المدير'));
     await member.locator('#child-gender').selectOption('f');
     assert.equal(await member.locator('#parent').isDisabled(),true);
     assert.equal(await member.locator('#parent').inputValue(),'test-1');

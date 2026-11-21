@@ -93,11 +93,13 @@
     }
     if(route==='/api/people'){
       if(data.gender==='f'){
-        if(!publicAccount(user).canAddDaughter||user.personId!==data.parentId)
-          fail('إضافة الابنة متاحة للأب المباشر من حسابه فقط.');
+        const allowed=user.role==='admin'
+          ? tree.people.some(person=>person.id===data.parentId)
+          : publicAccount(user).canAddDaughter&&user.personId===data.parentId;
+        if(!allowed)fail('اختر أبًا من الشجرة. يمكن للأب إضافة بناته المباشرات.');
         const id='preview-daughter-'+(++sequence);
-        if(!privateDaughters.has(user.personId))privateDaughters.set(user.personId,[]);
-        privateDaughters.get(user.personId).push({id,name:data.name});
+        if(!privateDaughters.has(data.parentId))privateDaughters.set(data.parentId,[]);
+        privateDaughters.get(data.parentId).push({id,name:data.name});
         return {id,private:true};
       }
       if(!writable(data.parentId))fail('الإضافة ضمن الفرع المخوّل.');

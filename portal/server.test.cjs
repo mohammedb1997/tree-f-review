@@ -92,13 +92,17 @@ test('صلاحيات الفروع والبث الحي ولقطة ما قبل ا�
       method:'POST',data:{parentId,name:daughter,gender:'f'},cookie,status
     });
     await addDaughter('test-4',member,403);
-    await addDaughter('test-4',admin.cookie,403);
+    await addDaughter('missing-parent',admin.cookie,403);
+    const delegated='ابنة أضافها المدير';
+    await request('/api/people',{method:'POST',data:{parentId:'test-1',name:delegated,gender:'f'},cookie:admin.cookie});
+    assert((await request('/api/private-daughters',{cookie:member})).json.daughters.some(person=>person.name===delegated));
+    assert(!(await request('/api/tree',{cookie:admin.cookie})).json.privatePeople.some(person=>person.name===delegated));
     await addDaughter('test-4',codeMember.cookie,403);
     const privateRecord=(await addDaughter('test-4',father)).json;
     assert.equal(privateRecord.private,true);
     await request('/api/private-daughters',{status:401});
     await request('/api/private-daughters',{cookie:admin.cookie,status:403});
-    assert.deepEqual((await request('/api/private-daughters',{cookie:member})).json.daughters,[]);
+    assert(!(await request('/api/private-daughters',{cookie:member})).json.daughters.some(person=>person.name===daughter));
     assert.deepEqual((await request('/api/private-daughters',{cookie:codeMember.cookie})).json.daughters,[]);
     assert.equal((await request('/api/private-daughters',{cookie:father})).json.daughters[0].name,daughter);
     const ownTree=(await request('/api/tree',{cookie:father})).json;
