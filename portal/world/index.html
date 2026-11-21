@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>جولة في شجرة العائلة</title>
+  <link rel="stylesheet" href="world.css">
+  <script type="importmap">{"imports":{"three":"./vendor/three.module.min.js"}}</script>
+  <script src="../../Claud/botanical-core.js" defer></script>
+  <script type="module" src="world.js"></script>
+</head>
+<body>
+  <header><div><h1>جولة في شجرة العائلة</h1><p>مشهد تجريبي بأسماء وهمية</p></div><a href="../preview.html">العودة إلى بوابة العائلة</a></header>
+  <main>
+    <section class="controls" aria-label="أدوات الجولة">
+      <label>حجم العينة <select id="size"><option>50</option><option>150</option><option>500</option></select></label>
+      <label>ابحث بالاسم <input id="search" type="search" placeholder="مثال: عبدالرحمن"></label>
+      <label>اختر شخصًا <select id="people"></select></label>
+      <button id="overview" type="button">عرض الشجرة كاملة</button>
+    </section>
+    <div class="layout">
+      <section id="viewport" aria-label="مشهد الشجرة ثلاثي الأبعاد">
+        <div id="labels"></div>
+        <p id="hint">اسحب للدوران، وقرّب بإصبعين أو بعجلة الفأرة. اضغط على اسم لزيارة موقعه.</p>
+        <p id="fallback" hidden>الرسم ثلاثي الأبعاد غير متاح. يمكنك البحث وتصفح النسب في البطاقة.</p>
+      </section>
+      <aside aria-labelledby="person-name">
+        <p id="generation"></p>
+        <h2 id="person-name" aria-live="polite"></h2>
+        <p id="details"></p>
+        <h3>النسب حتى الجد</h3>
+        <ol id="lineage"></ol>
+        <div class="legend"><span>● الشخص المحدد</span><span>● الأب والأجداد</span><span>● الأبناء والذرية</span></div>
+      </aside>
+    </div>
+  </main>
+</body>
+</html>

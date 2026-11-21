@@ -1,0 +1,68 @@
+'use strict';
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const {once}=require('node:events');
+const {mkdir}=require('node:fs/promises');
+const path=require('node:path');
+const {chromium}=require('playwright-core');
+const {createDemoServer}=require('./serve.cjs');
+
+const root=path.resolve(__dirname,'../..');
+
+test('3D tour opens 50, 150 and 500 people with Arabic search and lineage',{timeout:45000},async()=>{
+  const server=createDemoServer();
+  await once(server.listen(0,'127.0.0.1'),'listening');
+  const origin='http://127.0.0.1:'+server.address().port;
+  let browser;
+  try{
+    browser=await chromium.launch({channel:'chrome',chromiumSandbox:true});
+    const errors=[];
+    const evidence=path.join(root,'evidence','family-portal');
+    await mkdir(evidence,{recursive:true});
+    for(const width of [1280,390]){
+      const page=await browser.newPage({viewport:{width,height:900},hasTouch:width===390,isMobile:width===390});
+      page.on('pageerror',error=>errors.push(error.message));
+      page.on('request',request=>assert.equal(new URL(request.url()).origin,origin));
+      await page.goto(origin+'/portal/preview.html');
+      await page.getByRole('link',{name:'استكشف الشجرة ثلاثية الأبعاد'}).click();
+      await page.locator('#viewport canvas').waitFor();
+      assert.equal(await page.locator('html').getAttribute('dir'),'rtl');
+      for(const count of [50,150,500]){
+        const started=Date.now();
+        await page.locator('#size').selectOption(String(count));
+        assert.equal(await page.locator('#people option').count(),count+1);
+        await page.locator('#people').selectOption('test-'+(count-1));
+        const fullName=await page.locator('#person-name').textContent();
+        assert(fullName.endsWith(' '+(count-1)));
+        assert(await page.locator('#lineage button').count()>=3);
+        await page.locator('#search').fill(fullName);
+        assert.equal(await page.locator('#people option').count(),2);
+        await page.locator('#search').press('Enter');
+        await page.locator('#labels [aria-current=true]').waitFor();
+        await page.locator('#lineage button').first().click();
+        assert.notEqual(await page.locator('#person-name').textContent(),fullName);
+        await page.locator('#overview').click();
+        console.log(width+'px / '+count+' people: '+(Date.now()-started)+' ms including interaction');
+      }
+      assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+      await page.screenshot({path:path.join(evidence,'world-'+width+'.png'),fullPage:true});
+      await page.close();
+    }
+    const fallback=await browser.newPage();
+    await fallback.addInitScript(()=>{
+      const getContext=HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext=function(type,...options){
+        if(type.startsWith('webgl'))return null;
+        return getContext.call(this,type,...options);
+      };
+    });
+    await fallback.goto(origin+'/portal/world/index.html');
+    await fallback.locator('#fallback').waitFor();
+    await fallback.locator('#people').selectOption('test-49');
+    assert((await fallback.locator('#person-name').textContent()).endsWith(' 49'));
+    assert.deepEqual(errors,[]);
+  }finally{
+    await browser?.close();
+    await new Promise(resolve=>server.close(resolve));
+  }
+});
