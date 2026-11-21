@@ -42,7 +42,40 @@ function svgElement(tag, attributes = {}, text) {
   return element;
 }
 
-function drawTree(container, snapshot) {
+const treeColors={
+  male:{label:'ذكر',fill:'#e0eef9',stroke:'#245b81'},
+  female:{label:'أنثى',fill:'#f6e4ee',stroke:'#874269'},
+  ancestor:{label:'الأب والأجداد',fill:'#eee7fa',stroke:'#64418a'},
+  selected:{label:'الشخص المحدد',fill:'#ffefbf',stroke:'#865711'},
+  child:{label:'الأبناء المباشرون',fill:'#dceee3',stroke:'#31694d'},
+  descendant:{label:'الأحفاد والذرية',fill:'#dceef0',stroke:'#30636c'},
+  other:{label:'بقية العائلة',fill:'#fffdf6',stroke:'#796b53'}
+};
+const generationColors=['male','ancestor','child','selected','female','descendant'].map(key=>treeColors[key]);
+const arabicNumber=new Intl.NumberFormat('ar-SA');
+
+function ancestorIds(map,id){
+  const ancestors=new Set();
+  let parent=map.get(id)?.parentId;
+  while(parent && parent!==id && map.has(parent) && !ancestors.has(parent)){
+    ancestors.add(parent);
+    parent=map.get(parent).parentId;
+  }
+  return ancestors;
+}
+
+function renderTreeLegend(entries){
+  const legend=byId('tree-color-legend');
+  legend.replaceChildren(...entries.map(({label,fill,stroke})=>{
+    const item=document.createElement('li');
+    const icon=svgElement('svg',{width:16,height:16,viewBox:'0 0 16 16','aria-hidden':'true'});
+    icon.append(svgElement('circle',{cx:8,cy:8,r:6,fill,stroke,'stroke-width':2}));
+    item.append(icon,document.createTextNode(label));
+    return item;
+  }));
+}
+
+function drawTree(container, snapshot, colored = true) {
   container.replaceChildren();
   if (!snapshot?.people.length) return;
   const source = snapshot.people;
@@ -56,6 +89,16 @@ function drawTree(container, snapshot) {
     return;
   }
   const family = descendants(source, anchor||selectedId);
+  const relatives = anchor && anchor!==selectedId ? descendants(source,selectedId) : family;
+  const allPeople = new Map(source.map(person=>[person.id,person]));
+  const ancestors = ancestorIds(allPeople,selectedId);
+  const colorMode = colored ? byId('tree-color-mode').value : '';
+  function relationship(person){
+    if(person.id===selectedId)return 'selected';
+    if(ancestors.has(person.id))return 'ancestor';
+    if(selectedId&&person.parentId===selectedId)return 'child';
+    return relatives.has(person.id)?'descendant':'other';
+  }
   const shown = anchor && family.size
     ? source.filter(person => family.has(person.id)) : source;
   const map = new Map(shown.map(person => [person.id, person]));
@@ -71,20 +114,31 @@ function drawTree(container, snapshot) {
   let cursor = 25;
   let maximumDepth = 0;
   const gap = 32;
-  function place(person, depth) {
+  function place(person, depth, generation) {
     if (positions.has(person.id)) return;
     const width = Math.max(150, Math.ceil(context.measureText(person.name).width + 38));
-    const position = {x:0, y:depth * 120 + 65, width};
+    const position = {x:0, y:depth * 120 + 65, width, generation};
     positions.set(person.id, position);
     maximumDepth = Math.max(maximumDepth, depth);
     const start = cursor;
     const childrenHere = children.get(person.id) || [];
-    for (const child of childrenHere) place(child, depth + 1);
+    for (const child of childrenHere) place(child, depth + 1, generation + 1);
     const subtreeWidth = Math.max(width, cursor - start - (childrenHere.length ? gap : 0));
     position.x = start + subtreeWidth / 2;
     cursor = start + subtreeWidth + gap;
   }
-  for (const root of children.get(null) || []) place(root, 0);
+  for (const root of children.get(null) || []) place(root, 0, ancestorIds(allPeople,root.id).size + 1);
+  if(container.id==='tree-view'){
+    const generations=[...new Set([...positions.values()].map(({generation})=>generation))].sort((a,b)=>a-b);
+    const entries=colorMode==='generation'
+      ? generationColors.flatMap((color,index)=>{
+        const numbers=generations.filter(generation=>(generation-1)%generationColors.length===index);
+        return numbers.length?[{...color,label:'الجيل '+numbers.map(n=>arabicNumber.format(n)).join('، ')}]:[];
+      })
+      : (colorMode==='gender'?['male','female']:['selected','ancestor','child','descendant','other']).map(key=>treeColors[key]);
+    renderTreeLegend(entries);
+    byId('tree-ancestor-hint').hidden=colorMode!=='relationship'||![...ancestors].some(id=>!map.has(id));
+  }
   const width = Math.max(650, cursor + 25);
   const height = maximumDepth * 120 + 140;
   const svg = svgElement('svg', {width, height, viewBox:`0 0 ${width} ${height}`, role:'group', 'aria-label':snapshot.title || 'شجرة العائلة'});
@@ -97,6 +151,12 @@ function drawTree(container, snapshot) {
       class:'tree-branch' + (family.has(person.id) && family.has(person.parentId) ? ' is-related' : ''),
       'data-parent-id':person.parentId, 'data-child-id':person.id
     });
+    const relation=relationship(person);
+    if(colorMode==='relationship'&&(relation==='child'||relation==='descendant'||
+       ((relation==='selected'||relation==='ancestor')&&ancestors.has(person.parentId)))){
+      path.setAttribute('data-kinship-path','');
+      path.setAttribute('stroke',treeColors[relation==='selected'?'ancestor':relation].stroke);
+    }
     svg.append(path);
   }
   for (const person of shown) {
@@ -109,12 +169,30 @@ function drawTree(container, snapshot) {
     const className = ['tree-person',family.has(person.id)?'is-related':'',person.id===user?.personId?'is-self':'',person.id===selectedId?'is-selected':'',change?'is-changed':''].filter(Boolean).join(' ');
     const group = svgElement('g', {transform:`translate(${width-position.x} ${position.y})`, class:className,
       tabindex:0, role:'button','aria-label':person.name, 'aria-pressed':String(person.id===selectedId), 'data-person-id':person.id});
-    if(change){
-      group.dataset.change=change;
-      group.append(svgElement('title',{},change==='added'?'أُضيف في آخر تعديل':'تغيّر الاسم في آخر تعديل'));
+    const relation=relationship(person);
+    const gender=person.gender==='f'?'female':'male'; // Shared paternal rows come from the male-only tree.
+    const generationLabel='الجيل '+arabicNumber.format(position.generation);
+    const color=colorMode==='generation'?generationColors[(position.generation-1)%generationColors.length]:
+      colorMode==='gender'?treeColors[gender]:colorMode==='relationship'?treeColors[relation]:null;
+    const description=[colorMode==='generation'?generationLabel:color?.label,
+      change==='added'?'أُضيف في آخر تعديل':change==='renamed'?'تغيّر الاسم في آخر تعديل':''].filter(Boolean).join(' · ');
+    if(change)group.dataset.change=change;
+    if(description){
+      group.setAttribute('aria-description',description);
+      group.append(svgElement('title',{},description));
     }
-    group.append(svgElement('rect',{x:-position.width/2,y:-25,width:position.width,height:50,rx:23}));
-    group.append(svgElement('text',{'text-anchor':'middle',y:5,direction:'rtl'},person.name));
+    const rectangle={x:-position.width/2,y:-25,width:position.width,height:50,rx:23};
+    if(color){
+      group.dataset.tone=colorMode;
+      group.dataset.relationship=relation;
+      group.dataset.generation=position.generation;
+      group.dataset.gender=gender;
+      Object.assign(rectangle,{fill:color.fill,stroke:color.stroke});
+    }
+    group.append(svgElement('rect',rectangle));
+    group.append(svgElement('text',{'text-anchor':'middle',y:colorMode==='generation'?12:5,direction:'rtl'},person.name));
+    if(colorMode==='generation')
+      group.append(svgElement('text',{'class':'generation-number','text-anchor':'middle',y:-8,'aria-hidden':'true'},generationLabel));
     group.addEventListener('click',()=>selectPerson(person.id));
     group.addEventListener('keydown',event=>{
       if(event.key==='Enter'||event.key===' '){event.preventDefault();selectPerson(person.id);}
@@ -123,6 +201,8 @@ function drawTree(container, snapshot) {
   }
   container.append(svg);
 }
+
+byId('tree-color-mode').addEventListener('change',renderTrees);
 
 function renderTrees() {
   const active = document.activeElement;
@@ -894,7 +974,7 @@ function downloadBranch(svgOnly){
   const fragment=document.createElement('div');
   const selectedScope=byId('tree-scope').value;
   byId('tree-scope').value='all';
-  try { drawTree(fragment,{title:root.name,people:rows.filter(person=>kept.has(person.id))}); }
+  try { drawTree(fragment,{title:root.name,people:rows.filter(person=>kept.has(person.id))},false); }
   finally {byId('tree-scope').value=selectedScope;}
   const svg=fragment.querySelector('svg');
   if(!svg)return;

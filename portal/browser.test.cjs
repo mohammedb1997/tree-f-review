@@ -49,6 +49,20 @@ test('دعوة وتحديد موقع العضو ومقارنة تعديل حي �
     assert.equal(await member.locator('#administration').isVisible(),false);
     assert.equal(await member.locator('#tree-scope').inputValue(),'mine');
     assert.equal(await member.locator('#tree-view [data-person-id="test-2"]').count(),0);
+    await member.locator('#tree-ancestor-hint').waitFor();
+    await member.locator('#tree-scope').selectOption('shared');
+    const node=(page,id)=>page.locator('#tree-view [data-person-id="'+id+'"]');
+    assert.equal(await node(member,'test-0').getAttribute('data-relationship'),'ancestor');
+    assert.equal(await node(member,'test-1').getAttribute('data-relationship'),'selected');
+    assert.equal(await node(member,'test-4').getAttribute('data-relationship'),'child');
+    assert.equal(await node(member,'test-2').getAttribute('data-relationship'),'other');
+    assert.equal(await member.locator('#tree-view [data-child-id="test-1"][data-kinship-path]').count(),1);
+    await member.locator('#tree-color-mode').selectOption('generation');
+    assert.equal(await node(member,'test-4').getAttribute('data-generation'),'3');
+    assert.equal(await node(member,'test-5').locator('rect').getAttribute('fill'),await node(member,'test-4').locator('rect').getAttribute('fill'));
+    await member.locator('#locate-me').click();
+    assert.equal(await node(member,'test-4').getAttribute('data-generation'),'3');
+    await member.locator('#tree-color-mode').selectOption('relationship');
     assert.equal(await admin.locator('#private-daughters').isVisible(),false);
     await admin.locator('#child-gender').selectOption('f');
     assert.equal(await admin.locator('#parent').isEnabled(),true);
@@ -68,6 +82,16 @@ test('دعوة وتحديد موقع العضو ومقارنة تعديل حي �
     assert(!(await admin.locator('#workspace').textContent()).includes('ابنة اختبار خصوصية الأب'));
     await admin.locator('#tree-scope').selectOption('all');
     await admin.locator('#tree-view').getByText('ابنة اختبار خصوصية الأب').waitFor();
+    await admin.locator('#tree-color-mode').selectOption('gender');
+    const daughterNode=admin.locator('#tree-view [data-gender="female"]').filter({hasText:'ابنة اختبار خصوصية الأب'});
+    await daughterNode.waitFor();
+    assert.notEqual(await daughterNode.locator('rect').evaluate(rect=>getComputedStyle(rect).fill),
+      await node(admin,'test-1').locator('rect').evaluate(rect=>getComputedStyle(rect).fill));
+    mkdirSync('evidence/family-portal',{recursive:true});
+    await admin.locator('.live-panel').screenshot({path:'evidence/family-portal/tree-colors-gender.png'});
+    await admin.locator('#tree-color-mode').selectOption('generation');
+    await admin.locator('.live-panel').screenshot({path:'evidence/family-portal/tree-colors-generation.png'});
+    await admin.locator('#tree-color-mode').selectOption('relationship');
     assert(!(await admin.locator('#after-tree').textContent()).includes('ابنة اختبار خصوصية الأب'));
     await member.getByRole('button',{name:'دعوة ابنة اختبار خصوصية الأب'}).click();
     await member.locator('#daughter-invitation').waitFor();
@@ -138,6 +162,13 @@ test('دعوة وتحديد موقع العضو ومقارنة تعديل حي �
     assert.deepEqual(await grandchild(member),visible);
     assert((await member.locator('#after-tree [data-change="added"]').textContent()).includes('حفيد اختبار التحديث'));
     assert(!(await member.locator('#before-tree').textContent()).includes('حفيد اختبار التحديث'));
+    await member.locator('#locate-me').click();
+    assert.equal(await member.locator('#tree-view [data-change="added"]').getAttribute('data-relationship'),'descendant');
+    await member.locator('.live-panel').screenshot({path:'evidence/family-portal/tree-colors-relationship.png'});
+    await node(admin,'test-1').click();
+    await admin.locator('#tree-view [data-relationship="descendant"]')
+      .filter({hasText:'حفيد اختبار التحديث'}).waitFor({state:'attached'});
+    await admin.locator('.live-panel').screenshot({path:'evidence/family-portal/tree-colors-relationship-desktop.png'});
     await member.locator('#logout').click();
     await member.locator('#identifier').fill(code);
     await member.locator('#password').fill(password);

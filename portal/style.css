@@ -63,17 +63,27 @@ p{margin:.6rem 0}
 .tree-heading{display:flex;align-items:start;justify-content:space-between;gap:1rem}
 .tree-tools{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
 .tree-tools select{width:auto;max-width:100%}
+.tree-color-tools{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem .65rem;margin-block:.65rem}
+.tree-color-tools select{width:auto;max-width:100%}
+#tree-color-legend{display:flex;flex-wrap:wrap;gap:.25rem .75rem;list-style:none;margin:0;padding:0}
+#tree-color-legend li{display:flex;align-items:center;gap:.3rem;font-size:.875rem}
+#tree-color-legend svg{flex:none}
 .tree-canvas{max-width:100%;height:480px;overflow:auto;background:radial-gradient(ellipse at center,#fffdf5,#f1ead7);border:1px solid #d6c9a7;border-radius:.7rem;direction:ltr;overscroll-behavior:contain}
 .tree-canvas svg{display:block;max-width:none;font-family:Tahoma,Arial,sans-serif}
-.tree-branch{fill:none;stroke:#9b8155;stroke-width:2.5}
-.tree-branch.is-related{stroke:#426a47;stroke-width:3.5}
+.tree-branch{fill:none;stroke-width:2.5}
+.tree-branch:not([data-kinship-path]){stroke:#9b8155}
+.tree-branch.is-related,.tree-branch[data-kinship-path]{stroke-width:3.5}
 .tree-person{cursor:pointer}
-.tree-person rect{fill:#fffdf6;stroke:#c8b995;stroke-width:1.5}
+.tree-person rect{stroke-width:1.5}
+.tree-person:not([data-tone]) rect{fill:#fffdf6;stroke:#c8b995}
 .tree-person text{fill:#293d30;font-size:15px;unicode-bidi:plaintext}
-.tree-person.is-related rect{fill:#eaf0e2;stroke:#537b4b}
+.tree-person:not([data-tone]).is-related rect{fill:#eaf0e2;stroke:#537b4b}
 .tree-person.is-self rect{stroke:#b58a28;stroke-width:4}
-.tree-person.is-selected rect{fill:#dbe8cf;stroke-width:3}
-.tree-person.is-changed rect{fill:#fff0c6;stroke:#a67720;stroke-width:3;stroke-dasharray:6 3}
+.tree-person.is-selected rect{stroke-width:3}
+.tree-person.is-selected:not([data-tone]) rect{fill:#dbe8cf}
+.tree-person.is-changed rect{stroke-width:3;stroke-dasharray:6 3}
+.tree-person.is-changed:not([data-tone]) rect{fill:#fff0c6;stroke:#a67720}
+.tree-person .generation-number{font-size:11px;font-weight:600}
 .tree-empty{margin:1.5rem;direction:rtl;text-align:start;color:#65552e}
 .tree-person:focus-visible{outline:none}
 .tree-person:focus-visible rect{stroke:#a16b14;stroke-width:4}
