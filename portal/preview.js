@@ -70,12 +70,25 @@
     }
     if(route==='/api/private-daughters'){
       if(!publicAccount(user).canAddDaughter)fail('السجل متاح للأب المباشر فقط.');
-      return {daughters:structuredClone(privateDaughters.get(user.personId)||[])};
+      return {daughters:(privateDaughters.get(user.personId)||[]).map(daughter=>{
+        const account=accounts.find(item=>item.personId===daughter.id);
+        return {...daughter,accountStatus:account?.password?'active':account?.temporary?'invited':account?'inactive':'none'};
+      })};
     }
-    if(/^\/api\/private-daughters\/[^/]+\/invite$/.test(route)){
+    if(/^\/api\/private-daughters\/[^/]+(?:\/(?:invite|recover))?$/.test(route)){
       const personId=route.split('/')[3];
-      if(!privateDaughters.get(user.personId)?.some(daughter=>daughter.id===personId))
-        fail('إدارة الدعوة للأب المباشر.');
+      const daughter=privateDaughters.get(user.personId)?.find(item=>item.id===personId);
+      if(!daughter)fail('الإدارة للأب المباشر.');
+      if(method==='PATCH'){
+        if(!data.name?.trim())fail('أدخل اسم الابنة.');
+        daughter.name=data.name.trim();
+        return {id:personId};
+      }
+      if(route.endsWith('/recover')){
+        const account=accounts.find(item=>item.personId===personId);
+        if(!account)fail('أنشئ دعوة أولى لهذا الحساب.');
+        delete account.password;
+      }
       return issueInvite(personId);
     }
     if(route==='/api/people'){

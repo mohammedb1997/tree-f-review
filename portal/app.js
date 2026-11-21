@@ -303,25 +303,70 @@ async function loadPrivateDaughters(){
   if(user!==account)return;
   const items=daughters.map(daughter=>{
     const item=document.createElement('li');
+    const endpoint='/api/private-daughters/'+encodeURIComponent(daughter.id);
     const name=document.createElement('span');
     name.textContent=daughter.name;
+    const status=document.createElement('small');
+    status.className='hint';
+    status.textContent={active:'حساب مفعّل',invited:'دعوة بانتظار التفعيل',inactive:'حساب بانتظار دعوة جديدة',none:'بلا حساب'}[daughter.accountStatus]||'';
+    const editing=document.createElement('form');
+    editing.method='post';
+    editing.hidden=true;
+    editing.className='daughter-rename';
+    const nameInput=document.createElement('input');
+    nameInput.value=daughter.name;
+    nameInput.required=true;
+    nameInput.maxLength=300;
+    nameInput.setAttribute('aria-label','اسم الابنة الكامل');
+    const save=document.createElement('button');
+    save.type='submit';
+    save.textContent='حفظ اسم الابنة';
+    const cancel=document.createElement('button');
+    cancel.type='button';
+    cancel.textContent='إلغاء';
+    editing.append(nameInput,save,cancel);
+    const rename=document.createElement('button');
+    rename.type='button';
+    rename.textContent='تعديل الاسم';
+    rename.setAttribute('aria-label','تعديل اسم '+daughter.name);
+    rename.addEventListener('click',()=>{
+      editing.hidden=false;
+      nameInput.focus();
+    });
+    cancel.addEventListener('click',()=>{
+      nameInput.value=daughter.name;
+      editing.hidden=true;
+      rename.focus();
+    });
+    editing.addEventListener('submit',event=>{
+      event.preventDefault();
+      submit(editing,async()=>{
+        await api(endpoint,{name:nameInput.value.trim()},'PATCH');
+        if(user!==account)return;
+        await Promise.all([loadTree(),loadPrivateDaughters()]);
+        notify('حُفظ اسم الابنة.');
+      });
+    });
     const invite=document.createElement('button');
     invite.type='button';
-    invite.textContent='إنشاء دعوة';
-    invite.setAttribute('aria-label','دعوة '+daughter.name);
+    const recover=daughter.accountStatus==='active';
+    invite.textContent=recover?'استعادة الدخول':daughter.accountStatus==='invited'?'تجديد الدعوة':'إنشاء دعوة';
+    invite.setAttribute('aria-label',(recover?'استعادة دخول ':'دعوة ')+daughter.name);
     invite.addEventListener('click',()=>submit(item,async()=>{
+      if(recover&&!window.confirm('ستُنهى الجلسات الحالية وتُصدر كلمة مرور مؤقتة جديدة. هل تريد المتابعة؟'))return;
       byId('daughter-invitation').hidden=true;
       byId('daughter-invitation-code').value='';
       byId('daughter-invitation-password').value='';
-      const invitation=await api('/api/private-daughters/'+encodeURIComponent(daughter.id)+'/invite',{});
+      const invitation=await api(endpoint+(recover?'/recover':'/invite'),{});
       if(user!==account)return;
       byId('daughter-invitation-person').textContent='دعوة لـ '+daughter.name;
       byId('daughter-invitation-code').value=invitation.code;
       byId('daughter-invitation-password').value=invitation.initialPassword;
       byId('daughter-invitation').hidden=false;
+      await loadPrivateDaughters();
       notify('أُنشئت الدعوة. سلّمها لصاحبة الحساب على انفراد.');
     }));
-    item.append(name,invite);
+    item.append(name,status,rename,invite,editing);
     return item;
   });
   byId('private-daughters-list').replaceChildren(...items);

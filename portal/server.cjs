@@ -253,8 +253,24 @@ function createPortal({filename,origin}) {
 
   function privateDaughters(account){
     if(!canAddDaughter(account))throw bad(403,error.forbidden);
-    return {daughters:db.prepare('SELECT id,name FROM private_daughters WHERE father_id=? ORDER BY rowid')
-      .all(account.person_id)};
+    return {daughters:db.prepare(`SELECT d.id,d.name,
+      CASE WHEN a.password IS NOT NULL THEN 'active'
+           WHEN a.invite_until>? THEN 'invited'
+           WHEN a.id IS NOT NULL THEN 'inactive'
+           ELSE 'none' END AS accountStatus
+      FROM private_daughters d LEFT JOIN accounts a ON a.person_id=d.id
+      WHERE d.father_id=? ORDER BY d.rowid`).all(Date.now(),account.person_id)};
+  }
+
+  function ownDaughter(account,id){
+    const daughter=db.prepare('SELECT id,name FROM private_daughters WHERE id=? AND father_id=?')
+      .get(id,account.person_id);
+    if(!daughter)throw bad(403,error.forbidden);
+    return daughter;
+  }
+
+  function expireInvalidStreams(){
+    for(const viewer of viewers)if(!accountFor(viewer.req))endExpired(viewer);
   }
 
   function canAddDaughter(account){
@@ -322,27 +338,45 @@ function createPortal({filename,origin}) {
         WHERE id=? AND invitation=? AND invite_until>?`).run(hashed,record.id,invitation,Date.now());
       if(result.changes!==1)throw bad(400,error.invite);
       startSession(res,record.id);payload={ok:true};
+      if(db.prepare(`SELECT d.id FROM private_daughters d JOIN accounts a ON a.person_id=d.id
+        WHERE a.id=?`).get(record.id))signalPrivateChange();
     }else{
       if(!account)throw bad(401,error.auth);
       if(method==='GET'&&pathname==='/api/me')payload={role:account.role,personId:account.person_id,
         identifier:account.identifier,canAddDaughter:canAddDaughter(account)};
       else if(method==='GET'&&pathname==='/api/tree')payload=treeView(version(),account,requestUrl.searchParams.get('scope')==='all');
       else if(method==='GET'&&pathname==='/api/private-daughters')payload=privateDaughters(account);
-      else if(method==='POST'&&/^\/api\/private-daughters\/[\w-]+\/invite$/.test(pathname)){
-        const data=await input(req);fields(data,[]);
+      else if(method==='PATCH'&&/^\/api\/private-daughters\/[\w-]+$/.test(pathname)){
+        const data=await input(req);fields(data,['name']);
         const id=pathname.split('/')[3];
+        const name=personName(data.name);
+        const previous=ownDaughter(requireCurrent(req),id);
+        if(previous.name!==name){
+          db.prepare('UPDATE private_daughters SET name=? WHERE id=?').run(name,id);
+          signalPrivateChange();
+        }
+        payload={id};
+      }
+      else if(method==='POST'&&/^\/api\/private-daughters\/[\w-]+\/(invite|recover)$/.test(pathname)){
+        const data=await input(req);fields(data,[]);
+        const [, , ,id,action]=pathname.split('/');
         payload=transaction(()=>{
-          const acting=requireCurrent(req);
-          const record=db.prepare('SELECT id FROM private_daughters WHERE id=? AND father_id=?').get(id,acting.person_id);
-          if(!record)throw bad(403,error.forbidden);
+          ownDaughter(requireCurrent(req),id);
+          if(action==='recover'){
+            const linked=db.prepare("SELECT id FROM accounts WHERE person_id=? AND role='member'").get(id);
+            if(!linked)throw bad(409,'أنشئ دعوة أولى لهذا الحساب.');
+            db.prepare('UPDATE accounts SET password=NULL WHERE id=?').run(linked.id);
+            db.prepare('DELETE FROM sessions WHERE account_id=?').run(linked.id);
+          }
           return issueInvite(id,null);
         });
+        if(action==='recover')expireInvalidStreams();
       }
       else if(method==='GET'&&pathname==='/api/live'){stream(req,res,account);return;}
       else if(method==='POST'&&pathname==='/api/logout'){
         const token=(req.headers.cookie||'').match(/(?:^|;\s*)treef_session=([\w-]{43})/)?.[1];
         if(token)db.prepare('DELETE FROM sessions WHERE token=? AND account_id=?').run(digest(token),account.id);
-        for(const viewer of viewers)if(!accountFor(viewer.req))endExpired(viewer);
+        expireInvalidStreams();
         setCookie(res,'',0);payload={ok:true};
       }else if(method==='POST'&&pathname==='/api/people'){
         const data=await input(req);fields(data,['parentId','name','gender']);
@@ -430,7 +464,7 @@ function createPortal({filename,origin}) {
         db.prepare('DELETE FROM sessions WHERE account_id=?').run(id);
         return {ok:true};
       });
-      for(const viewer of viewers)if(!accountFor(viewer.req))endExpired(viewer);
+      expireInvalidStreams();
       return result;
     }
     if(method==='GET'&&pathname==='/api/backup')return tree();

@@ -50,7 +50,9 @@ p{margin:.6rem 0}
 .invitation{margin:1.5rem 0;padding:1rem;border:1px solid #bda56c;border-radius:.6rem;background:#faf1d9}
 .invitation input{margin-bottom:.6rem}
 #private-daughters-list{padding-inline-start:1.2rem}
-#private-daughters-list li{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-block:.6rem}
+#private-daughters-list li{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-block:.6rem}
+.daughter-rename{flex-basis:100%}
+.daughter-rename input{margin-block:.35rem}
 .accounts{margin-top:1.4rem}
 .account{padding:1rem 0;border-top:1px solid #dedacb;display:flex;justify-content:space-between;align-items:center;gap:1rem}
 .account p{overflow-wrap:anywhere}
