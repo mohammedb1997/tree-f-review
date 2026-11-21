@@ -28,7 +28,19 @@
     tree.revision++;
   }
   function publicAccount(account){
-    return {id:account.id,role:account.role,identifier:account.identifier,personId:account.personId,active:!!account.password};
+    return {id:account.id,role:account.role,identifier:account.identifier,personId:account.personId,active:!!account.password,
+      canAddDaughter:tree.people.some(person=>person.id===account.personId)};
+  }
+  function issueInvite(personId){
+    let account=accounts.find(item=>item.personId===personId);
+    if(account?.password)fail('أوقف الحساب أولًا لإصدار دعوة جديدة.');
+    if(!account){
+      const id=String(++sequence);
+      account={id:'preview-account-'+id,role:'member',personId,identifier:'FAM-'+id.padStart(16,'0')};
+      accounts.push(account);
+    }
+    account.temporary='PreviewOnly-'+(++sequence);
+    return {code:account.identifier,initialPassword:account.temporary};
   }
   function request(route,data,method){
     if(route==='/api/login'){
@@ -46,14 +58,30 @@
     if(!user)fail('سجّل الدخول التجريبي أولًا.');
     if(route==='/api/logout'){user=null;return {};}
     if(route==='/api/me')return publicAccount(user);
-    if(route==='/api/tree'&&data===undefined)return {...tree,before:previous,people:tree.people.map(person=>({...person,writable:writable(person.id)}))};
+    if((route==='/api/tree'||route==='/api/tree?scope=all')&&data===undefined){
+      const privatePeople=[];
+      for(const [parentId,daughters] of privateDaughters){
+        for(const {id,name} of daughters){
+          if(route.endsWith('scope=all')||user.personId===parentId||user.personId===id)
+            privatePeople.push({id,parentId,name,gender:'f',writable:false});
+        }
+      }
+      return {...tree,before:previous,people:tree.people.map(person=>({...person,writable:writable(person.id)})),privatePeople};
+    }
     if(route==='/api/private-daughters'){
-      if(!user.personId)fail('السجل متاح للأب المباشر فقط.');
+      if(!publicAccount(user).canAddDaughter)fail('السجل متاح للأب المباشر فقط.');
       return {daughters:structuredClone(privateDaughters.get(user.personId)||[])};
+    }
+    if(/^\/api\/private-daughters\/[^/]+\/invite$/.test(route)){
+      const personId=route.split('/')[3];
+      if(!privateDaughters.get(user.personId)?.some(daughter=>daughter.id===personId))
+        fail('إدارة الدعوة للأب المباشر.');
+      return issueInvite(personId);
     }
     if(route==='/api/people'){
       if(data.gender==='f'){
-        if(!user.personId||user.personId!==data.parentId)fail('إضافة الابنة متاحة للأب المباشر من حسابه فقط.');
+        if(!publicAccount(user).canAddDaughter||user.personId!==data.parentId)
+          fail('إضافة الابنة متاحة للأب المباشر من حسابه فقط.');
         const id='preview-daughter-'+(++sequence);
         if(!privateDaughters.has(user.personId))privateDaughters.set(user.personId,[]);
         privateDaughters.get(user.personId).push({id,name:data.name});
@@ -74,17 +102,7 @@
     if(user.role!=='admin')fail('هذا الإجراء للمدير التجريبي.');
     if(route==='/api/tree'&&method==='PATCH'){update(()=>{tree.title=data.title;});return {};}
     if(route==='/api/accounts')return {accounts:accounts.map(publicAccount)};
-    if(route==='/api/invites'){
-      let account=accounts.find(item=>item.personId===data.personId);
-      if(account?.password)fail('أوقف الحساب أولًا لإصدار دعوة جديدة.');
-      if(!account){
-        const id=String(++sequence);
-        account={id:'preview-account-'+id,role:'member',personId:data.personId,identifier:'FAM-'+id.padStart(16,'0')};
-        accounts.push(account);
-      }
-      account.temporary='PreviewOnly-'+(++sequence);
-      return {code:account.identifier,initialPassword:account.temporary};
-    }
+    if(route==='/api/invites')return issueInvite(data.personId);
     if(route.endsWith('/revoke')){
       const account=accounts.find(item=>item.id===route.split('/')[3]&&item.role==='member');
       if(!account)fail('الحساب التجريبي غير موجود.');

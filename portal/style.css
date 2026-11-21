@@ -49,6 +49,8 @@ p{margin:.6rem 0}
 .invite-form button[type=submit]{margin:0}
 .invitation{margin:1.5rem 0;padding:1rem;border:1px solid #bda56c;border-radius:.6rem;background:#faf1d9}
 .invitation input{margin-bottom:.6rem}
+#private-daughters-list{padding-inline-start:1.2rem}
+#private-daughters-list li{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-block:.6rem}
 .accounts{margin-top:1.4rem}
 .account{padding:1rem 0;border-top:1px solid #dedacb;display:flex;justify-content:space-between;align-items:center;gap:1rem}
 .account p{overflow-wrap:anywhere}

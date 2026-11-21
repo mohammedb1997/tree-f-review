@@ -20,7 +20,8 @@ test('دعوة وتحديد موقع العضو ومقارنة تعديل حي �
     const errors=[];
     const admin=await browser.newPage({viewport:{width:1280,height:950}});
     const member=await browser.newPage({viewport:{width:390,height:844}});
-    for(const page of [admin,member]){
+    const daughter=await browser.newPage({viewport:{width:390,height:844}});
+    for(const page of [admin,member,daughter]){
       page.setDefaultTimeout(5000);
       page.on('pageerror',error=>errors.push(error.message));
       await page.goto(origin);
@@ -46,6 +47,8 @@ test('دعوة وتحديد موقع العضو ومقارنة تعديل حي �
     await member.locator('#activate-form button[type=submit]').click();
     await member.locator('#workspace').waitFor();
     assert.equal(await member.locator('#administration').isVisible(),false);
+    assert.equal(await member.locator('#tree-scope').inputValue(),'mine');
+    assert.equal(await member.locator('#tree-view [data-person-id="test-2"]').count(),0);
     assert.equal(await admin.locator('#private-daughters').isVisible(),false);
     assert.equal(await admin.locator('#child-gender option[value="f"]').isDisabled(),true);
     await member.locator('#child-gender').selectOption('f');
@@ -54,8 +57,21 @@ test('دعوة وتحديد موقع العضو ومقارنة تعديل حي �
     await member.locator('#child-name').fill('ابنة اختبار خصوصية الأب');
     await member.locator('#add-form button[type=submit]').click();
     await member.locator('#private-daughters-list').getByText('ابنة اختبار خصوصية الأب').waitFor();
-    assert(!(await member.locator('#tree-view').textContent()).includes('ابنة اختبار خصوصية الأب'));
+    await member.locator('#tree-view').getByText('ابنة اختبار خصوصية الأب').waitFor();
     assert(!(await admin.locator('#workspace').textContent()).includes('ابنة اختبار خصوصية الأب'));
+    await admin.locator('#tree-scope').selectOption('all');
+    await admin.locator('#tree-view').getByText('ابنة اختبار خصوصية الأب').waitFor();
+    assert(!(await admin.locator('#after-tree').textContent()).includes('ابنة اختبار خصوصية الأب'));
+    await member.getByRole('button',{name:'دعوة ابنة اختبار خصوصية الأب'}).click();
+    await member.locator('#daughter-invitation').waitFor();
+    await daughter.locator('#show-activate').click();
+    await daughter.locator('#code').fill(await member.locator('#daughter-invitation-code').inputValue());
+    await daughter.locator('#initial-password').fill(await member.locator('#daughter-invitation-password').inputValue());
+    await daughter.locator('#new-password').fill(password);
+    await daughter.locator('#activate-form button[type=submit]').click();
+    await daughter.locator('#tree-view .is-self').getByText('ابنة اختبار خصوصية الأب').waitFor();
+    assert.equal(await daughter.locator('#edit-form').isVisible(),false);
+    assert.equal(await daughter.locator('#add-form').isVisible(),false);
     await member.locator('#child-gender').selectOption('m');
     await member.locator('#tree-view svg [data-person-id="test-1"]').waitFor();
     assert.match(await member.locator('#person-title').textContent(),/أحمد 1/);

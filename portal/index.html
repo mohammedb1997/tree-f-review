@@ -48,7 +48,7 @@
       <div class="workspace-heading"><div><p class="eyebrow">شجرة العائلة</p><h1>الأفراد والفروع</h1><p id="permission-summary"></p></div><button id="refresh" type="button">تحديث الشجرة</button></div>
       <section class="panel live-panel" aria-labelledby="live-tree-title">
         <div class="tree-heading"><div><h2 id="live-tree-title">موقعك في شجرة العائلة</h2><p id="live-status" class="hint" role="status">جارٍ الاتصال بالتحديثات…</p></div>
-          <div class="tree-tools"><button id="locate-me" type="button">موقعي في الشجرة</button><label for="tree-scope" class="sr-only">نطاق عرض الشجرة</label><select id="tree-scope"><option value="all">العائلة كاملة</option><option value="branch">الفرع المحدد</option></select></div></div>
+          <div class="tree-tools"><button id="locate-me" type="button">موقعي في الشجرة</button><label for="tree-scope" class="sr-only">نطاق عرض الشجرة</label><select id="tree-scope"><option value="mine" hidden>فرعي: أبنائي وأحفادي</option><option value="shared">الشجرة الرئيسية</option><option value="all">الكل: شجرة العائلة</option><option value="branch">فرع الشخص المحدد</option></select></div></div>
         <p class="hint">الإطار الذهبي يحدد موقعك، والأخضر يبيّن الشخص المحدد وذريته. اختر اسمًا لعرض بياناته.</p>
         <div id="tree-view" class="tree-canvas" tabindex="0" aria-label="شجرة العائلة الحية"></div>
       </section>
@@ -79,21 +79,28 @@
           <form id="add-form" method="post" hidden>
             <h3>إضافة إلى الأسرة</h3>
             <label for="child-gender">الجنس</label>
-            <select id="child-gender" name="gender"><option value="m">ابن</option><option value="f">ابنة — خاصة بالأب</option></select>
+            <select id="child-gender" name="gender"><option value="m">ابن</option><option value="f">ابنة</option></select>
             <label for="parent">الأب</label>
             <select id="parent" name="parentId" required></select>
             <label id="child-name-label" for="child-name">اسم الابن الكامل</label>
             <input id="child-name" name="name" required maxlength="300">
-            <p id="private-child-hint" class="hint" hidden>يظهر سجل الابنة في قسم «بناتي» لحساب الأب المباشر.</p>
+            <p id="private-child-hint" class="hint" hidden>تظهر الابنة في فرع أبيها، وفي «الكل» لأفراد العائلة المسجّلين.</p>
             <button id="add-child-button" class="primary" type="submit">إضافة إلى الشجرة</button>
           </form>
         </aside>
       </div>
       <section id="private-daughters" class="panel" hidden aria-labelledby="private-daughters-title">
         <h2 id="private-daughters-title" tabindex="-1">بناتي</h2>
-        <p class="hint">سجلاتك الخاصة بصفتك الأب المباشر.</p>
+        <p class="hint">يمكنك دعوة كل ابنة لحسابها، وتظهر الأسماء لأفراد العائلة المسجّلين عند اختيار «الكل».</p>
         <p id="private-daughters-empty">لم تضف بنات بعد.</p>
         <ul id="private-daughters-list"></ul>
+        <div id="daughter-invitation" class="invitation" hidden>
+          <h3 id="daughter-invitation-person"></h3>
+          <p>سلّم الرمز وكلمة المرور المؤقتة لصاحبة الحساب على انفراد لتفعيله خلال ٢٤ ساعة.</p>
+          <label for="daughter-invitation-code">رمز الدعوة</label><input id="daughter-invitation-code" readonly dir="ltr" autocomplete="off">
+          <label for="daughter-invitation-password">كلمة المرور المؤقتة</label><input id="daughter-invitation-password" readonly dir="ltr" autocomplete="off">
+          <button id="copy-daughter-invitation" type="button">نسخ بيانات الدعوة</button>
+        </div>
       </section>
       <section id="administration" class="panel administration" hidden aria-labelledby="admin-title">
         <h2 id="admin-title">إدارة الحسابات والصلاحيات</h2>

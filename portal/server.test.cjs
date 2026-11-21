@@ -94,13 +94,31 @@ test('صلاحيات الفروع والبث الحي ولقطة ما قبل ا�
     await addDaughter('test-4',member,403);
     await addDaughter('test-4',admin.cookie,403);
     await addDaughter('test-4',codeMember.cookie,403);
-    assert.equal((await addDaughter('test-4',father)).json.private,true);
+    const privateRecord=(await addDaughter('test-4',father)).json;
+    assert.equal(privateRecord.private,true);
     await request('/api/private-daughters',{status:401});
     await request('/api/private-daughters',{cookie:admin.cookie,status:403});
     assert.deepEqual((await request('/api/private-daughters',{cookie:member})).json.daughters,[]);
     assert.deepEqual((await request('/api/private-daughters',{cookie:codeMember.cookie})).json.daughters,[]);
     assert.equal((await request('/api/private-daughters',{cookie:father})).json.daughters[0].name,daughter);
-    assert(!JSON.stringify((await request('/api/tree',{cookie:father})).json).includes(daughter));
+    const ownTree=(await request('/api/tree',{cookie:father})).json;
+    assert(ownTree.privatePeople.some(person=>person.name===daughter && !person.writable));
+    assert(!JSON.stringify(ownTree.people).includes(daughter));
+    const defaultOther=(await request('/api/tree',{cookie:codeMember.cookie})).json;
+    assert(!JSON.stringify(defaultOther).includes(daughter));
+    await request('/api/tree?scope=all',{status:401});
+    const allTree=(await request('/api/tree?scope=all',{cookie:codeMember.cookie})).json;
+    assert(allTree.privatePeople.some(person=>person.name===daughter && !person.writable));
+    const daughterInvite=(cookie,status=200)=>request('/api/private-daughters/'+privateRecord.id+'/invite',
+      {method:'POST',data:{},cookie,status});
+    await daughterInvite(codeMember.cookie,403);
+    const daughterLogin=(await daughterInvite(father)).json;
+    const daughterCookie=(await activate(daughterLogin)).cookie;
+    const daughterAccount=(await request('/api/me',{cookie:daughterCookie})).json;
+    assert.equal(daughterAccount.personId,privateRecord.id);
+    assert.equal(daughterAccount.canAddDaughter,false);
+    assert((await request('/api/tree',{cookie:daughterCookie})).json.privatePeople.some(person=>person.id===privateRecord.id));
+    await addDaughter(privateRecord.id,daughterCookie,403);
     assert(!JSON.stringify((await request('/api/backup',{cookie:admin.cookie})).json).includes(daughter));
     await request('/api/activate',{method:'POST',data:{code,password},status:400});
     await login('+966501234567');
@@ -117,6 +135,9 @@ test('صلاحيات الفروع والبث الحي ولقطة ما قبل ا�
     assert.equal(initial.name,'tree');
     assert.equal(initial.data.revision,0);
     assert(!initial.data.before);
+    await request('/api/people',{method:'POST',cookie:father,
+      data:{parentId:'test-4',name:'اسم خاص لا يظهر في رسالة التحديث',gender:'f'}});
+    assert.deepEqual((await live.next()).value,{name:'private-people',data:{}});
     assert.equal(tree.people.length,10);
     assert.equal(tree.people.find(p=>p.id==='test-1').writable,true);
     assert.equal(tree.people.find(p=>p.id==='test-2').writable,false);

@@ -144,8 +144,15 @@ function createPortal({filename,origin}) {
       previous:row.previous&&JSON.parse(row.previous)};
   }
 
-  function treeView({current,revision,previous},account){
-    const view={title:current.title,people:projection(current,account).rows,revision};
+  function treeView({current,revision,previous},account,showAll=false){
+    const records=showAll
+      ? db.prepare('SELECT id,father_id,name FROM private_daughters ORDER BY rowid').all()
+      : db.prepare('SELECT id,father_id,name FROM private_daughters WHERE father_id=? OR id=? ORDER BY rowid')
+        .all(account.person_id,account.person_id);
+    const privatePeople=records.map(record=>({
+      id:record.id,parentId:record.father_id,name:record.name,writable:false,gender:'f'
+    }));
+    const view={title:current.title,people:projection(current,account).rows,privatePeople,revision};
     if(previous)view.before={title:previous.title,revision:revision-1,
       people:previous.people.map(person=>({...person,writable:false}))};
     return view;
@@ -173,6 +180,13 @@ function createPortal({filename,origin}) {
       if(viewer.res.writableLength>2*1024*1024){viewer.res.destroy();continue;}
       viewer.revision=snapshot.revision;
       event(viewer.res,'tree',treeView(snapshot,account));
+    }
+  }
+  function signalPrivateChange(){
+    for(const viewer of viewers){
+      if(!accountFor(viewer.req)){endExpired(viewer);continue;}
+      if(viewer.res.writableLength>2*1024*1024){viewer.res.destroy();continue;}
+      event(viewer.res,'private-people',{});
     }
   }
   function stream(req,res,account){
@@ -238,13 +252,17 @@ function createPortal({filename,origin}) {
   }
 
   function privateDaughters(account){
-    if(!account.person_id)throw bad(403,error.forbidden);
+    if(!canAddDaughter(account))throw bad(403,error.forbidden);
     return {daughters:db.prepare('SELECT id,name FROM private_daughters WHERE father_id=? ORDER BY rowid')
       .all(account.person_id)};
   }
 
+  function canAddDaughter(account){
+    return !!account.person_id&&!db.prepare('SELECT id FROM private_daughters WHERE id=?').get(account.person_id);
+  }
+
   function addPrivateDaughter(account,data){
-    if(!account.person_id||account.person_id!==data.parentId)
+    if(!canAddDaughter(account)||account.person_id!==data.parentId)
       throw bad(403,'إضافة الابنة متاحة للأب المباشر من حسابه فقط.');
     const id=randomUUID();
     db.prepare('INSERT INTO private_daughters VALUES(?,?,?)').run(id,account.person_id,personName(data.name));
@@ -254,7 +272,8 @@ function createPortal({filename,origin}) {
   async function handle(req,res){
     if(req.headers.host!==url.host)throw bad(403,error.forbidden);
     const method=req.method;
-    const pathname=new URL(req.url,origin).pathname;
+    const requestUrl=new URL(req.url,origin);
+    const {pathname}=requestUrl;
     if(method==='GET'&&assets.has(pathname)){
       const [file,type]=assets.get(pathname);
       res.setHeader('Content-Type',type);
@@ -305,9 +324,20 @@ function createPortal({filename,origin}) {
       startSession(res,record.id);payload={ok:true};
     }else{
       if(!account)throw bad(401,error.auth);
-      if(method==='GET'&&pathname==='/api/me')payload={role:account.role,personId:account.person_id,identifier:account.identifier};
-      else if(method==='GET'&&pathname==='/api/tree')payload=treeView(version(),account);
+      if(method==='GET'&&pathname==='/api/me')payload={role:account.role,personId:account.person_id,
+        identifier:account.identifier,canAddDaughter:canAddDaughter(account)};
+      else if(method==='GET'&&pathname==='/api/tree')payload=treeView(version(),account,requestUrl.searchParams.get('scope')==='all');
       else if(method==='GET'&&pathname==='/api/private-daughters')payload=privateDaughters(account);
+      else if(method==='POST'&&/^\/api\/private-daughters\/[\w-]+\/invite$/.test(pathname)){
+        const data=await input(req);fields(data,[]);
+        const id=pathname.split('/')[3];
+        payload=transaction(()=>{
+          const acting=requireCurrent(req);
+          const record=db.prepare('SELECT id FROM private_daughters WHERE id=? AND father_id=?').get(id,acting.person_id);
+          if(!record)throw bad(403,error.forbidden);
+          return issueInvite(id,null);
+        });
+      }
       else if(method==='GET'&&pathname==='/api/live'){stream(req,res,account);return;}
       else if(method==='POST'&&pathname==='/api/logout'){
         const token=(req.headers.cookie||'').match(/(?:^|;\s*)treef_session=([\w-]{43})/)?.[1];
@@ -318,7 +348,10 @@ function createPortal({filename,origin}) {
         const data=await input(req);fields(data,['parentId','name','gender']);
         if(data.gender!==undefined&&!['m','f'].includes(data.gender))throw bad(400,error.invalid);
         const acting=requireCurrent(req);
-        if(data.gender==='f')payload=addPrivateDaughter(acting,data);
+        if(data.gender==='f'){
+          payload=addPrivateDaughter(acting,data);
+          signalPrivateChange();
+        }
         else{
           payload=updatePerson(acting,data.parentId,data,method);
           publishTree();
@@ -340,6 +373,21 @@ function createPortal({filename,origin}) {
     const account=accountFor(req);
     if(!account)throw bad(401,error.auth);
     return account;
+  }
+
+  function issueInvite(personId,legacyLogin){
+    const initialPassword=legacyLogin?null:randomBytes(16).toString('base64url');
+    const secret=initialPassword||randomToken();
+    const previous=db.prepare('SELECT identifier FROM accounts WHERE person_id=?').get(personId)?.identifier;
+    const login=legacyLogin||(familyCodePattern.test(previous||'')?previous:'fam-'+randomBytes(8).toString('hex'));
+    const existing=db.prepare('SELECT * FROM accounts WHERE identifier=? OR person_id=?').all(login,personId);
+    if(existing.some(record=>record.role!=='member'||record.password||record.person_id!==personId))
+      throw bad(409,'يوجد حساب مفعّل أو معرّف مستخدم بالفعل.');
+    if(existing.length)db.prepare('UPDATE accounts SET identifier=?,invitation=?,invite_until=? WHERE id=?')
+      .run(login,digest(secret),Date.now()+86400000,existing[0].id);
+    else db.prepare('INSERT INTO accounts VALUES(?,?,?,?,?,?,?)')
+      .run(randomUUID(),login,personId,'member',null,digest(secret),Date.now()+86400000);
+    return initialPassword?{code:login.toUpperCase(),initialPassword}:{code:secret};
   }
 
   async function admin(req,pathname,method){
@@ -367,23 +415,11 @@ function createPortal({filename,origin}) {
       if(typeof data.personId!=='string')throw bad(400,error.invalid);
       const legacyLogin=data.identifier===undefined?null:identifier(data.identifier);
       if(legacyLogin&&familyCodePattern.test(legacyLogin))throw bad(400,error.invalid);
-      const initialPassword=legacyLogin?null:randomBytes(16).toString('base64url');
-      const secret=initialPassword||randomToken();
       return transaction(()=>{
         const acting=requireCurrent(req);
         if(acting.role!=='admin'||!projection(publicTree(tree()),acting).writable.has(data.personId))
           throw bad(400,error.invalid);
-        const existingPerson=db.prepare('SELECT identifier FROM accounts WHERE person_id=?').get(data.personId);
-        const previousCode=existingPerson?.identifier;
-        const login=legacyLogin||(familyCodePattern.test(previousCode||'')?previousCode:'fam-'+randomBytes(8).toString('hex'));
-        const existing=db.prepare('SELECT * FROM accounts WHERE identifier=? OR person_id=?').all(login,data.personId);
-        if(existing.some(record=>record.role!=='member'||record.password||record.person_id!==data.personId))
-          throw bad(409,'البريد أو الرقم أو الشخص مرتبط بحساب آخر.');
-        if(existing.length)db.prepare('UPDATE accounts SET identifier=?,invitation=?,invite_until=? WHERE id=?')
-          .run(login,digest(secret),Date.now()+86400000,existing[0].id);
-        else db.prepare('INSERT INTO accounts VALUES(?,?,?,?,?,?,?)')
-          .run(randomUUID(),login,data.personId,'member',null,digest(secret),Date.now()+86400000);
-        return initialPassword?{code:login.toUpperCase(),initialPassword}:{code:secret};
+        return issueInvite(data.personId,legacyLogin);
       });
     }
     if(method==='POST'&&/^\/api\/accounts\/[\w-]+\/revoke$/.test(pathname)){
