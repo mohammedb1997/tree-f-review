@@ -102,6 +102,41 @@
           <button id="copy-daughter-invitation" type="button">نسخ بيانات الدعوة</button>
         </div>
       </section>
+      <section id="family-workflows" class="panel">
+        <details id="batch-section">
+          <summary>إضافة أبناء دفعة واحدة</summary>
+          <form id="batch-form" method="post">
+            <label for="batch-parent">الأب</label><select id="batch-parent" required></select>
+            <label for="batch-names">أسماء الأبناء، اسم كامل في كل سطر</label>
+            <textarea id="batch-names" rows="5" maxlength="15050"></textarea>
+            <button id="batch-preview-button" type="button">معاينة الأسماء</button>
+            <div id="batch-preview" hidden></div>
+            <button id="batch-save" type="submit" disabled>حفظ الدفعة</button>
+          </form>
+        </details>
+        <details id="correction-section">
+          <summary>طلبات تصحيح النسب</summary>
+          <form id="correction-form" method="post">
+            <label for="correction-kind">نوع الطلب</label><select id="correction-kind"><option value="reparent">تصحيح الأب</option><option value="merge">دمج اسم مكرر</option></select>
+            <label for="correction-person">الشخص المطلوب تصحيحه</label><select id="correction-person" required></select>
+            <label id="correction-parent-label" for="correction-parent">الأب الصحيح</label><select id="correction-parent" required></select>
+            <label for="correction-note">سبب الطلب والمصدر</label><textarea id="correction-note" rows="3" required maxlength="1000"></textarea>
+            <button type="submit">إرسال للمراجعة</button>
+          </form>
+          <button id="corrections-refresh" type="button">تحديث الطلبات</button>
+          <ul id="corrections-list"></ul>
+        </details>
+        <details id="history-section">
+          <summary>سجل التعديلات</summary>
+          <button id="history-refresh" type="button">تحديث السجل</button><ol id="history-list"></ol>
+        </details>
+        <details id="export-section">
+          <summary>تصدير الفرع المحدد</summary>
+          <p>يضم التصدير أسماء الشجرة الرئيسية في الفرع المحدد.</p>
+          <button id="branch-export" type="button">تنزيل صفحة طباعة الفرع</button>
+          <button id="branch-svg-export" type="button">تنزيل رسم الفرع SVG</button>
+        </details>
+      </section>
       <section id="administration" class="panel administration" hidden aria-labelledby="admin-title">
         <h2 id="admin-title">إدارة الحسابات والصلاحيات</h2>
         <form id="title-form" class="title-form" method="post"><label for="tree-title">عنوان شجرة العائلة</label><input id="tree-title" name="title" maxlength="200" required><button type="submit">حفظ العنوان</button></form>

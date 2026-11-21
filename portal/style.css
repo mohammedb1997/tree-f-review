@@ -98,3 +98,10 @@ p{margin:.6rem 0}
   .tree-canvas{height:430px}
   .comparison-grid{grid-template-columns:minmax(0,1fr)}
 }
+.panel details{margin-block:1rem}
+.panel summary{cursor:pointer;font-weight:700;margin-block:.7rem}
+textarea{display:block;width:100%;font:inherit;padding:.7rem;border:1px solid #b6bea9;border-radius:.5rem;margin-block:.5rem;resize:vertical}
+#family-workflows form{max-width:46rem}
+#batch-preview{padding:.7rem;background:#eef3e8;border-radius:.5rem;margin-block:.7rem}
+#corrections-list li,#history-list li{padding:.7rem;border-bottom:1px solid #ded8c5}
+#corrections-list button{margin-inline:.3rem}

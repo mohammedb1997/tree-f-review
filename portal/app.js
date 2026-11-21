@@ -10,6 +10,7 @@ let liveConnection = null;
 let connectionGeneration = 0;
 let privatePeople = [];
 let treeRequest = 0;
+let batchDraft = null;
 
 function visiblePrivatePeople(rows){
   const scope=byId('tree-scope').value;
@@ -212,6 +213,11 @@ function startLive() {
   connection.addEventListener('error',()=>{
     if(generation===connectionGeneration)byId('live-status').textContent='انقطع الاتصال · جارٍ إعادة الاتصال';
   });
+  connection.addEventListener('corrections',()=>{
+    if(generation!==connectionGeneration || !user)return;
+    if(byId('correction-section').open)loadCorrections().catch(error=>notify(error.message,true));
+    if(byId('history-section').open)loadHistory().catch(error=>notify(error.message,true));
+  });
 }
 
 function notify(message, error = false) {
@@ -247,6 +253,14 @@ async function submit(form, action) {
 }
 
 function showSignedOut() {
+  batchDraft=null;
+  byId('batch-preview').replaceChildren();
+  byId('batch-preview').hidden=true;
+  byId('batch-save').disabled=true;
+  byId('history-list').replaceChildren();
+  byId('corrections-list').replaceChildren();
+  byId('batch-names').value='';
+  byId('correction-note').value='';
   stopLive();
   user = null;
   people = [];
@@ -546,6 +560,11 @@ function applyTree(result,forcePrivate=false) {
   byId('tree-title').value = result.title || 'شجرة العائلة';
   byId('family-title').textContent = byId('tree-title').value;
   const writable = people.filter(person => person.writable);
+  const oldBatchParent=byId('batch-parent').value;
+  byId('batch-parent').replaceChildren(...treeSnapshot.people.filter(person=>person.writable).map(option));
+  if([...byId('batch-parent').options].some(item=>item.value===oldBatchParent))byId('batch-parent').value=oldBatchParent;
+  byId('batch-section').hidden=!writable.length;
+  refreshCorrectionChoices();
   byId('parent').replaceChildren(...writable.map(option));
   byId('invite-person').replaceChildren(...treeSnapshot.people.map(option));
   renderPeople();
@@ -749,6 +768,162 @@ byId('copy-daughter-invitation').addEventListener('click',async()=>{
     notify('يمكنك نسخ الرمز وكلمة المرور المؤقتة كلًّا على حدة.');
   }
 });
+
+function refreshCorrectionChoices(){
+  const source=treeSnapshot?.people || [];
+  const own=source.filter(person=>person.parentId && person.writable);
+  const current=byId('correction-person').value;
+  const chosen=own.find(person=>person.id===current)||own[0];
+  const merging=byId('correction-kind').value==='merge';
+  const targets=merging&&chosen
+    ? source.filter(person=>person.id!==chosen.id&&person.name===chosen.name&&person.parentId===chosen.parentId)
+    : source;
+  for(const [id,rows] of [['correction-person',own],['correction-parent',targets]]){
+    const select=byId(id),value=select.value;
+    select.replaceChildren(...rows.map(option));
+    if(rows.some(person=>person.id===value))select.value=value;
+  }
+  byId('correction-form').hidden=!own.length;
+  byId('correction-parent-label').textContent=byId('correction-kind').value==='merge'?'السجل الذي سيبقى بعد الدمج':'الأب الصحيح';
+}
+
+function clearBatchPreview(){
+  batchDraft=null;
+  byId('batch-preview').hidden=true;
+  byId('batch-save').disabled=true;
+}
+byId('batch-names').addEventListener('input',clearBatchPreview);
+byId('batch-parent').addEventListener('change',clearBatchPreview);
+byId('batch-preview-button').addEventListener('click',()=>{
+  clearBatchPreview();
+  const names=byId('batch-names').value.split(/\r?\n/).map(name=>name.trim()).filter(Boolean);
+  if(!names.length||names.length>50||names.some(name=>name.length>300)){
+    notify('أدخل من ١ إلى ٥٠ اسمًا، بحد ٣٠٠ حرف للاسم.',true);return;
+  }
+  if(new Set(names.map(name=>name.normalize('NFC'))).size!==names.length){notify('توجد أسماء مكررة داخل الدفعة. راجعها قبل الحفظ.',true);return;}
+  const parentId=byId('batch-parent').value;
+  const parent=people.find(person=>person.id===parentId&&person.writable);
+  if(!parent){notify('اختر أبًا ضمن صلاحيتك.',true);return;}
+  batchDraft={parentId,names,revision:treeSnapshot.revision};
+  const heading=document.createElement('p');
+  heading.textContent='الأب: '+parent.name+' — '+names.length+' أبناء';
+  const list=document.createElement('ol');
+  for(const name of names){const item=document.createElement('li');item.textContent=name;list.append(item);}
+  byId('batch-preview').replaceChildren(heading,list);
+  byId('batch-preview').hidden=false;
+  byId('batch-save').disabled=false;
+});
+byId('batch-form').addEventListener('submit',event=>{
+  event.preventDefault();
+  const draft=batchDraft;
+  submit(event.currentTarget,async()=>{
+    if(!draft||draft.revision!==treeSnapshot.revision){clearBatchPreview();throw Error('تغيّرت الشجرة. أعد معاينة الدفعة قبل حفظها.');}
+    await api('/api/people/batch',{parentId:draft.parentId,names:draft.names});
+    byId('batch-names').value='';
+    clearBatchPreview();
+    await loadTree();
+    notify('حُفظت دفعة الأبناء.');
+  }).then(()=>{byId('batch-save').disabled=!batchDraft;});
+});
+
+function personLabel(id){return treeSnapshot?.people.find(person=>person.id===id)?.name || id;}
+async function loadHistory(){
+  const account=user;
+  const {entries}=await api('/api/history');
+  if(user!==account)return;
+  const items=entries.map(entry=>{
+    const item=document.createElement('li');
+    const date=new Date(entry.at);
+    item.textContent=(Number.isNaN(date.valueOf())?'':date.toLocaleString('ar-SA')+' · ')+
+      entry.actor+' · '+entry.summary;
+    return item;
+  });
+  byId('history-list').replaceChildren(...items);
+  if(!items.length){const empty=document.createElement('li');empty.textContent='لا توجد تعديلات مسجّلة بعد.';byId('history-list').append(empty);}
+}
+async function loadCorrections(){
+  const account=user;
+  const {requests}=await api('/api/corrections');
+  if(user!==account)return;
+  const states={pending:'بانتظار المراجعة',approved:'معتمد',rejected:'مرفوض',stale:'تحتاج طلبًا جديدًا'};
+  const items=requests.map(request=>{
+    const item=document.createElement('li'),text=document.createElement('p');
+    const kind=request.kind==='merge'?'دمج سجل مكرر':'تصحيح الأب';
+    text.textContent=kind+' · '+(request.personName||personLabel(request.personId))+' ← '+(request.parentName||personLabel(request.parentId))+' · '+
+      (states[request.status]||request.status)+' · '+request.note;
+    item.append(text);
+    if(user.role==='admin'&&request.status==='pending'){
+      for(const [decision,label] of [['approve','اعتماد'],['reject','رفض']]){
+        const button=document.createElement('button');
+        button.type='button';button.dataset.decision=decision;button.textContent=label;
+        button.addEventListener('click',()=>submit(item,async()=>{
+          if(!window.confirm(label+' طلب '+kind+' لهذا الشخص؟'))return;
+          await api('/api/corrections/'+encodeURIComponent(request.id)+'/decision',{decision});
+          await loadTree();await loadCorrections();await loadHistory();
+          notify('حُفظ قرار المراجعة.');
+        }));
+        item.append(button);
+      }
+    }
+    return item;
+  });
+  byId('corrections-list').replaceChildren(...items);
+  if(!items.length){const empty=document.createElement('li');empty.textContent='لا توجد طلبات.';byId('corrections-list').append(empty);}
+}
+byId('history-refresh').addEventListener('click',()=>submit(byId('history-section'),loadHistory));
+byId('corrections-refresh').addEventListener('click',()=>submit(byId('correction-section'),loadCorrections));
+byId('history-section').addEventListener('toggle',()=>{if(byId('history-section').open&&user)loadHistory().catch(error=>notify(error.message,true));});
+byId('correction-section').addEventListener('toggle',()=>{if(byId('correction-section').open&&user)loadCorrections().catch(error=>notify(error.message,true));});
+byId('correction-kind').addEventListener('change',refreshCorrectionChoices);
+byId('correction-person').addEventListener('change',refreshCorrectionChoices);
+byId('correction-form').addEventListener('submit',event=>{
+  event.preventDefault();
+  submit(event.currentTarget,async()=>{
+    const personId=byId('correction-person').value,parentId=byId('correction-parent').value;
+    if(!personId||!parentId||personId===parentId)throw Error('اختر شخصين مختلفين.');
+    await api('/api/corrections',{personId,parentId,note:byId('correction-note').value.trim(),kind:byId('correction-kind').value});
+    byId('correction-note').value='';await loadCorrections();notify('أُرسل الطلب للمراجعة.');
+  });
+});
+
+function downloadBranch(svgOnly){
+  const rows=treeSnapshot?.people || [];
+  const root=rows.find(person=>person.id===selectedId);
+  if(!root){notify('اختر شخصًا من الشجرة الرئيسية لتصدير فرعه.',true);return;}
+  const kept=descendants(rows,root.id);
+  const fragment=document.createElement('div');
+  const selectedScope=byId('tree-scope').value;
+  byId('tree-scope').value='all';
+  try { drawTree(fragment,{title:root.name,people:rows.filter(person=>kept.has(person.id))}); }
+  finally {byId('tree-scope').value=selectedScope;}
+  const svg=fragment.querySelector('svg');
+  if(!svg)return;
+  svg.querySelectorAll('[tabindex],[role],[aria-pressed]').forEach(element=>{
+    element.removeAttribute('tabindex');element.removeAttribute('role');element.removeAttribute('aria-pressed');
+  });
+  const style=svgElement('style',{},'text{font-family:Tahoma,Arial,sans-serif;font-size:15px;fill:#293d30}.tree-person rect{fill:#fffdf6;stroke:#8a744c;stroke-width:1.5}.tree-branch{fill:none;stroke:#82653c;stroke-width:2.5}');
+  svg.prepend(style);
+  svg.setAttribute('xmlns','http://www.w3.org/2000/svg');
+  const markup=new XMLSerializer().serializeToString(svg);
+  let content=markup,type='image/svg+xml',filename='family-branch.svg';
+  if(!svgOnly){
+    const html=document.implementation.createHTMLDocument('فرع '+root.name);
+    html.documentElement.lang='ar';html.documentElement.dir='rtl';
+    const meta=html.createElement('meta');meta.setAttribute('charset','utf-8');html.head.prepend(meta);
+    const css=html.createElement('style');
+    css.textContent='body{margin:0;padding:12mm;font-family:Tahoma,Arial,sans-serif}svg{display:block;width:100%;height:auto}h1{font-size:20px;text-align:center}@page{size:landscape;margin:5mm}';
+    html.head.append(css);
+    const heading=html.createElement('h1');heading.textContent='فرع '+root.name;
+    html.body.append(heading,html.importNode(svg,true));
+    content='<!doctype html>'+html.documentElement.outerHTML;
+    type='text/html;charset=utf-8';filename='family-branch-print.html';
+  }
+  const link=document.createElement('a'),url=URL.createObjectURL(new Blob([content],{type}));
+  link.href=url;link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  notify(svgOnly?'نُزّل رسم الفرع.':'نُزّلت صفحة الفرع. افتحها ثم استخدم الطباعة أو حفظ PDF.');
+}
+byId('branch-export').addEventListener('click',()=>downloadBranch(false));
+byId('branch-svg-export').addEventListener('click',()=>downloadBranch(true));
 
 enter().catch(error => {
   showSignedOut();

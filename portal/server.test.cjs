@@ -220,3 +220,98 @@ test('صلاحيات الفروع والبث الحي ولقطة ما قبل ا�
     rmdirSync(directory);
   }
 });
+
+test('دفعات ذرية وسجل دائم وطلبات نسب بمراجعة المدير',{timeout:15000},async()=>{
+  const directory=mkdtempSync(path.join(os.tmpdir(),'treef-workflows-'));
+  const filename=path.join(directory,'family.sqlite');
+  const origin='http://127.0.0.1:4178';
+  const password='workflow-secret-for-test';
+  let portal=createPortal({filename,origin});
+  let address;
+  async function start(){
+    await once(portal.server.listen(0,'127.0.0.1'),'listening');
+    address='http://127.0.0.1:'+portal.server.address().port;
+  }
+  const stop=()=>new Promise((resolve,reject)=>portal.server.close(error=>error?reject(error):resolve()));
+  async function request(route,{method='GET',data,cookie,status=200}={}){
+    const headers={host:new URL(origin).host,origin};
+    if(cookie)headers.cookie=cookie;
+    if(data)headers['Content-Type']='application/json';
+    const response=await new Promise((resolve,reject)=>{
+      const req=send(address+route,{method,headers},resolve);
+      req.once('error',reject);req.end(data?JSON.stringify(data):undefined);
+    });
+    const chunks=[];
+    for await(const chunk of response)chunks.push(chunk);
+    const json=JSON.parse(Buffer.concat(chunks).toString());
+    assert.equal(response.statusCode,status,JSON.stringify(json));
+    return {json,cookie:response.headers['set-cookie']?.[0].split(';')[0]};
+  }
+  try{
+    await portal.initialize({login:'admin@example.test',password,document:core.fixture(10)});
+    await start();
+    const login=id=>request('/api/login',{method:'POST',data:{identifier:id,password}});
+    const admin=(await login('admin@example.test')).cookie;
+    async function member(personId){
+      const invitation=(await request('/api/invites',{method:'POST',data:{personId},cookie:admin})).json;
+      return (await request('/api/activate',{method:'POST',data:{...invitation,password}})).cookie;
+    }
+    const editor=await member('test-1');
+    const outsider=await member('test-2');
+    const batch=(names,parentId='test-1',cookie=editor,status=200)=>request('/api/people/batch',
+      {method:'POST',data:{parentId,names},cookie,status});
+    await request('/api/history',{status:401});
+    await batch(['سليم',''], 'test-1',editor,400);
+    await batch(['سليم','سليم'], 'test-1',editor,400);
+    await batch(['سليم'], 'test-2',editor,403);
+    assert.equal((await request('/api/tree',{cookie:editor})).json.revision,0);
+    const ids=(await batch(['أول الدفعة','ثاني الدفعة'])).json.ids;
+    assert.equal(ids.length,2);
+    const doc=(await request('/api/backup',{cookie:admin})).json;
+    const relations=doc.relationships.filter(relation=>ids.includes(relation.childId));
+    assert.equal(relations[1].siblingOrder,relations[0].siblingOrder+1);
+    assert.equal((await request('/api/tree',{cookie:editor})).json.revision,1);
+    const history=(await request('/api/history',{cookie:editor})).json.entries;
+    assert(history.some(entry=>entry.action==='batch-add'));
+    assert(!(await request('/api/history',{cookie:outsider})).json.entries.some(entry=>entry.action==='batch-add'));
+    const correction=(personId,parentId,cookie=editor,status=200)=>request('/api/corrections',{
+      method:'POST',cookie,data:{personId,parentId,note:'مراجعة تجريبية'},status
+    });
+    await correction('test-0','test-1',admin,400);
+    await correction('test-1','test-4',editor,400);
+    await correction('test-2','test-1',editor,403);
+    const one=(await correction('test-4','test-2')).json.id;
+    const stale=(await correction('test-4','test-3')).json.id;
+    await correction('test-4','test-2',editor,409);
+    assert.equal((await request('/api/corrections',{cookie:outsider})).json.requests.length,0);
+    assert.equal((await request('/api/corrections',{cookie:admin})).json.requests.length,2);
+    const decide=(id,decision,cookie=admin,status=200)=>request('/api/corrections/'+id+'/decision',
+      {method:'POST',data:{decision},cookie,status});
+    await decide(one,'approve',editor,403);
+    await decide(one,'approve');
+    await decide(one,'approve',admin,409);
+    await decide(stale,'approve',admin,409);
+    assert.equal((await request('/api/tree',{cookie:editor})).json.people.find(person=>person.id==='test-4').parentId,'test-2');
+    assert.equal((await request('/api/tree',{cookie:editor})).json.people.find(person=>person.id==='test-4').writable,false);
+    await decide(stale,'reject');
+    const privateRecord=(await request('/api/people',{method:'POST',cookie:editor,
+      data:{parentId:'test-1',name:'ابنة حساسة لا تدخل السجل العام',gender:'f'}})).json.id;
+    await request('/api/private-daughters/'+privateRecord,{method:'PATCH',cookie:editor,data:{name:'ابنة مصححة'}});
+    const privateAudit=(await request('/api/history',{cookie:editor})).json.entries;
+    assert(privateAudit.some(entry=>entry.action==='daughter-rename'));
+    assert(!(await request('/api/history',{cookie:outsider})).json.entries.some(entry=>entry.action.startsWith('daughter-')));
+    assert(!(await request('/api/history',{cookie:admin})).json.entries.some(entry=>entry.action.startsWith('daughter-')));
+    const adminHistory=(await request('/api/history',{cookie:admin})).json.entries;
+    assert(adminHistory.some(entry=>entry.action==='correction-approved'));
+    await stop();
+    portal=createPortal({filename,origin});
+    await start();
+    const restored=(await login('admin@example.test')).cookie;
+    assert((await request('/api/history',{cookie:restored})).json.entries.some(entry=>entry.action==='correction-approved'));
+    assert.equal((await request('/api/corrections',{cookie:restored})).json.requests.find(row=>row.id===one).status,'approved');
+  }finally{
+    if(portal.server.listening)await stop();
+    for(const file of readdirSync(directory))unlinkSync(path.join(directory,file));
+    rmdirSync(directory);
+  }
+});

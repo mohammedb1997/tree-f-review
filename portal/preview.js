@@ -8,6 +8,11 @@
   let sequence=0;
   let previous;
   const privateDaughters=new Map();
+  const history=[];
+  const corrections=[];
+  function record(action,summary,personId=null){
+    history.unshift({id:'event-'+(++sequence),at:new Date().toISOString(),actor:user.identifier,actorId:user.id,action,summary,personId});
+  }
   let tree={revision:0,title:'شجرة عائلة تجريبية',people:[
     {id:'grandfather',name:'جد العائلة التجريبية',parentId:null},
     {id:'father',name:'أحمد التجريبي',parentId:'grandfather'},
@@ -58,6 +63,43 @@
     if(!user)fail('سجّل الدخول التجريبي أولًا.');
     if(route==='/api/logout'){user=null;return {};}
     if(route==='/api/me')return publicAccount(user);
+    if(route==='/api/history')return {entries:history.filter(entry=>user.role==='admin'||entry.actorId===user.id||entry.personId&&writable(entry.personId)).slice(0,100)};
+    if(route==='/api/corrections'&&data===undefined)return {requests:corrections.filter(item=>user.role==='admin'||item.actorId===user.id)};
+    if(route==='/api/corrections'){
+      const person=tree.people.find(item=>item.id===data.personId);
+      const target=tree.people.find(item=>item.id===data.parentId);
+      if(!person?.parentId||!target||person.id===target.id||!writable(person.id))fail('راجع الشخص والوجهة المطلوبة.');
+      if(!data.note?.trim())fail('أضف سبب الطلب.');
+      const request={id:'correction-'+(++sequence),personId:person.id,parentId:target.id,note:data.note,status:'pending',actorId:user.id,kind:data.kind||'reparent',originalParent:person.parentId};
+      corrections.unshift(request);record('correction','إرسال طلب تصحيح نسب',person.id);
+      return {id:request.id};
+    }
+    if(/^\/api\/corrections\/[^/]+\/decision$/.test(route)){
+      if(user.role!=='admin')fail('اعتماد الطلب للمدير.');
+      const request=corrections.find(item=>item.id===route.split('/')[3]);
+      if(!request||request.status!=='pending')fail('الطلب غير متاح.');
+      if(!['approve','reject'].includes(data.decision))fail('قرار غير صالح.');
+      if(data.decision==='reject'){request.status='rejected';record('correction','رفض طلب تصحيح نسب',request.personId);return {};}
+      const person=tree.people.find(item=>item.id===request.personId),target=tree.people.find(item=>item.id===request.parentId);
+      if(!person||!target||person.parentId!==request.originalParent)fail('تغيرت الشجرة. أنشئ طلبًا جديدًا.');
+      const below=new Set([person.id]);let growth=true;
+      while(growth){growth=false;for(const row of tree.people)if(below.has(row.parentId)&&!below.has(row.id)){below.add(row.id);growth=true;}}
+      if(below.has(target.id))fail('هذا الطلب يسبب دورة في النسب.');
+      if(request.kind==='merge'){
+        if(person.name!==target.name||person.parentId!==target.parentId)fail('الدمج بين اسمين متطابقين للأب نفسه.');
+        if(accounts.some(item=>item.personId===person.id)||privateDaughters.has(person.id))fail('للسجل حساب أو بيانات خاصة. راجع المدير.');
+        update(()=>{for(const row of tree.people)if(row.parentId===person.id)row.parentId=target.id;tree.people=tree.people.filter(row=>row.id!==person.id);});
+      }else update(()=>{person.parentId=target.id;});
+      request.status='approved';record('correction','اعتماد طلب تصحيح نسب',target.id);return {};
+    }
+    if(route==='/api/people/batch'){
+      if(!writable(data.parentId)||!Array.isArray(data.names)||!data.names.length||data.names.length>50)fail('راجع دفعة الأسماء.');
+      const names=data.names.map(name=>typeof name==='string'?name.trim():'');
+      if(names.some(name=>!name||name.length>300)||new Set(names.map(name=>name.normalize('NFC'))).size!==names.length)fail('راجع الأسماء وتكرارها.');
+      const added=names.map(name=>({id:'preview-person-'+(++sequence),parentId:data.parentId,name}));
+      update(()=>tree.people.push(...added));record('batch','إضافة دفعة من '+added.length+' أبناء',data.parentId);
+      return {ids:added.map(person=>person.id)};
+    }
     if((route==='/api/tree'||route==='/api/tree?scope=all')&&data===undefined){
       const privatePeople=[];
       for(const [parentId,daughters] of privateDaughters){
@@ -105,6 +147,7 @@
       if(!writable(data.parentId))fail('الإضافة ضمن الفرع المخوّل.');
       const id='preview-person-'+(++sequence);
       update(()=>tree.people.push({id,parentId:data.parentId,name:data.name}));
+      record('add','إضافة '+data.name,id);
       return {id};
     }
     if(route.startsWith('/api/people/')&&method==='PATCH'){
@@ -112,10 +155,11 @@
       if(!writable(id))fail('التعديل ضمن الفرع المخوّل.');
       const person=tree.people.find(item=>item.id===id);
       update(()=>{person.name=data.name;});
+      record('rename','تعديل اسم '+data.name,id);
       return {id};
     }
     if(user.role!=='admin')fail('هذا الإجراء للمدير التجريبي.');
-    if(route==='/api/tree'&&method==='PATCH'){update(()=>{tree.title=data.title;});return {};}
+    if(route==='/api/tree'&&method==='PATCH'){update(()=>{tree.title=data.title;});record('title','تعديل عنوان الشجرة');return {};}
     if(route==='/api/accounts')return {accounts:accounts.map(publicAccount)};
     if(route==='/api/invites')return issueInvite(data.personId);
     if(route.endsWith('/revoke')){

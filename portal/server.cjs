@@ -7,6 +7,7 @@ const {promisify} = require('node:util');
 const {readFileSync} = require('node:fs');
 const path = require('node:path');
 const core = require('../Claud/botanical-core.js');
+const {duplicateCandidate,mergeDuplicate}=require('./duplicate-review.cjs');
 
 const derive = promisify(scrypt);
 const digest = value => createHash('sha256').update(value).digest('hex');
@@ -83,6 +84,20 @@ function createPortal({filename,origin}) {
     );
     CREATE TABLE IF NOT EXISTS sessions (
       token TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id), expires INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS audit (
+      id TEXT PRIMARY KEY, at INTEGER NOT NULL, actor_id TEXT NOT NULL,
+      actor_name TEXT NOT NULL, action TEXT NOT NULL, summary TEXT NOT NULL,
+      person_ids TEXT NOT NULL, private_father TEXT
+    );
+    CREATE TABLE IF NOT EXISTS corrections (
+      id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, person_id TEXT NOT NULL,
+      parent_id TEXT NOT NULL, source_parent_id TEXT NOT NULL, note TEXT NOT NULL,
+      status TEXT NOT NULL CHECK(status IN ('pending','approved','rejected')),
+      created INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS correction_merges (
+      correction_id TEXT PRIMARY KEY REFERENCES corrections(id), snapshot TEXT NOT NULL
     );
   `);
   const tree=()=>JSON.parse(db.prepare('SELECT document FROM tree WHERE id=1').get().document);
@@ -163,6 +178,148 @@ function createPortal({filename,origin}) {
     db.prepare('UPDATE tree_revision SET revision=revision+1,previous=? WHERE id=1').run(JSON.stringify(previous));
   }
 
+  function auditChange(account,action,summary,personIds=[],privateFather=null){
+    const actor=account.person_id
+      ? tree().persons.find(person=>person.personId===account.person_id)?.fullName || 'عضو العائلة'
+      : 'المدير العام';
+    db.prepare('INSERT INTO audit VALUES(?,?,?,?,?,?,?,?)').run(
+      randomUUID(),Date.now(),account.id,actor,action,summary,JSON.stringify(personIds),privateFather);
+  }
+
+  function history(account){
+    const scope=projection(publicTree(tree()),account).writable;
+    const entries=db.prepare(`SELECT * FROM audit
+      WHERE actor_id=? OR private_father=? OR (private_father IS NULL AND (? OR EXISTS (
+        SELECT 1 FROM json_each(audit.person_ids) subjects
+        JOIN json_each(?) visible ON subjects.value=visible.value
+      ))) ORDER BY at DESC,rowid DESC LIMIT 100`)
+      .all(account.id,account.person_id,Number(account.role==='admin'),JSON.stringify([...scope]))
+      .map(entry=>({id:entry.id,at:entry.at,actor:entry.actor_name,action:entry.action,summary:entry.summary}));
+    return {entries};
+  }
+
+  function insertChild(doc,parentId,name){
+    const id=randomUUID();
+    const siblingOrder=doc.relationships
+      .filter(relation=>relation.parentId===parentId&&relation.type==='father')
+      .reduce((max,relation)=>Math.max(max,Number(relation.siblingOrder)||0),-1)+1;
+    doc.persons.push({personId:id,fullName:name,gender:'m',lifeStatus:'unknown'});
+    doc.relationships.push({relationshipId:'father:'+id,type:'father',parentId,childId:id,siblingOrder});
+    return id;
+  }
+
+  function validateTree(doc){
+    try{core.validate(doc);}catch{throw bad(400,'تعذر حفظ التعديل ضمن حدود الشجرة الحالية.');}
+  }
+
+  function addBatch(account,data){
+    if(!Array.isArray(data.names)||data.names.length<1||data.names.length>50)
+      throw bad(400,'أدخل من اسم واحد إلى ٥٠ اسمًا في الدفعة.');
+    const names=data.names.map(name=>personName(name));
+    const normalized=names.map(name=>name.normalize('NFC').replace(/\s+/g,' '));
+    if(new Set(normalized).size!==names.length)throw bad(400,'توجد أسماء مكررة داخل الدفعة.');
+    return transaction(()=>{
+      const doc=tree(),before=publicTree(doc);
+      if(!projection(before,account).writable.has(data.parentId))throw bad(403,error.forbidden);
+      const ids=names.map(name=>insertChild(doc,data.parentId,name));
+      validateTree(doc);
+      saveTree(doc,before);
+      auditChange(account,'batch-add','إضافة '+ids.length+' أبناء دفعة واحدة',[data.parentId,...ids]);
+      return {ids};
+    });
+  }
+
+  function correctionRecords(account){
+    const query='SELECT c.*, m.snapshot AS merge_snapshot ' +
+      'FROM corrections c LEFT JOIN correction_merges m ON m.correction_id=c.id';
+    const rows=account.role==='admin'
+      ? db.prepare(query+' ORDER BY c.created DESC,c.rowid DESC LIMIT 100').all()
+      : db.prepare(query+' WHERE c.actor_id=? ORDER BY c.created DESC,c.rowid DESC LIMIT 100').all(account.id);
+    const names=new Map(publicTree(tree()).people.map(person=>[person.id,person.name]));
+    return {requests:rows.map(row=>{
+      const saved=row.merge_snapshot?JSON.parse(row.merge_snapshot):null;
+      return {id:row.id,personId:row.person_id,parentId:row.parent_id,note:row.note,status:row.status,
+        kind:saved?'merge':'reparent',personName:names.get(row.person_id)??saved?.duplicate.fullName,
+        parentName:names.get(row.parent_id)??saved?.survivor.fullName};
+    })};
+  }
+
+  const mergeOptions={hasLinkedRecords(id){
+    return Boolean(db.prepare('SELECT 1 FROM accounts WHERE person_id=? UNION ALL SELECT 1 FROM private_daughters WHERE father_id=? LIMIT 1').get(id,id));
+  }};
+
+  function inspectDuplicate(doc,personId,keepId,status){
+    try{return duplicateCandidate(doc,personId,keepId,mergeOptions);}
+    catch(error){throw bad(status,error.message);}
+  }
+
+  function proposedParent(doc,personId,parentId){
+    const snapshot=publicTree(doc);
+    if(personId===doc.rootPersonId||!snapshot.people.some(person=>person.id===personId)||
+      !snapshot.people.some(person=>person.id===parentId))throw bad(400,'اختر فردًا وأبًا من الشجرة الرئيسية.');
+    const relation=doc.relationships.find(item=>item.type==='father'&&item.childId===personId);
+    if(!relation)throw bad(400,error.invalid);
+    const original=relation.parentId;
+    if(original===parentId)throw bad(400,'الأب المختار هو الأب الحالي.');
+    relation.parentId=parentId;
+    relation.siblingOrder=doc.relationships.filter(item=>item!==relation&&item.type==='father'&&item.parentId===parentId)
+      .reduce((max,item)=>Math.max(max,Number(item.siblingOrder)||0),-1)+1;
+    validateTree(doc);
+    return original;
+  }
+
+  function createCorrection(account,data){
+    const note=personName(data.note,1000);
+    const kind=data.kind??'reparent';
+    if(!['reparent','merge'].includes(kind))throw bad(400,error.invalid);
+    return transaction(()=>{
+      const doc=tree();
+      if(!projection(publicTree(doc),account).writable.has(data.personId))throw bad(403,error.forbidden);
+      const candidate=kind==='merge'?inspectDuplicate(doc,data.personId,data.parentId,400):null;
+      const sourceParent=candidate?candidate.fatherId:proposedParent(doc,data.personId,data.parentId);
+      if(db.prepare("SELECT id FROM corrections WHERE person_id=? AND parent_id=? AND status='pending'")
+        .get(data.personId,data.parentId))throw bad(409,'يوجد طلب مطابق بانتظار المراجعة.');
+      const id=randomUUID();
+      db.prepare('INSERT INTO corrections VALUES(?,?,?,?,?,?,?,?)').run(
+        id,account.id,data.personId,data.parentId,sourceParent,note,'pending',Date.now());
+      if(candidate)db.prepare('INSERT INTO correction_merges VALUES(?,?)').run(id,JSON.stringify(candidate));
+      auditChange(account,'correction-request',candidate?'إرسال طلب مراجعة اسم مكرر':'إرسال طلب تصحيح نسب',[data.personId]);
+      return {id};
+    });
+  }
+
+  function decideCorrection(account,id,decision){
+    if(account.role!=='admin')throw bad(403,error.forbidden);
+    if(!['approve','reject'].includes(decision))throw bad(400,error.invalid);
+    return transaction(()=>{
+      const request=db.prepare('SELECT * FROM corrections WHERE id=?').get(id);
+      if(!request)throw bad(404,'طلب التصحيح غير موجود.');
+      if(request.status!=='pending')throw bad(409,'حُسم هذا الطلب سابقًا.');
+      const merge=db.prepare('SELECT snapshot FROM correction_merges WHERE correction_id=?').get(id);
+      if(decision==='approve'){
+        const doc=tree(),before=publicTree(doc);
+        const relation=doc.relationships.find(item=>item.type==='father'&&item.childId===request.person_id);
+        if(!relation||relation.parentId!==request.source_parent_id)
+          throw bad(409,'تغيّر الأب منذ إرسال الطلب. أرسل طلبًا جديدًا.');
+        if(merge){
+          const candidate=inspectDuplicate(doc,request.person_id,request.parent_id,409);
+          if(JSON.stringify(candidate)!==merge.snapshot)throw bad(409,'تغيّرت بيانات السجلين منذ إرسال الطلب. أرسل طلبًا جديدًا.');
+          mergeDuplicate(doc,request.person_id,request.parent_id,mergeOptions);
+        }else proposedParent(doc,request.person_id,request.parent_id);
+        saveTree(doc,before);
+      }
+      const status=decision==='approve'?'approved':'rejected';
+      db.prepare('UPDATE corrections SET status=? WHERE id=?').run(status,id);
+      const action=merge?'merge-':'correction-';
+      const summary=merge
+        ? (decision==='approve'?'اعتماد دمج سجل مكرر':'رفض دمج سجل مكرر')
+        : (decision==='approve'?'اعتماد تصحيح النسب':'رفض طلب تصحيح النسب');
+      auditChange(account,action+status,summary,
+        [request.person_id,request.source_parent_id,request.parent_id]);
+      return {id,status,requesterId:request.actor_id};
+    });
+  }
+
   const viewers=new Set();
   const event=(res,name,data)=>res.write(`event: ${name}\ndata: ${JSON.stringify(data)}\n\n`);
   function endExpired(viewer){
@@ -187,6 +344,16 @@ function createPortal({filename,origin}) {
       if(!accountFor(viewer.req)){endExpired(viewer);continue;}
       if(viewer.res.writableLength>2*1024*1024){viewer.res.destroy();continue;}
       event(viewer.res,'private-people',{});
+    }
+  }
+
+  function signalCorrectionChange(requesterId){
+    for(const viewer of viewers){
+      const current=accountFor(viewer.req);
+      if(!current){endExpired(viewer);continue;}
+      if(current.role!=='admin'&&current.id!==requesterId)continue;
+      if(viewer.res.writableLength>2*1024*1024){viewer.res.destroy();continue;}
+      event(viewer.res,'corrections',{});
     }
   }
   function stream(req,res,account){
@@ -234,19 +401,16 @@ function createPortal({filename,origin}) {
       if(!writable.has(personId))throw bad(403,error.forbidden);
       let id=personId;
       if(method==='POST'){
-        id=randomUUID();
-        const siblingOrder=doc.relationships
-          .filter(relation=>relation.parentId===personId&&relation.type==='father')
-          .reduce((max,relation)=>Math.max(max,Number(relation.siblingOrder)||0),-1)+1;
-        doc.persons.push({personId:id,fullName:name,gender:'m',lifeStatus:'unknown'});
-        doc.relationships.push({relationshipId:'father:'+id,type:'father',parentId:personId,childId:id,siblingOrder});
+        id=insertChild(doc,personId,name);
       }else{
         const person=doc.persons.find(person=>person.personId===id);
         if(person.fullName===name)return {id};
         person.fullName=name;
       }
-      try{core.validate(doc);}catch{throw bad(400,'تعذر حفظ التعديل ضمن حدود الشجرة الحالية.');}
+      validateTree(doc);
       saveTree(doc,before);
+      auditChange(account,method==='POST'?'person-add':'person-rename',
+        method==='POST'?'إضافة ابن: '+name:'تصحيح اسم: '+name,[id,personId]);
       return {id};
     });
   }
@@ -284,8 +448,11 @@ function createPortal({filename,origin}) {
       : canAddDaughter(account)&&account.person_id===fatherId;
     if(!canAdd)throw bad(403,'اختر أبًا من الشجرة. يمكن للأب إضافة بناته المباشرات.');
     const id=randomUUID();
-    db.prepare('INSERT INTO private_daughters VALUES(?,?,?)').run(id,fatherId,personName(data.name));
-    return {id,private:true};
+    return transaction(()=>{
+      db.prepare('INSERT INTO private_daughters VALUES(?,?,?)').run(id,fatherId,personName(data.name));
+      auditChange(account,'daughter-add','إضافة ابنة',[id],fatherId);
+      return {id,private:true};
+    });
   }
 
   async function handle(req,res){
@@ -349,13 +516,36 @@ function createPortal({filename,origin}) {
         identifier:account.identifier,canAddDaughter:canAddDaughter(account)};
       else if(method==='GET'&&pathname==='/api/tree')payload=treeView(version(),account,requestUrl.searchParams.get('scope')==='all');
       else if(method==='GET'&&pathname==='/api/private-daughters')payload=privateDaughters(account);
+      else if(method==='GET'&&pathname==='/api/history')payload=history(account);
+      else if(method==='GET'&&pathname==='/api/corrections')payload=correctionRecords(account);
+      else if(method==='POST'&&pathname==='/api/corrections'){
+        const data=await input(req);fields(data,['personId','parentId','note','kind']);
+        const current=requireCurrent(req);
+        payload=createCorrection(current,data);
+        signalCorrectionChange(current.id);
+      }
+      else if(method==='POST'&&/^\/api\/corrections\/[\w-]+\/decision$/.test(pathname)){
+        const data=await input(req);fields(data,['decision']);
+        const {requesterId,...result}=decideCorrection(requireCurrent(req),pathname.split('/')[3],data.decision);
+        payload=result;
+        if(result.status==='approved')publishTree();
+        signalCorrectionChange(requesterId);
+      }
+      else if(method==='POST'&&pathname==='/api/people/batch'){
+        const data=await input(req);fields(data,['parentId','names']);
+        payload=addBatch(requireCurrent(req),data);
+        publishTree();
+      }
       else if(method==='PATCH'&&/^\/api\/private-daughters\/[\w-]+$/.test(pathname)){
         const data=await input(req);fields(data,['name']);
         const id=pathname.split('/')[3];
         const name=personName(data.name);
         const previous=ownDaughter(requireCurrent(req),id);
         if(previous.name!==name){
-          db.prepare('UPDATE private_daughters SET name=? WHERE id=?').run(name,id);
+          transaction(()=>{
+            db.prepare('UPDATE private_daughters SET name=? WHERE id=?').run(name,id);
+            auditChange(requireCurrent(req),'daughter-rename','تصحيح اسم ابنة',[id],account.person_id);
+          });
           signalPrivateChange();
         }
         payload={id};
@@ -364,14 +554,18 @@ function createPortal({filename,origin}) {
         const data=await input(req);fields(data,[]);
         const [, , ,id,action]=pathname.split('/');
         payload=transaction(()=>{
-          ownDaughter(requireCurrent(req),id);
+          const acting=requireCurrent(req);
+          ownDaughter(acting,id);
           if(action==='recover'){
             const linked=db.prepare("SELECT id FROM accounts WHERE person_id=? AND role='member'").get(id);
             if(!linked)throw bad(409,'أنشئ دعوة أولى لهذا الحساب.');
             db.prepare('UPDATE accounts SET password=NULL WHERE id=?').run(linked.id);
             db.prepare('DELETE FROM sessions WHERE account_id=?').run(linked.id);
           }
-          return issueInvite(id,null);
+          const invitation=issueInvite(id,null);
+          auditChange(acting,action==='recover'?'daughter-recover':'daughter-invite',
+            action==='recover'?'استعادة دخول حساب ابنة':'إصدار دعوة لحساب ابنة',[id],acting.person_id);
+          return invitation;
         });
         if(action==='recover')expireInvalidStreams();
       }
@@ -438,6 +632,7 @@ function createPortal({filename,origin}) {
         const before=publicTree(doc);
         doc.title=title;
         saveTree(doc,before);
+        auditChange(requireCurrent(req),'title-change','تعديل عنوان الشجرة');
         return {ok:true};
       });
       publishTree();
@@ -456,15 +651,20 @@ function createPortal({filename,origin}) {
         const acting=requireCurrent(req);
         if(acting.role!=='admin'||!projection(publicTree(tree()),acting).writable.has(data.personId))
           throw bad(400,error.invalid);
-        return issueInvite(data.personId,legacyLogin);
+        const invitation=issueInvite(data.personId,legacyLogin);
+        auditChange(acting,'account-invite','إصدار دعوة لحساب عضو',[data.personId]);
+        return invitation;
       });
     }
     if(method==='POST'&&/^\/api\/accounts\/[\w-]+\/revoke$/.test(pathname)){
       const id=pathname.split('/')[3];
       const result=transaction(()=>{
+        const acting=requireCurrent(req);
+        const linked=db.prepare('SELECT a.person_id,d.father_id FROM accounts a LEFT JOIN private_daughters d ON d.id=a.person_id WHERE a.id=?').get(id);
         const revoked=db.prepare(`UPDATE accounts SET password=NULL,invitation=NULL,invite_until=NULL WHERE id=? AND role='member'`).run(id);
         if(revoked.changes!==1)throw bad(404,'الحساب غير موجود.');
         db.prepare('DELETE FROM sessions WHERE account_id=?').run(id);
+        auditChange(acting,'account-revoke','إيقاف حساب عضو',[linked.person_id],linked.father_id);
         return {ok:true};
       });
       expireInvalidStreams();

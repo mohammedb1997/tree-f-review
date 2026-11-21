@@ -1,0 +1,17 @@
+[Unit]
+Description=Verified family tree SQLite snapshot
+
+[Service]
+Type=oneshot
+User=treef
+Group=treef
+StateDirectory=treef
+StateDirectoryMode=0700
+WorkingDirectory=/opt/treef
+EnvironmentFile=/etc/treef/portal.env
+ExecStart=/usr/bin/node /opt/treef/portal/backup.cjs backup ${TREEF_DB} /var/lib/treef/backups
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
