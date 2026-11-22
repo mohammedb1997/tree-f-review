@@ -60,3 +60,30 @@ rtk proxy node --test portal/server.test.cjs portal/backup.test.cjs portal/deplo
 ```
 
 فحص المتصفح يستخدم Chrome وPlaywright كما في اختبارات مستودع المراجعة.
+
+## معرض التصميم والمقارنة البصرية
+
+افتح [معرض تصميم الواجهة](design-review.html) لمقارنة «فرعي أولًا» و«الشجرة أولًا». لكل نموذج العينة نفسها. جرّب العثور على موقعك، وفتح فرعك، وإضافة اسم وهمي. يتضمن المعرض أيضًا حالات الاسم الطويل والاسم المتكرر ورسائل الحفظ والخطأ والاطلاع فقط. النموذج يحتفظ بإضافاته في الذاكرة أثناء التجربة.
+
+من جذر مستودع المراجعة، شغّل:
+
+```powershell
+rtk proxy node --test portal/design-review.browser.test.cjs
+```
+
+يقارن الاختبار الشجرة التجريبية والمعرض والمكوّنات بصور مرجعية على ٣٩٠ و٧٦٨ و١٢٨٠ بكسل CSS. الصور في `portal/design-snapshots/`، ومصدرها Chrome على Windows ببيانات وهمية. اختلاف النظام والخطوط وإصدار Chrome قد يغيّر البكسلات. نفّذ المقارنة في بيئة مطابقة، وراجع الصورة الفعلية التي يذكر الاختبار مسارها عند الفشل. هذه الصور مرجع أولي للمراجعة.
+
+بعد اعتماد تغيير بصري متعمّد، أعد توليد المرجع من نفس البيئة وراجع فروق الصور:
+
+```powershell
+rtk proxy node -e "const r=require('node:child_process').spawnSync(process.execPath,['--test','portal/design-review.browser.test.cjs'],{stdio:'inherit',env:{...process.env,TREEF_UPDATE_DESIGN_SNAPSHOTS:'1'}});process.exitCode=r.status??1"
+```
+
+## فحص Galaxy فعليًا
+
+1. شغّل معاينة محلية ببيانات وهمية. مثال من جذر مستودع المراجعة: `rtk proxy python -m http.server 4190 --bind 127.0.0.1`.
+2. صِل Galaxy بالكمبيوتر عبر USB، وفعّل تصحيح USB على الهاتف ووافق على الاتصال. افتح في Chrome على الكمبيوتر `chrome://inspect/#devices` واختر إعادة توجيه المنفذ `4190` إلى `localhost:4190`. اتبع [دليل فحص Android](https://developer.chrome.com/docs/devtools/remote-debugging/) و[دليل إعادة توجيه المنافذ](https://developer.chrome.com/docs/devtools/remote-debugging/local-server/).
+3. افتح على Chrome في الهاتف `http://localhost:4190/portal/design-review.html`. جرّب النموذجين، وابحث عن «سلمان»، وافتح البطاقة، وأضف اسمًا وهميًا. افحص لوحة المفاتيح في الوضعين الرأسي والأفقي.
+4. افتح أيضًا `http://localhost:4190/portal/preview.html` لمراجعة التمرير والتكبير وتحديد الأسماء المتجاورة في واجهة البوابة. سجّل طراز الجهاز والمتصفح وما شوهد في كل مهمة.
+
+يمكن مراجعة التصميم في Product Design أو Figma بعد تفعيل الإضافتين، بعينات وهمية. يعمل المعرض المحلي مباشرة في Chrome.

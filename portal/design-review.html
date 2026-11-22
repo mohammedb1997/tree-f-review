@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>معرض تصميم شجرة العائلة</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="design-review.css">
+  <script src="design-review.js" defer></script>
+</head>
+<body>
+  <header class="site-header"><a class="brand" href="../index.html">شجرة العائلة</a><a href="preview.html">البوابة التجريبية</a></header>
+  <main>
+    <h1>معرض تصميم شجرة العائلة</h1>
+    <p class="hint">النماذج تستخدم أسماء وهمية. تبدأ تجربة جديدة عند إعادة تحميل الصفحة.</p>
+    <nav class="review-nav" aria-label="أقسام المعرض">
+      <a href="#prototype">جرّب النموذجين</a><a href="#components">راجع المكوّنات</a>
+    </nav>
+
+    <section class="panel prototype" id="prototype" aria-labelledby="prototype-title">
+      <h2 id="prototype-title">جرّب النموذجين</h2>
+      <p>اعثر على موقعك، افتح فرعك، ثم أضف ابنًا أو ابنة. كرّر المهمة في النموذج الآخر.</p>
+      <div class="prototype-modes" role="group" aria-label="نقطة بداية العرض">
+        <button type="button" data-start="branch" aria-pressed="true">فرعي أولًا</button>
+        <button type="button" data-start="tree" aria-pressed="false">الشجرة أولًا</button>
+      </div>
+      <div class="review-tools">
+        <button type="button" id="find-me">موقعي في الشجرة</button>
+        <button type="button" id="branch-view">عرض فرعي</button>
+        <button type="button" id="full-view">عرض الشجرة كاملة</button>
+      </div>
+      <div class="prototype-grid">
+        <section class="review-preview" aria-labelledby="view-title">
+          <h3 id="view-title">فرعي</h3>
+          <div class="demo-diagram"><svg id="demo-tree" role="img" aria-label="رسم النسب. لاختيار شخص، استخدم قائمة الأسماء أدناه."></svg></div>
+          <label for="demo-search">ابحث في العرض الحالي</label>
+          <input id="demo-search" type="search" autocomplete="off">
+          <ul id="demo-people" class="demo-people"></ul>
+        </section>
+        <section class="review-preview" id="demo-card" aria-labelledby="demo-title">
+          <h3 id="demo-title" tabindex="-1">بطاقة الشخص</h3>
+          <p id="demo-lineage"></p>
+          <p id="demo-message" role="status"></p>
+          <form id="demo-add">
+            <label for="demo-gender">نوع الإضافة</label>
+            <select id="demo-gender"><option value="m">ابن</option><option value="f">ابنة</option></select>
+            <label for="demo-name">الاسم الكامل</label>
+            <input id="demo-name" required maxlength="120" autocomplete="off">
+            <button class="primary" type="submit">إضافة إلى الفرع</button>
+          </form>
+        </section>
+      </div>
+    </section>
+
+    <section id="components" aria-labelledby="components-title">
+      <h2 id="components-title">معرض المكوّنات</h2>
+      <div class="component-grid">
+        <article class="panel">
+          <h3>بطاقة شخص · اسم طويل</h3>
+          <p class="sample-name">عبد الرحمن بن عبد العزيز بن محمد بن سليمان بن راشد التجريبي</p>
+          <p class="hint">الأب · عبد العزيز التجريبي</p>
+          <p class="hint">الجيل الثالث · ٣ أبناء</p>
+        </article>
+        <article class="panel">
+          <h3>نتائج البحث · اسم متكرر</h3>
+          <ul class="sample-results"><li>سلمان التجريبي <small>الأب · أحمد</small></li><li>سلمان التجريبي <small>الأب · يوسف</small></li></ul>
+        </article>
+        <article class="panel">
+          <h3>حالات البطاقة والنموذج</h3>
+          <p class="sample-status">تمت إضافة الابنة إلى الفرع.</p>
+          <p class="sample-error">أدخل الاسم الكامل قبل الحفظ.</p>
+          <p class="hint">للاطلاع فقط · التعديل لصاحب الفرع.</p>
+        </article>
+        <article class="panel">
+          <h3>قائمة قابلة للفتح</h3>
+          <details><summary>خيارات العرض</summary><p>طريقة الرسم · تلوين الأجيال · ملاءمة العرض</p></details>
+          <details><summary>المزيد</summary><p>ملصق الطباعة · سجل التعديلات · المساعدة</p></details>
+        </article>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
