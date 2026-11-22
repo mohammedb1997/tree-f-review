@@ -120,8 +120,28 @@ function refreshScope(){
   el('scope-branch').textContent=isolated?'أظهر الشجرة كاملة':'اعزل الفرع';
   el('overview').textContent=isolated?'عرض الفرع كاملًا':'عرض الشجرة كاملة';
   if(renderer)buildTree();
+  refreshDirectory();
   select(selection,false);
   overview();
+}
+
+function refreshDirectory(){
+  const all=isolated?renderedNodes:nodes;
+  const query=normalize(el('directory-search').value);
+  const matches=all.filter(person=>normalize(person.name).includes(query));
+  el('directory-total').textContent='('+format.format(matches.length)+(query?' من '+format.format(all.length):'')+')';
+  if(!el('directory').open){
+    el('directory-names').replaceChildren();
+    return;
+  }
+  el('directory-names').replaceChildren(...matches.map(person=>{
+    const row=document.createElement('li');
+    const button=Object.assign(document.createElement('button'),{type:'button',textContent:person.name});
+    button.dataset.personId=person.id;
+    button.onclick=()=>select(person,true);
+    row.append(button);
+    return row;
+  }));
 }
 
 function generationTone(depth){
@@ -330,12 +350,22 @@ function drawLabels(width,height){
   }).sort((a,b)=>a.priority-b.priority);
   const shown=[];
   const active=new Set();
+  const guides=[];
+  const offsets=[[0,-5],[-31,-10],[31,-10],[0,-31],[-40,16],[40,16],[0,37],[-55,-32],[55,-32]];
   for(const item of ranked){
-    if(shown.length>=Math.min(28,Math.ceil(width/24)))break;
-    const labelWidth=Math.min(width<550?156:208,Math.ceil(labelMeasure.measureText(item.node.name).width)+24);
-    if(item.z>1||item.z< -1||item.x<labelWidth/2+4||item.x>width-labelWidth/2-4||item.y<48||item.y>height-55)continue;
-    if(shown.some(other=>Math.abs(other.x-item.x)<(other.width+labelWidth)/2+8&&Math.abs(other.y-item.y)<44))continue;
-    const {node,x,y}=item;
+    if(item.z>1||item.z< -1||item.x<0||item.x>width||item.y<0||item.y>height)continue;
+    const labelWidth=Math.min(width<550?185:245,Math.ceil(labelMeasure.measureText(item.node.name).width)+22);
+    let position;
+    for(const [dx,dy] of offsets){
+      const x=THREE.MathUtils.clamp(item.x+dx,labelWidth/2+5,width-labelWidth/2-5);
+      const y=item.y+dy;
+      if(y<77||y>height-58)continue;
+      if(shown.some(other=>Math.abs(other.x-x)<(other.width+labelWidth)/2+7&&Math.abs(other.y-y)<41))continue;
+      position={x,y,width:labelWidth};
+      break;
+    }
+    if(!position)continue;
+    const {x,y}=position,{node}=item;
     let button=labels.get(node.id);
     if(!button){
       button=Object.assign(document.createElement('button'),{type:'button',className:'node-label',textContent:node.name,tabIndex:-1,title:node.name});
@@ -352,10 +382,18 @@ function drawLabels(width,height){
     button.title=node.name+' · '+node.appearance[0];
     button.setAttribute('aria-current',String(node===selection));
     if(!button.isConnected)el('labels').append(button);
-    shown.push({...item,width:labelWidth});
+    shown.push(position);
+    const edgeX=THREE.MathUtils.clamp(item.x,x-labelWidth/2,x+labelWidth/2);
+    const edgeY=THREE.MathUtils.clamp(item.y,y-34,y);
+    if(Math.hypot(edgeX-item.x,edgeY-item.y)>8){
+      guides.push('M'+item.x.toFixed(1)+' '+item.y.toFixed(1)+'L'+edgeX.toFixed(1)+' '+edgeY.toFixed(1));
+    }
     active.add(node.id);
   }
   for(const [id,button] of labels)if(!active.has(id))button.remove();
+  el('label-guide-path').setAttribute('d',guides.join(' '));
+  const count=format.format(shown.length)+' من '+format.format(renderedNodes.length)+' اسمًا ظاهرًا';
+  if(el('label-count').textContent!==count)el('label-count').textContent=count;
 }
 
 function queueRender(){
@@ -380,6 +418,7 @@ function setupScene(){
     el('overview').disabled=true;
     el('focus-person').disabled=true;
     el('view-controls').hidden=true;
+    el('label-count').hidden=true;
     return;
   }
   renderer.setPixelRatio(Math.min(window.devicePixelRatio,1.5));
@@ -397,7 +436,14 @@ function setupScene(){
     const visible=el('labels').hidden;
     el('labels').hidden=!visible;
     event.currentTarget.setAttribute('aria-pressed',String(visible));
+    el('label-guides').hidden=!visible;
+    el('label-count').hidden=!visible;
     queueRender();
+  };
+  el('expand-scene').onclick=event=>{
+    const expanded=el('world-layout').classList.toggle('is-wide');
+    event.currentTarget.setAttribute('aria-pressed',String(expanded));
+    event.currentTarget.textContent=expanded?'العرض العادي':'وسّع المشهد';
   };
   controls.minDistance=3;
   controls.maxDistance=72;
@@ -417,6 +463,7 @@ function setupScene(){
 function reset(){
   ({list:nodes,byId:index}=fixture(Number(el('size').value)));
   el('search').value='';
+  el('directory-search').value='';
   selection=nodes[0];
   setPinned(null);
 }
@@ -424,6 +471,8 @@ function reset(){
 el('size').onchange=reset;
 el('color-mode').onchange=refreshColors;
 el('overview').onclick=overview;
+el('directory').ontoggle=refreshDirectory;
+el('directory-search').oninput=refreshDirectory;
 el('pin-person').onclick=()=>{
   setPinned(selection);
   el('pinned-heading').focus();

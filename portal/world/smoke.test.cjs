@@ -61,6 +61,28 @@ test('3D tour opens 50, 150 and 500 people with Arabic search and lineage',{time
         console.log(width+'px / '+count+' people: '+(Date.now()-started)+' ms including interaction');
       }
       assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+      await page.locator('#directory summary').click();
+      const directory=page.locator('#directory-names button');
+      await directory.first().waitFor();
+      assert.equal(await directory.count(),500);
+      await page.locator('#directory-search').fill('مريم التجريبية 495');
+      assert.equal(await directory.count(),1);
+      await directory.first().click();
+      assert.equal(await page.locator('#person-name').textContent(),'مريم التجريبية 495');
+      await page.locator('#directory-search').fill('');
+      await page.locator('#directory summary').click();
+      const height=await page.locator('#viewport').evaluate(node=>node.clientHeight);
+      await page.locator('#expand-scene').click();
+      assert(await page.locator('#viewport').evaluate(node=>node.clientHeight)>height);
+      await page.locator('#overview').click();
+      await page.locator('#label-count').filter({hasText:/اسمًا ظاهرًا/}).waitFor();
+      const positions=await page.locator('.node-label').evaluateAll(items=>items.map(item=>item.getBoundingClientRect().toJSON()));
+      assert(positions.length>2);
+      assert(positions.every((a,i)=>positions.slice(i+1).every(b=>
+        a.right<=b.left||b.right<=a.left||a.bottom<=b.top||b.bottom<=a.top)));
+      console.log(width+'px / 500 people: '+positions.length+' visible labels in expanded view, no overlapping cards');
+      await page.locator('#expand-scene').click();
+      await page.locator('#overview').click();
       const name=page.locator('#person-name');
       const initial=await name.textContent();
       const labels=page.locator('.node-label[aria-current=false]');
@@ -107,6 +129,10 @@ test('3D tour opens 50, 150 and 500 people with Arabic search and lineage',{time
       for(const node of nodes)if(expected.has(node.parentId))expected.add(node.personId);
       const ids=await list.evaluateAll(items=>items.map(item=>item.dataset.personId));
       assert.deepEqual(ids,[...expected]);
+      await page.locator('#directory summary').click();
+      await directory.first().waitFor();
+      assert.deepEqual(await directory.evaluateAll(items=>items.map(item=>item.dataset.personId)),ids);
+      await page.locator('#directory summary').click();
       assert(await panel.isVisible());
       const labelsAfterPin=await page.locator('.node-label').evaluateAll(items=>items.map(item=>item.dataset.personId));
       assert(labelsAfterPin.length&&labelsAfterPin.every(id=>expected.has(id)));
