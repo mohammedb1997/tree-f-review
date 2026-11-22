@@ -45,6 +45,7 @@ test('batch entry, review workflow, audit and branch export in Chrome',{timeout:
     await member.locator('#new-password').fill(password);
     await member.locator('#activate-form button[type=submit]').click();
     await member.locator('#tree-view .is-self').waitFor();
+    await member.locator('.display-options summary').click();
     await member.locator('#tree-drawing').selectOption('botanical');
     const drawing=member.locator('#tree-view[data-drawing="botanical"] svg');
     try{await drawing.waitFor();}

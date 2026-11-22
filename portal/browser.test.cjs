@@ -50,6 +50,21 @@ test('دعوة وتحديد موقع العضو ومقارنة تعديل حي �
     await member.locator('#new-password').fill(password);
     await member.locator('#activate-form button[type=submit]').click();
     await member.locator('#workspace').waitFor();
+    for (const width of [360,390,768,1280]) {
+      await member.setViewportSize({width,height:844});
+      assert(await member.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+      assert(await member.locator('.workspace-nav').isVisible());
+    }
+    await member.setViewportSize({width:390,height:844});
+    await member.locator('.workspace-help summary').click();
+    assert(await member.locator('.workspace-help li').first().isVisible());
+    await member.locator('.workspace-help summary').click();
+    await member.locator('.workspace-nav a[href="#search"]').click();
+    assert.equal(new URL(member.url()).hash,'#search');
+    await member.locator('#people [data-person-id="test-1"]').click();
+    assert.equal(await member.evaluate(()=>document.activeElement.id),'person-title');
+    assert.equal(await member.locator('#tree-color-mode').isVisible(),false);
+    await member.locator('.display-options summary').click();
     assert.equal(await member.locator('#administration').isVisible(),false);
     assert.equal(await member.locator('#tree-scope').inputValue(),'mine');
     assert.equal(await member.locator('#tree-view [data-person-id="test-2"]').count(),0);
@@ -105,6 +120,7 @@ test('دعوة وتحديد موقع العضو ومقارنة تعديل حي �
     assert(!(await admin.locator('#workspace').textContent()).includes('ابنة اختبار خصوصية الأب'));
     await admin.locator('#tree-scope').selectOption('all');
     await admin.locator('#tree-view').getByText('ابنة اختبار خصوصية الأب').waitFor();
+    await admin.locator('.display-options summary').click();
     await admin.locator('#tree-drawing').selectOption('botanical');
     await admin.locator('#tree-view[data-drawing="botanical"] [data-gender="female"]')
       .getByText('ابنة اختبار خصوصية الأب',{exact:true}).waitFor();

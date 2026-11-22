@@ -129,9 +129,9 @@ function drawBotanical(container,snapshot,shown,allPeople,relationship,colorMode
       if(!previous.has(id))item.dataset.change='added';
       else if(previous.get(id)!==person.name)item.dataset.change='renamed';
     }
-    item.onclick=()=>selectPerson(id);
+    item.onclick=()=>openPersonCard(id);
     item.onkeydown=event=>{
-      if(event.key==='Enter'||event.key===' '){event.preventDefault();selectPerson(id);}
+      if(event.key==='Enter'||event.key===' '){event.preventDefault();openPersonCard(id);}
     };
   }
   if(container.id==='tree-view'){
@@ -290,9 +290,9 @@ function drawTree(container, snapshot, colored = true) {
     group.append(svgElement('text',{'text-anchor':'middle',y:colorMode==='generation'?12:5,direction:'rtl'},person.name));
     if(colorMode==='generation')
       group.append(svgElement('text',{'class':'generation-number','text-anchor':'middle',y:-8,'aria-hidden':'true'},generationLabel));
-    group.addEventListener('click',()=>selectPerson(person.id));
+    group.addEventListener('click',()=>openPersonCard(person.id));
     group.addEventListener('keydown',event=>{
-      if(event.key==='Enter'||event.key===' '){event.preventDefault();selectPerson(person.id);}
+      if(event.key==='Enter'||event.key===' '){event.preventDefault();openPersonCard(person.id);}
     });
     svg.append(group);
   }
@@ -668,6 +668,13 @@ function selectPerson(id) {
   renderTrees();
 }
 
+function openPersonCard(id) {
+  selectPerson(id);
+  const title = byId('person-title');
+  title.focus({preventScroll:true});
+  title.scrollIntoView({block:'nearest'});
+}
+
 function renderPeople() {
   const search = byId('search').value.trim();
   const map = new Map(people.map(person => [person.id, person]));
@@ -721,7 +728,7 @@ function renderPeople() {
       access.textContent = 'متاح للتعديل';
       button.append(access);
     }
-    button.addEventListener('click', () => selectPerson(person.id));
+    button.addEventListener('click', () => openPersonCard(person.id));
     list.append(button);
   }
   byId('tree-count').textContent = search

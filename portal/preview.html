@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>تجربة بوابة العائلة</title>
-  <link rel="stylesheet" href="style.css?v=4cbf47adf8">
-  <script src="../Claud/botanical-core.js?v=4cbf47adf8" defer></script>
-  <script src="preview.js?v=4cbf47adf8" defer></script>
-  <script src="app.js?v=4cbf47adf8" defer></script>
+  <link rel="stylesheet" href="style.css?v=5c482f6900">
+  <script src="../Claud/botanical-core.js?v=5c482f6900" defer></script>
+  <script src="preview.js?v=5c482f6900" defer></script>
+  <script src="app.js?v=5c482f6900" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -48,22 +48,30 @@
       </div>
     </section>
     <section id="workspace" hidden>
-      <div class="workspace-heading"><div><p class="eyebrow">شجرة العائلة</p><h1>الأفراد والفروع</h1><p id="permission-summary"></p></div><button id="refresh" type="button">تحديث الشجرة</button></div>
-      <section class="panel live-panel" aria-labelledby="live-tree-title">
+      <div class="workspace-heading"><div><h1>شجرة العائلة</h1><p id="permission-summary"></p></div><button id="refresh" type="button">تحديث الشجرة</button></div>
+      <nav class="workspace-nav" aria-label="أقسام بوابة العائلة">
+        <a href="#live-tree">الشجرة</a>
+        <a href="#search">البحث والأفراد</a>
+        <a href="#more-tools">المزيد</a>
+      </nav>
+      <details class="workspace-help">
+        <summary>كيف أستخدم الموقع؟</summary>
+        <ol>
+          <li>اضغط «موقعي في الشجرة» لتجد اسمك، أو ابحث عن شخص بالاسم.</li>
+          <li>اختر اسمًا لعرض بطاقته. إذا كانت لديك صلاحية الإضافة، ستجد فيها نموذج إضافة ابن أو ابنة.</li>
+          <li>من «خيارات العرض» يمكنك تغيير شكل الشجرة وألوانها. تجد الطباعة وسجل التغييرات في «المزيد».</li>
+        </ol>
+      </details>
+      <section id="live-tree" class="panel live-panel" aria-labelledby="live-tree-title">
         <div class="tree-heading"><div><h2 id="live-tree-title">موقعك في شجرة العائلة</h2><p id="live-status" class="hint" role="status">جارٍ الاتصال بالتحديثات…</p></div>
           <div class="tree-tools"><button id="locate-me" type="button">موقعي في الشجرة</button><label for="tree-scope" class="sr-only">نطاق عرض الشجرة</label><select id="tree-scope"><option value="mine" hidden>فرعي: أبنائي وأحفادي</option><option value="shared">الشجرة الرئيسية</option><option value="all">الكل: شجرة العائلة</option><option value="branch">فرع الشخص المحدد</option></select></div></div>
-        <p><a href="world/">استكشف الجولة بعينة مستقلة بالعرض الثابت أو ثلاثي الأبعاد</a></p>
-        <div class="tree-tools botanical-tools">
+        <details class="display-options">
+          <summary>خيارات العرض</summary>
+          <div class="tree-tools botanical-tools">
           <label for="tree-drawing">طريقة العرض</label>
           <select id="tree-drawing"><option value="classic">مخطط الشجرة</option><option value="botanical">الشجرة النباتية</option></select>
-          <div id="botanical-zoom" hidden>
-            <button id="botanical-zoom-in" type="button">تكبير +</button>
-            <button id="botanical-zoom-out" type="button">تصغير −</button>
-            <button id="botanical-fit" type="button">ملاءمة الشاشة</button>
           </div>
-          <button id="botanical-add" type="button" hidden>إضافة ابن للشخص المحدد</button>
-        </div>
-        <div class="tree-color-tools">
+          <div class="tree-color-tools">
           <label for="tree-color-mode">تلوين الشجرة</label>
           <select id="tree-color-mode">
             <option value="relationship">حسب القرابة</option>
@@ -71,15 +79,19 @@
             <option value="gender">حسب الجنس</option>
           </select>
           <ul id="tree-color-legend" aria-label="مفتاح ألوان الشجرة"></ul>
+          </div>
+        </details>
+        <div class="tree-tools">
+          <div id="botanical-zoom" hidden>
+            <button id="botanical-zoom-in" type="button">تكبير +</button>
+            <button id="botanical-zoom-out" type="button">تصغير −</button>
+            <button id="botanical-fit" type="button">ملاءمة الشاشة</button>
+          </div>
+          <button id="botanical-add" type="button" hidden>إضافة ابن للشخص المحدد</button>
         </div>
         <p class="hint">الإطار الذهبي يحدد موقعك. اختر اسمًا لعرض بياناته.</p>
         <p class="hint" id="tree-ancestor-hint" hidden>اختر «الشجرة الرئيسية» أو «الكل» لعرض الأب والأجداد.</p>
         <div id="tree-view" class="tree-canvas" tabindex="0" aria-label="شجرة العائلة الحية"></div>
-      </section>
-      <section id="comparison" class="panel comparison-panel" hidden aria-labelledby="comparison-title">
-        <h2 id="comparison-title">الشجرة قبل آخر تعديل وبعده</h2>
-        <p id="comparison-description" class="hint"></p>
-        <div class="comparison-grid"><section><h3>قبل التعديل</h3><div id="before-tree" class="tree-canvas" tabindex="0" aria-label="الشجرة قبل التعديل"></div></section><section><h3>بعد التعديل</h3><div id="after-tree" class="tree-canvas" tabindex="0" aria-label="الشجرة بعد التعديل"></div></section></div>
       </section>
       <div class="workspace-grid">
         <section class="panel family-panel" aria-labelledby="family-title">
@@ -90,7 +102,7 @@
           <div id="people" class="people"></div>
         </section>
         <aside class="panel details" aria-labelledby="person-title">
-          <h2 id="person-title">اختر شخصًا من الشجرة</h2>
+          <h2 id="person-title" tabindex="-1">اختر شخصًا من الشجرة</h2>
           <p id="person-parent"></p>
           <p id="person-lineage" class="hint"></p>
           <p id="person-descendants" class="hint"></p>
@@ -113,6 +125,15 @@
           </form>
         </aside>
       </div>
+      <div id="more-tools" class="more-tools" tabindex="-1">
+        <h2>المزيد</h2>
+        <a href="world/">استكشف الجولة بعينة مستقلة بالعرض الثابت أو ثلاثي الأبعاد</a>
+      </div>
+      <section id="comparison" class="panel comparison-panel" hidden aria-labelledby="comparison-title">
+        <h2 id="comparison-title">الشجرة قبل آخر تعديل وبعده</h2>
+        <p id="comparison-description" class="hint"></p>
+        <div class="comparison-grid"><section><h3>قبل التعديل</h3><div id="before-tree" class="tree-canvas" tabindex="0" aria-label="الشجرة قبل التعديل"></div></section><section><h3>بعد التعديل</h3><div id="after-tree" class="tree-canvas" tabindex="0" aria-label="الشجرة بعد التعديل"></div></section></div>
+      </section>
       <section id="private-daughters" class="panel" hidden aria-labelledby="private-daughters-title">
         <h2 id="private-daughters-title" tabindex="-1">بناتي</h2>
         <p class="hint">يمكنك دعوة كل ابنة لحسابها، وتظهر الأسماء لأفراد العائلة المسجّلين عند اختيار «الكل».</p>

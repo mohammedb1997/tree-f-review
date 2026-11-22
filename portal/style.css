@@ -31,6 +31,16 @@ p{margin:.6rem 0}
 .tabs button{flex:1}
 .tabs button[aria-pressed=true]{background:#e4ecdf;border-color:#557853;font-weight:700}
 .workspace-heading{display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-bottom:1.5rem}
+.workspace-nav{position:sticky;top:0;z-index:2;display:flex;gap:.4rem;padding:.4rem;margin-block-end:.8rem;border:1px solid #d0c7b2;border-radius:.85rem;background:#fffaf0}
+.workspace-nav a{display:grid;place-items:center;min-height:44px;padding:.3rem .8rem;border-radius:.55rem;color:#284f3c;text-align:center;text-decoration:none;font-weight:700}
+.workspace-nav a:hover{background:#e4ecdf}
+.workspace-help,.display-options{margin-block:0 .8rem;padding-inline:.75rem;border:1px solid #d0c7b2;border-radius:.65rem;background:#fffcf2}
+.workspace-help summary,.panel .display-options summary{margin:0;min-height:44px;padding-block:.55rem;cursor:pointer;font-weight:700}
+.workspace-help ol{padding-inline-start:1.5rem}
+.more-tools{margin-block:1.5rem 1rem}
+.more-tools a{color:#284f3c}
+#live-tree,#more-tools,#search,#person-title{scroll-margin-block-start:5rem}
+#person-title:focus-visible{outline:2px solid #ba954d;outline-offset:.25rem}
 .workspace-grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(280px,1fr);gap:1.3rem;align-items:start}
 .people{max-height:65vh;overflow:auto;overscroll-behavior:contain}
 .person-row{display:flex;align-items:center;width:100%;text-align:start;margin:.35rem 0;padding:.65rem .8rem;gap:.6rem;border-color:#d9ddcf}
@@ -107,6 +117,8 @@ p{margin:.6rem 0}
   .access-card,.panel{padding:1rem}
   .workspace-grid{grid-template-columns:1fr}
   .workspace-heading{align-items:start}
+  .workspace-nav a{flex:1;padding-inline:.25rem}
+  .person-row[class*="depth-"]{padding-inline-start:.75rem}
   .invite-form{grid-template-columns:1fr}
   .people{max-height:48vh}
   .account{align-items:start}
