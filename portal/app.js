@@ -4,6 +4,7 @@ const byId = id => document.getElementById(id);
 let user = null;
 let people = [];
 let selectedId = null;
+let searchReturnId = null;
 let treeSnapshot = null;
 let beforeSnapshot = null;
 let liveConnection = null;
@@ -496,6 +497,7 @@ function showSignedOut() {
   privatePeople = [];
   treeRequest++;
   selectedId = null;
+  searchReturnId = null;
   treeSnapshot = null;
   beforeSnapshot = null;
   byId('tree-view').replaceChildren();
@@ -508,6 +510,7 @@ function showSignedOut() {
   byId('admin-link').hidden = true;
   byId('quick-add').hidden = true;
   byId('show-person-branch').hidden = true;
+  byId('return-to-results').hidden = true;
   byId('add-child-panel').open = false;
   byId('edit-person-panel').open = false;
   byId('add-form').querySelector('[data-form-status]').textContent = '';
@@ -709,12 +712,22 @@ function selectPerson(id) {
   renderTrees();
 }
 
-function openPersonCard(id) {
+function openPersonCard(id, fromResults = false) {
+  searchReturnId = fromResults ? id : null;
+  byId('return-to-results').hidden = !fromResults;
   selectPerson(id);
   const title = byId('person-title');
   title.focus({preventScroll:true});
   title.scrollIntoView({block:'nearest'});
 }
+
+byId('return-to-results').addEventListener('click', () => {
+  const result = [...byId('people').querySelectorAll('button')].find(button => button.dataset.personId === searchReturnId);
+  const target = result || byId('search');
+  target.focus({preventScroll:true});
+  byId('search').scrollIntoView({block:'nearest'});
+  target.scrollIntoView({block:'nearest'});
+});
 
 function renderPeople() {
   const search = byId('search').value.trim();
@@ -782,7 +795,7 @@ function renderPeople() {
       access.textContent = 'متاح للتعديل';
       button.append(access);
     }
-    button.addEventListener('click', () => openPersonCard(person.id));
+    button.addEventListener('click', () => openPersonCard(person.id,true));
     list.append(button);
   }
   byId('tree-count').textContent = search

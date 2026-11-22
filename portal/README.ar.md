@@ -56,7 +56,7 @@ rtk proxy node portal/server.cjs demo
 ## التحقق
 
 ```powershell
-rtk proxy node --test portal/server.test.cjs portal/backup.test.cjs portal/deploy.test.cjs portal/duplicate-review.test.cjs portal/browser.test.cjs portal/workflows.browser.test.cjs
+rtk proxy node --test --test-concurrency=1 portal/server.test.cjs portal/backup.test.cjs portal/deploy.test.cjs portal/launch-check.test.cjs portal/duplicate-review.test.cjs portal/browser.test.cjs portal/workflows.browser.test.cjs portal/design-review.browser.test.cjs
 ```
 
 فحص المتصفح يستخدم Chrome وPlaywright كما في اختبارات مستودع المراجعة.

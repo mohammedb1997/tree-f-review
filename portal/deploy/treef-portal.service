@@ -10,6 +10,7 @@ StateDirectory=treef
 StateDirectoryMode=0700
 WorkingDirectory=/opt/treef
 EnvironmentFile=/etc/treef/portal.env
+ExecStartPre=/usr/bin/node /opt/treef/portal/launch-check.cjs check
 ExecStart=/usr/bin/node /opt/treef/portal/server.cjs
 Restart=on-failure
 UMask=0077

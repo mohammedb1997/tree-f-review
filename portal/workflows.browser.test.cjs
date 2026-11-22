@@ -170,6 +170,11 @@ test('public review: member mode, scoped search and admin switch',{timeout:20000
     await page.locator('#search-main-tree').tap();
     await page.locator('#people [data-person-id="uncle"]').waitFor();
     assert.equal(await page.locator('#tree-scope').inputValue(),'shared');
+    await page.locator('#people [data-person-id="uncle"]').tap();
+    assert.match(await page.locator('#person-title').textContent(),/إبراهيم/);
+    await page.locator('#return-to-results').tap();
+    assert.equal(await page.evaluate(()=>document.activeElement.dataset.personId),'uncle');
+    assert.equal(await page.locator('#search').inputValue(),'إبراهيم');
     await page.locator('#clear-search').tap();
     assert.equal(await page.locator('#search').inputValue(),'');
     assert.equal(await page.evaluate(()=>document.activeElement.id),'search');

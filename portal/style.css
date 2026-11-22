@@ -186,6 +186,7 @@ textarea{display:block;width:100%;font:inherit;padding:.7rem;border:1px solid #b
 [data-form-status]:not(:empty){padding:.45rem .65rem;color:#8f3625;background:#fff0e9;border-radius:.5rem}
 #tree-color-legend:not(:empty){margin-block:.4rem .55rem}
 #family-workflows,#administration,#child-name{scroll-margin-block-start:5rem}
+#people button{scroll-margin-block-start:5rem}
 .more-links{margin-block:.5rem}
 @media(max-width:900px){
   .workspace-board{grid-template-columns:minmax(0,1fr)}
