@@ -19,7 +19,7 @@ async function freePort() {
   return port;
 }
 
-test('Note 9 pilot saves a synthetic entry, reopens its database and backs it up', async () => {
+test('Note 9 pilot saves a synthetic entry, reopens its database and backs it up', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(),'treef-note9-test-'));
   let pilot;
   async function stop() {
@@ -52,9 +52,18 @@ test('Note 9 pilot saves a synthetic entry, reopens its database and backs it up
     const {people} = await (await request('/api/tree',undefined,await login())).json();
     assert.equal(people.find(person=>person.id===id).name,name);
 
+    const hardLink=t.mock.method(fs,'linkSync',()=>{throw Object.assign(new Error('Hard links denied'),{code:'EACCES'});});
     const filename = await backupPilot(directory);
+    assert.equal(hardLink.mock.callCount(),1);
+    assert.equal(fs.existsSync(filename+'.incomplete'),false);
     const restored = path.join(directory,'restored.sqlite');
+    fs.writeFileSync(filename+'.incomplete','');
+    await assert.rejects(restoreBackup(filename,restored),/incomplete/);
+    assert.equal(fs.existsSync(restored),false);
+    fs.unlinkSync(filename+'.incomplete');
     await restoreBackup(filename,restored);
+    assert.equal(hardLink.mock.callCount(),2);
+    await assert.rejects(restoreBackup(filename,restored),/Destination already exists/);
     const db = new DatabaseSync(restored,{readOnly:true});
     try {
       const row = db.prepare('SELECT document FROM tree WHERE id=1').get();
