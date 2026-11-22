@@ -13,6 +13,7 @@ const generations=['#ffd17a','#8fc2f8','#d8adfa','#9ade9f','#ffa6a6','#82e1db','
 const format=new Intl.NumberFormat('ar-SA');
 const normalize=value=>value.normalize('NFKD').replace(/[\p{M}ـ]/gu,'').replace(/ى/g,'ي').trim();
 let nodes,index,selection;
+let pinned=null,isolated=false,renderedNodes=[],renderedIds=new Set();
 let renderer,camera,controls,scene,tree,markers,lineagePaths;
 let curves;
 const labelMeasure=document.createElement('canvas').getContext('2d');
@@ -74,6 +75,55 @@ function ancestry(node){
   return list;
 }
 
+function branchIds(root){
+  const found=new Set();
+  const pending=[root];
+  while(pending.length){
+    const node=pending.pop();
+    found.add(node.id);
+    pending.push(...node.children);
+  }
+  return found;
+}
+
+function setPinned(root){
+  pinned=root?{root,ids:branchIds(root)}:null;
+  isolated=Boolean(pinned&&renderer);
+  const panel=el('pinned-branch');
+  panel.hidden=!pinned;
+  const list=el('pinned-people');
+  list.replaceChildren();
+  if(pinned){
+    el('pinned-heading').textContent='فرع '+root.name;
+    el('pinned-count').textContent='صاحب الفرع و'+format.format(pinned.ids.size-1)+' من ذريته';
+    for(const person of nodes.filter(node=>pinned.ids.has(node.id))){
+      const row=document.createElement('li');
+      const button=Object.assign(document.createElement('button'),{type:'button'});
+      button.dataset.personId=person.id;
+      const name=document.createElement('strong');
+      name.textContent=person.name;
+      const detail=document.createElement('span');
+      detail.className='pinned-parent';
+      detail.textContent=person===root?'صاحب الفرع':
+        'الأب: '+index.get(person.parent).name+' · '+generationTone(person.depth)[0];
+      button.append(name,detail);
+      button.onclick=()=>select(person,false);
+      row.append(button);
+      list.append(row);
+    }
+  }
+  refreshScope();
+}
+
+function refreshScope(){
+  el('scope-branch').hidden=!renderer;
+  el('scope-branch').textContent=isolated?'أظهر الشجرة كاملة':'اعزل الفرع';
+  el('overview').textContent=isolated?'عرض الفرع كاملًا':'عرض الشجرة كاملة';
+  if(renderer)buildTree();
+  select(selection,false);
+  overview();
+}
+
 function generationTone(depth){
   return ['الجيل '+format.format(depth+1),generations[depth%generations.length]];
 }
@@ -91,27 +141,29 @@ function refreshColors(){
     row.append(swatch,name);
     return row;
   }));
-  nodes.forEach((node,i)=>{
+  for(const node of nodes){
     node.appearance=mode==='kinship'?kinship[node.tone]:mode==='gender'?genders[node.gender]:generationTone(node.depth);
-    if(markers)markers.setColorAt(i,new THREE.Color(node.appearance[1]));
-  });
-  if(markers)markers.instanceColor.needsUpdate=true;
+  }
+  if(markers){
+    renderedNodes.forEach((node,i)=>markers.setColorAt(i,new THREE.Color(node.appearance[1])));
+    markers.instanceColor.needsUpdate=true;
+  }
   queueRender();
 }
 
 function select(node,visit){
   selection=node;
+  el('focus-person').disabled=!renderer||!renderedIds.has(node.id);
+  el('pin-person').disabled=pinned?.root===node;
+  el('pin-person').textContent=pinned?.root===node?'هذا الفرع مثبّت':'ثبّت فرع هذا الشخص';
+  for(const button of el('pinned-people').querySelectorAll('button')){
+    button.setAttribute('aria-current',String(button.dataset.personId===node.id));
+  }
   el('person-name').textContent=node.name;
   el('generation').textContent='الجيل '+format.format(node.depth+1);
   el('person-gender').textContent=genders[node.gender][0];
-  const descendants=new Set();
-  const pending=[...node.children];
-  while(pending.length){
-    const child=pending.pop();
-    descendants.add(child.id);
-    pending.push(...child.children);
-  }
-  el('details').textContent='الأبناء المباشرون: '+format.format(node.children.length)+' · الذرية: '+format.format(descendants.size);
+  const descendants=branchIds(node);
+  el('details').textContent='الأبناء المباشرون: '+format.format(node.children.length)+' · الذرية: '+format.format(descendants.size-1);
   const parents=ancestry(node);
   el('lineage').replaceChildren(...parents.map(parent=>{
     const row=document.createElement('li');
@@ -137,7 +189,7 @@ function select(node,visit){
     lineagePaths.geometry.dispose();
     lineagePaths.geometry=new THREE.BufferGeometry();
     lineagePaths.geometry.setAttribute('position',new THREE.Float32BufferAttribute(pathPoints,3));
-    if(visit){
+    if(visit&&renderedIds.has(node.id)){
       controls.target.copy(placements.get(node.id));
       const direction=new THREE.Vector3().subVectors(camera.position,controls.target).normalize();
       camera.position.copy(controls.target).addScaledVector(direction,8);
@@ -151,6 +203,20 @@ function select(node,visit){
 
 function overview(){
   if(!renderer)return;
+  if(isolated){
+    const box=new THREE.Box3().setFromPoints(renderedNodes.map(node=>placements.get(node.id)));
+    const center=box.getCenter(new THREE.Vector3());
+    const radius=box.getSize(new THREE.Vector3()).length()/2+1;
+    const yAngle=THREE.MathUtils.degToRad(camera.fov/2);
+    const aspect=viewport.clientWidth/Math.max(1,viewport.clientHeight);
+    const halfAngle=Math.min(yAngle,Math.atan(Math.tan(yAngle)*aspect));
+    const distance=Math.min(controls.maxDistance,Math.max(8,radius/Math.sin(halfAngle)));
+    controls.target.copy(center);
+    camera.position.copy(center).addScaledVector(new THREE.Vector3(23,11,28).normalize(),distance);
+    controls.update();
+    queueRender();
+    return;
+  }
   controls.target.set(0,7,0);
   const fit=Math.min(1.7,Math.max(1,viewport.clientHeight/viewport.clientWidth*1.2));
   camera.position.set(23*fit,7+11*fit,28*fit);
@@ -204,18 +270,22 @@ function buildTree(){
     });
   }
   placements=positions();
+  renderedNodes=isolated?nodes.filter(node=>pinned.ids.has(node.id)):nodes;
+  renderedIds=new Set(renderedNodes.map(node=>node.id));
   curves=new Map();
   tree=new THREE.Group();
   scene.add(tree);
   labels.clear();
   el('labels').replaceChildren();
   const wood=new THREE.MeshStandardMaterial({color:0x69472c,roughness:1});
-  const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.43,1.1,2.8,12),wood);
-  trunk.position.y=1.4;
-  tree.add(trunk);
+  if(renderedIds.has(nodes[0].id)){
+    const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.43,1.1,2.8,12),wood);
+    trunk.position.y=1.4;
+    tree.add(trunk);
+  }
   const lines=[];
-  for(const node of nodes){
-    if(!node.parent)continue;
+  for(const node of renderedNodes){
+    if(!renderedIds.has(node.parent))continue;
     const start=placements.get(node.parent);
     const end=placements.get(node.id);
     const bend=new THREE.Vector3().lerpVectors(start,end,.46);
@@ -237,10 +307,10 @@ function buildTree(){
   lineagePaths=new THREE.LineSegments(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0x77389e,depthTest:false}));
   lineagePaths.renderOrder=2;
   tree.add(lineagePaths);
-  markers=new THREE.InstancedMesh(new THREE.SphereGeometry(1,10,8),new THREE.MeshStandardMaterial(),nodes.length);
+  markers=new THREE.InstancedMesh(new THREE.SphereGeometry(1,10,8),new THREE.MeshStandardMaterial(),renderedNodes.length);
   tree.add(markers);
   const transform=new THREE.Object3D();
-  nodes.forEach((node,i)=>{
+  renderedNodes.forEach((node,i)=>{
     transform.position.copy(placements.get(node.id));
     transform.scale.setScalar(node.depth===0?.46:node.children.length?.25:.16);
     transform.updateMatrix();
@@ -252,7 +322,7 @@ function drawLabels(width,height){
   if(el('labels').hidden)return;
   const projected=new THREE.Vector3();
   labelMeasure.font='bold 14px Tahoma,Arial,sans-serif';
-  const ranked=nodes.map(node=>{
+  const ranked=renderedNodes.map(node=>{
     const point=placements.get(node.id);
     projected.copy(point).project(camera);
     return {node,x:(projected.x+1)*width/2,y:(1-projected.y)*height/2,z:projected.z,
@@ -347,14 +417,25 @@ function setupScene(){
 function reset(){
   ({list:nodes,byId:index}=fixture(Number(el('size').value)));
   el('search').value='';
-  if(renderer)buildTree();
-  select(nodes[0],false);
-  overview();
+  selection=nodes[0];
+  setPinned(null);
 }
 
 el('size').onchange=reset;
 el('color-mode').onchange=refreshColors;
 el('overview').onclick=overview;
+el('pin-person').onclick=()=>{
+  setPinned(selection);
+  el('pinned-heading').focus();
+};
+el('clear-pin').onclick=()=>{
+  setPinned(null);
+  el('pin-person').focus();
+};
+el('scope-branch').onclick=()=>{
+  isolated=!isolated;
+  refreshScope();
+};
 el('search').oninput=updateChoices;
 el('search').onkeydown=event=>{
   if(event.key!=='Enter')return;

@@ -6,6 +6,7 @@ const {mkdir}=require('node:fs/promises');
 const path=require('node:path');
 const {chromium}=require('playwright-core');
 const {createDemoServer}=require('./serve.cjs');
+const core=require('../../Claud/botanical-core.js');
 
 const root=path.resolve(__dirname,'../..');
 
@@ -96,6 +97,36 @@ test('3D tour opens 50, 150 and 500 people with Arabic search and lineage',{time
       await page.locator('#toggle-labels').click();
       await page.locator('#overview').click();
       await page.screenshot({path:path.join(evidence,'world-'+width+'.png'),fullPage:true});
+      await page.locator('#search').fill('');
+      await page.locator('#people').selectOption('test-1');
+      await page.locator('#pin-person').click();
+      const panel=page.locator('#pinned-branch');
+      const list=page.locator('#pinned-people button');
+      const expected=new Set(['test-1']);
+      const {nodes}=core.visible(core.fixture(500));
+      for(const node of nodes)if(expected.has(node.parentId))expected.add(node.personId);
+      const ids=await list.evaluateAll(items=>items.map(item=>item.dataset.personId));
+      assert.deepEqual(ids,[...expected]);
+      assert(await panel.isVisible());
+      const labelsAfterPin=await page.locator('.node-label').evaluateAll(items=>items.map(item=>item.dataset.personId));
+      assert(labelsAfterPin.length&&labelsAfterPin.every(id=>expected.has(id)));
+      assert(await page.locator('#pinned-people').evaluate(list=>{
+        const rows=[...list.children].slice(0,4).map(row=>row.getBoundingClientRect());
+        return rows.every((row,i)=>i===0||row.top>=rows[i-1].bottom);
+      }));
+      await page.locator('#people').selectOption('test-2');
+      assert.equal(await page.locator('#focus-person').isDisabled(),true);
+      await page.locator('#overview').click();
+      await page.locator('#zoom-out').click();
+      assert.deepEqual(await list.evaluateAll(items=>items.map(item=>item.dataset.personId)),ids);
+      await page.locator('#scope-branch').click();
+      assert.equal(await page.locator('#focus-person').isEnabled(),true);
+      await page.locator('#scope-branch').click();
+      await list.first().click();
+      assert.equal(await page.locator('#focus-person').isEnabled(),true);
+      await page.screenshot({path:path.join(evidence,'world-pinned-'+width+'.png'),fullPage:true});
+      await page.locator('#clear-pin').click();
+      assert.equal(await panel.isVisible(),false);
       await page.close();
     }
     const fallback=await browser.newPage();
@@ -110,6 +141,8 @@ test('3D tour opens 50, 150 and 500 people with Arabic search and lineage',{time
     await fallback.locator('#fallback').waitFor();
     await fallback.locator('#people').selectOption('test-49');
     assert((await fallback.locator('#person-name').textContent()).endsWith(' 49'));
+    await fallback.locator('#pin-person').click();
+    assert.equal(await fallback.locator('#pinned-people li').count(),1);
     assert.deepEqual(errors,[]);
   }finally{
     await browser?.close();
