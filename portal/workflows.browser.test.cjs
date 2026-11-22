@@ -45,6 +45,26 @@ test('batch entry, review workflow, audit and branch export in Chrome',{timeout:
     await member.locator('#new-password').fill(password);
     await member.locator('#activate-form button[type=submit]').click();
     await member.locator('#tree-view .is-self').waitFor();
+    await member.locator('#tree-drawing').selectOption('botanical');
+    const drawing=member.locator('#tree-view[data-drawing="botanical"] svg');
+    try{await drawing.waitFor();}
+    catch(error){assert.deepEqual(errors,[]);throw error;}
+    const fitWidth=Number(await drawing.getAttribute('width'));
+    await member.locator('#botanical-zoom-in').click();
+    assert(Number(await drawing.getAttribute('width'))>fitWidth);
+    await member.locator('#botanical-fit').click();
+    const owner=drawing.locator('[data-person-id="test-1"]');
+    await owner.focus();
+    await owner.press('Enter');
+    await member.locator('#botanical-add').click();
+    assert.equal(await member.locator('#parent').inputValue(),'test-1');
+    await member.locator('#child-name').fill('ابن من طريقة العرض النباتية');
+    await member.locator('#add-child-button').click();
+    const child=drawing.getByText('ابن من طريقة العرض النباتية',{exact:true});
+    await child.waitFor();
+    const childID=await child.locator('..').getAttribute('data-person-id');
+    assert.equal(await drawing.locator(`[data-parent-id="test-1"][data-child-id="${childID}"]`).count(),1);
+    await member.locator('#tree-drawing').selectOption('classic');
     for(const id of ['batch','correction','history','export'])await member.locator(`#${id}-section summary`).click();
     await admin.locator('#correction-section summary').click();
     // All writes below go through the application's visible workflow.

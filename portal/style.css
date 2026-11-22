@@ -63,6 +63,14 @@ p{margin:.6rem 0}
 .tree-heading{display:flex;align-items:start;justify-content:space-between;gap:1rem}
 .tree-tools{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
 .tree-tools select{width:auto;max-width:100%}
+.botanical-tools{margin-block:.65rem}
+#botanical-zoom:not([hidden]){display:flex;flex-wrap:wrap;gap:.3rem}
+.tree-canvas[data-drawing=botanical] svg{margin:auto}
+.tree-canvas[data-drawing=botanical]{user-select:none;cursor:grab}
+.tree-canvas[data-drawing=botanical] .nodegroup{cursor:pointer}
+.tree-canvas[data-drawing=botanical] .is-self>rect{stroke:#9b681d;stroke-width:5}
+.tree-canvas[data-drawing=botanical] .is-selected>rect{stroke-width:5}
+.tree-canvas[data-drawing=botanical] [data-change]>rect{stroke-dasharray:6 3}
 .tree-color-tools{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem .65rem;margin-block:.65rem}
 .tree-color-tools select{width:auto;max-width:100%}
 #tree-color-legend{display:flex;flex-wrap:wrap;gap:.25rem .75rem;list-style:none;margin:0;padding:0}

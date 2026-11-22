@@ -137,8 +137,8 @@
     else next.treefDocumentation={...(next.treefDocumentation||{}),version:1,reference:clear?'':reference,status};
     return next;
   }
-  function layout(d,measure = s => Array.from(s).length*10) {
-    const {root,nodes,excluded}=visible(d),p=d.presentation,t=p.template;
+  function layout(d,measure = s => Array.from(s).length*10,view=visible(d)) {
+    const {root,nodes,excluded}=view,p=d.presentation,t=p.template;
     if(!root)throw Error('الجذر ليس ضمن سلسلة الذكور المعروضة');
     const gap=t==='heritage-dense'?18:t==='heritage-simple'?66:38;
     let depth=0;

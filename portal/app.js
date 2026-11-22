@@ -53,6 +53,101 @@ const treeColors={
 };
 const generationColors=['male','ancestor','child','selected','female','descendant'].map(key=>treeColors[key]);
 const arabicNumber=new Intl.NumberFormat('ar-SA');
+let botanicalZoom=1;
+
+function drawBotanical(container,snapshot,shown,allPeople,relationship,colorMode){
+  const core=globalThis.BotanicalCore;
+  if(!core)return false;
+  const botanicalNodes=new Map(shown.map(person=>[person.id,{
+    personId:person.id,fullName:person.name,parentId:person.parentId,children:[],generation:0,descendantCount:0
+  }]));
+  const roots=[];
+  for(const node of botanicalNodes.values()){
+    const parent=botanicalNodes.get(node.parentId);
+    if(parent)parent.children.push(node);
+    else{node.parentId=null;roots.push(node);}
+  }
+  if(roots.length!==1)return false;
+  const [root]=roots,nodes=[];
+  const pending=[root];
+  while(pending.length){
+    const person=pending.pop();
+    nodes.push(person);
+    for(const child of person.children.slice().reverse()){
+      child.generation=person.generation+1;
+      pending.push(child);
+    }
+  }
+  if(nodes.length!==shown.length)return false;
+  for(const node of nodes.slice().reverse()){
+    node.descendantCount=node.children.reduce((sum,child)=>sum+child.descendantCount+1,0);
+  }
+  const source={title:snapshot.title,presentation:core.defaults()};
+  const offset=ancestorIds(allPeople,root.personId).size;
+  for(const generation of new Set(nodes.map(node=>node.generation))){
+    source.presentation.generationPalette[generation]=core.color(core.defaults(),generation+offset);
+  }
+  const context=document.createElement('canvas').getContext('2d');
+  context.font='18px Tahoma,Arial,sans-serif';
+  const geometry=core.layout(source,name=>context.measureText(name).width,{root,nodes,excluded:0});
+  const parsed=new DOMParser().parseFromString(core.svgMarkup(source,geometry),'image/svg+xml');
+  if(parsed.querySelector('parsererror'))return false;
+  const svg=document.importNode(parsed.documentElement,true);
+  svg.setAttribute('role','group');
+  svg.setAttribute('aria-label',snapshot.title||'الشجرة النباتية');
+  for(const el of svg.querySelectorAll('[id]'))el.removeAttribute('id');
+  const box=svg.getAttribute('viewBox').split(/\s+/).map(Number);
+  const scale=Math.min(container.clientWidth/box[2],container.clientHeight/box[3])*botanicalZoom;
+  svg.setAttribute('width',Math.round(box[2]*scale));
+  svg.setAttribute('height',Math.round(box[3]*scale));
+  const legend=svg.querySelector(':scope > g:last-child');
+  if(colorMode==='generation'){
+    [...legend.querySelectorAll('text')].forEach((item,i)=>{item.textContent='الجيل '+arabicNumber.format(i+1+offset);});
+  }else legend.remove();
+  const previous=new Map(beforeSnapshot?.people.map(person=>[person.id,person.name]));
+  for(const item of svg.querySelectorAll('[data-person-id]')){
+    const id=item.dataset.personId;
+    const person=allPeople.get(id),level=botanicalNodes.get(id).generation+offset+1;
+    const category=relationship(person),gender=person.gender==='f'?'female':'male';
+    const tone=colorMode==='gender'?treeColors[gender]:colorMode==='relationship'?treeColors[category]:null;
+    const label=item.querySelector(':scope > rect');
+    const outline=item.querySelector(':scope > g');
+    if(tone){
+      label.setAttribute('stroke',tone.stroke);
+      outline.setAttribute('stroke',tone.stroke);
+      outline.setAttribute('fill',tone.fill);
+    }
+    item.classList.toggle('is-selected',selectedId===id);
+    item.classList.toggle('is-self',user?.personId===id);
+    item.setAttribute('aria-pressed',String(selectedId===id));
+    item.setAttribute('aria-label',person.name+'، الجيل '+arabicNumber.format(level));
+    item.dataset.relationship=category;
+    item.dataset.generation=level;
+    item.dataset.gender=gender;
+    item.querySelector(':scope > text:last-child').textContent=arabicNumber.format(level);
+    if(beforeSnapshot&&container.id!=='before-tree'&&person.gender!=='f'){
+      if(!previous.has(id))item.dataset.change='added';
+      else if(previous.get(id)!==person.name)item.dataset.change='renamed';
+    }
+    item.onclick=()=>selectPerson(id);
+    item.onkeydown=event=>{
+      if(event.key==='Enter'||event.key===' '){event.preventDefault();selectPerson(id);}
+    };
+  }
+  if(container.id==='tree-view'){
+    const generationKeys=new Set(nodes.map(node=>node.generation));
+    const colors=colorMode==='generation'?[...generationKeys].sort((a,b)=>a-b).map(level=>({
+      label:'الجيل '+arabicNumber.format(level+offset+1),
+      fill:source.presentation.generationPalette[level],
+      stroke:source.presentation.generationPalette[level]
+    })):(colorMode==='gender'?['male','female']:['selected','ancestor','child','descendant','other']).map(key=>treeColors[key]);
+    renderTreeLegend(colors);
+    byId('tree-ancestor-hint').hidden=colorMode!=='relationship'||offset===0;
+  }
+  container.dataset.drawing='botanical';
+  container.append(svg);
+  return true;
+}
 
 function ancestorIds(map,id){
   const ancestors=new Set();
@@ -77,6 +172,7 @@ function renderTreeLegend(entries){
 
 function drawTree(container, snapshot, colored = true) {
   container.replaceChildren();
+  delete container.dataset.drawing;
   if (!snapshot?.people.length) return;
   const source = snapshot.people;
   const scope=byId('tree-scope').value;
@@ -101,6 +197,7 @@ function drawTree(container, snapshot, colored = true) {
   }
   const shown = anchor && family.size
     ? source.filter(person => family.has(person.id)) : source;
+  if(colored&&byId('tree-drawing').value==='botanical'&&drawBotanical(container,snapshot,shown,allPeople,relationship,colorMode))return;
   const map = new Map(shown.map(person => [person.id, person]));
   const children = new Map();
   for (const person of shown) {
@@ -205,6 +302,10 @@ function drawTree(container, snapshot, colored = true) {
 byId('tree-color-mode').addEventListener('change',renderTrees);
 
 function renderTrees() {
+  const botanical=byId('tree-drawing').value==='botanical';
+  byId('botanical-zoom').hidden=!botanical;
+  byId('botanical-add').hidden=!botanical||!people.some(person=>person.id===selectedId&&person.writable);
+  const scroll=Array.from(document.querySelectorAll('.tree-canvas'),node=>[node,node.scrollLeft,node.scrollTop]);
   const active = document.activeElement;
   const focusPersonId = active?.dataset?.personId;
   const focusContainer = active?.closest('.tree-canvas')?.id;
@@ -223,7 +324,54 @@ function renderTrees() {
       .find(element=>element.dataset.personId===focusPersonId);
     replacement?.focus({preventScroll:true});
   }
+  if(botanical)for(const [node,x,y] of scroll){node.scrollLeft=x;node.scrollTop=y;}
 }
+
+byId('tree-drawing').addEventListener('change',()=>{
+  botanicalZoom=1;
+  renderTrees();
+});
+for(const [id,factor] of [['botanical-zoom-in',1.5],['botanical-zoom-out',1/1.5],['botanical-fit',0]]){
+  byId(id).addEventListener('click',()=>{
+    botanicalZoom=factor?Math.max(1,Math.min(24,botanicalZoom*factor)):1;
+    renderTrees();
+    if(factor)locatePerson(selectedId);
+  });
+}
+byId('botanical-add').addEventListener('click',()=>{
+  if(!people.some(person=>person.id===selectedId&&person.writable))return;
+  byId('child-gender').value='m';
+  setChildForm();
+  byId('parent').value=selectedId;
+  byId('child-name').focus();
+});
+
+for(const canvas of document.querySelectorAll('.tree-canvas')){
+  let drag;
+  let suppressClick=false;
+  canvas.addEventListener('pointerdown',event=>{
+    if(canvas.dataset.drawing!=='botanical'||event.pointerType!=='mouse'||event.button!==0)return;
+    suppressClick=false;
+    drag={id:event.pointerId,x:event.clientX,y:event.clientY,left:canvas.scrollLeft,top:canvas.scrollTop};
+  });
+  canvas.addEventListener('pointermove',event=>{
+    if(drag?.id!==event.pointerId)return;
+    if(!(event.buttons&1)){drag=null;return;}
+    const dx=event.clientX-drag.x,dy=event.clientY-drag.y;
+    if(!suppressClick&&Math.hypot(dx,dy)<8)return;
+    if(!suppressClick)canvas.setPointerCapture(event.pointerId);
+    suppressClick=true;
+    canvas.scrollLeft=drag.left-dx;
+    canvas.scrollTop=drag.top-dy;
+  });
+  for(const event of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(event,()=>{drag=null;});
+  canvas.addEventListener('click',event=>{
+    if(suppressClick&&event.detail>0){suppressClick=false;event.stopImmediatePropagation();}
+  },true);
+}
+window.addEventListener('resize',()=>{
+  if(treeSnapshot&&byId('tree-drawing').value==='botanical')renderTrees();
+});
 
 function locatePerson(id, container = byId('tree-view')) {
   const node = [...container.querySelectorAll('[data-person-id]')].find(element=>element.dataset.personId===id);

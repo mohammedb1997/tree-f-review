@@ -105,6 +105,14 @@ test('دعوة وتحديد موقع العضو ومقارنة تعديل حي �
     assert(!(await admin.locator('#workspace').textContent()).includes('ابنة اختبار خصوصية الأب'));
     await admin.locator('#tree-scope').selectOption('all');
     await admin.locator('#tree-view').getByText('ابنة اختبار خصوصية الأب').waitFor();
+    await admin.locator('#tree-drawing').selectOption('botanical');
+    await admin.locator('#tree-view[data-drawing="botanical"] [data-gender="female"]')
+      .getByText('ابنة اختبار خصوصية الأب',{exact:true}).waitFor();
+    await admin.locator('#tree-scope').selectOption('shared');
+    assert.equal(await admin.locator('#tree-view').getByText('ابنة اختبار خصوصية الأب',{exact:true}).count(),0);
+    await admin.locator('#tree-drawing').selectOption('classic');
+    await admin.locator('#tree-scope').selectOption('all');
+    await admin.locator('#tree-view').getByText('ابنة اختبار خصوصية الأب').waitFor();
     await admin.locator('#tree-color-mode').selectOption('gender');
     const daughterNode=admin.locator('#tree-view [data-gender="female"]').filter({hasText:'ابنة اختبار خصوصية الأب'});
     await daughterNode.waitFor();

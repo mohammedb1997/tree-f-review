@@ -4,9 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>تجربة بوابة العائلة</title>
-  <link rel="stylesheet" href="style.css?v=31305c4753">
-  <script src="preview.js?v=31305c4753" defer></script>
-  <script src="app.js?v=31305c4753" defer></script>
+  <link rel="stylesheet" href="style.css?v=4cbf47adf8">
+  <script src="../Claud/botanical-core.js?v=4cbf47adf8" defer></script>
+  <script src="preview.js?v=4cbf47adf8" defer></script>
+  <script src="app.js?v=4cbf47adf8" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -52,6 +53,16 @@
         <div class="tree-heading"><div><h2 id="live-tree-title">موقعك في شجرة العائلة</h2><p id="live-status" class="hint" role="status">جارٍ الاتصال بالتحديثات…</p></div>
           <div class="tree-tools"><button id="locate-me" type="button">موقعي في الشجرة</button><label for="tree-scope" class="sr-only">نطاق عرض الشجرة</label><select id="tree-scope"><option value="mine" hidden>فرعي: أبنائي وأحفادي</option><option value="shared">الشجرة الرئيسية</option><option value="all">الكل: شجرة العائلة</option><option value="branch">فرع الشخص المحدد</option></select></div></div>
         <p><a href="world/">استكشف الجولة بعينة مستقلة بالعرض الثابت أو ثلاثي الأبعاد</a></p>
+        <div class="tree-tools botanical-tools">
+          <label for="tree-drawing">طريقة العرض</label>
+          <select id="tree-drawing"><option value="classic">مخطط الشجرة</option><option value="botanical">الشجرة النباتية</option></select>
+          <div id="botanical-zoom" hidden>
+            <button id="botanical-zoom-in" type="button">تكبير +</button>
+            <button id="botanical-zoom-out" type="button">تصغير −</button>
+            <button id="botanical-fit" type="button">ملاءمة الشاشة</button>
+          </div>
+          <button id="botanical-add" type="button" hidden>إضافة ابن للشخص المحدد</button>
+        </div>
         <div class="tree-color-tools">
           <label for="tree-color-mode">تلوين الشجرة</label>
           <select id="tree-color-mode">

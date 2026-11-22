@@ -28,6 +28,7 @@ const assets = new Map([
   ['/portal/',['index.html','text/html;charset=utf-8']],
   ['/portal/app.js',['app.js','text/javascript;charset=utf-8']],
   ['/portal/style.css',['style.css','text/css;charset=utf-8']],
+  ['/Claud/botanical-core.js',['../Claud/botanical-core.js','text/javascript;charset=utf-8']],
   ['/portal/world/',['world/index.html','text/html;charset=utf-8']],
   ['/portal/world/world.css',['world/world.css','text/css;charset=utf-8']],
   ...['world.js','vendor/three.core.min.js','vendor/three.module.min.js','vendor/OrbitControls.js']
