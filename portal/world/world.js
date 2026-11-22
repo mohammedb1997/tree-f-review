@@ -3,7 +3,13 @@ import {OrbitControls} from './vendor/OrbitControls.js';
 
 const el=id=>document.getElementById(id);
 const viewport=el('viewport');
-const colors={selected:0xffc054,ancestor:0xbe95e7,descendant:0x70c994,other:0x376449};
+const kinship={
+  selected:['الشخص المحدد','#ffc054'],ancestor:['الأب والأجداد','#d2a3ff'],
+  child:['الأبناء المباشرون','#9de185'],descendant:['الأحفاد والذرية','#78dfe8'],
+  other:['بقية العائلة','#9ba9a2']
+};
+const genders={m:['ذكر','#85bbff'],f:['أنثى','#ffa3cf']};
+const generations=['#ffd17a','#8fc2f8','#d8adfa','#9ade9f','#ffa6a6','#82e1db','#f1afe0'];
 const format=new Intl.NumberFormat('ar-SA');
 const normalize=value=>value.normalize('NFKD').replace(/[\p{M}ـ]/gu,'').replace(/ى/g,'ي').trim();
 let nodes,index,selection;
@@ -22,6 +28,9 @@ function fixture(size){
   }
   for(const node of list.slice().reverse()){
     node.weight=Math.max(1,node.children.reduce((sum,child)=>sum+child.weight,0));
+    // Synthetic sample only. The real portal supplies gender from authorized records.
+    node.gender=node.depth && !node.children.length && Number(node.id.slice(5))%5===0?'f':'m';
+    if(node.gender==='f')node.name='مريم التجريبية '+node.id.slice(5);
   }
   return {list,byId};
 }
@@ -64,10 +73,36 @@ function ancestry(node){
   return list;
 }
 
+function generationTone(depth){
+  return ['الجيل '+format.format(depth+1),generations[depth%generations.length]];
+}
+
+function refreshColors(){
+  const mode=el('color-mode').value;
+  const entries=mode==='kinship'?Object.values(kinship):mode==='gender'?Object.values(genders):
+    [...new Set(nodes.map(node=>node.depth))].sort((a,b)=>a-b).map(generationTone);
+  el('legend').replaceChildren(...entries.map(([name,color])=>{
+    const row=document.createElement('li');
+    const swatch=document.createElement('span');
+    swatch.className='swatch';
+    swatch.style.backgroundColor=color;
+    swatch.setAttribute('aria-hidden','true');
+    row.append(swatch,name);
+    return row;
+  }));
+  nodes.forEach((node,i)=>{
+    node.appearance=mode==='kinship'?kinship[node.tone]:mode==='gender'?genders[node.gender]:generationTone(node.depth);
+    if(markers)markers.setColorAt(i,new THREE.Color(node.appearance[1]));
+  });
+  if(markers)markers.instanceColor.needsUpdate=true;
+  queueRender();
+}
+
 function select(node,visit){
   selection=node;
   el('person-name').textContent=node.name;
   el('generation').textContent='الجيل '+format.format(node.depth+1);
+  el('person-gender').textContent=genders[node.gender][0];
   const descendants=new Set();
   const pending=[...node.children];
   while(pending.length){
@@ -87,14 +122,12 @@ function select(node,visit){
     return row;
   }));
   if(!parents.length)el('lineage').append(Object.assign(document.createElement('li'),{textContent:'أصل الشجرة'}));
+  const ancestorIds=new Set(parents.map(parent=>parent.id));
+  for(const person of nodes){
+    person.tone=person===node?'selected':ancestorIds.has(person.id)?'ancestor':
+      person.parent===node.id?'child':descendants.has(person.id)?'descendant':'other';
+  }
   if(renderer){
-    const ancestorIds=new Set(parents.map(parent=>parent.id));
-    nodes.forEach((person,i)=>{
-      const tone=person===node?'selected':ancestorIds.has(person.id)?'ancestor':descendants.has(person.id)?'descendant':'other';
-      person.tone=tone;
-      markers.setColorAt(i,new THREE.Color(colors[tone]));
-    });
-    markers.instanceColor.needsUpdate=true;
     const pathPoints=[];
     for(const person of [node,...parents]){
       const points=curves.get(person.id)?.getPoints(12) || [];
@@ -111,6 +144,7 @@ function select(node,visit){
     }
     queueRender();
   }
+  refreshColors();
   updateChoices();
 }
 
@@ -200,6 +234,11 @@ function drawLabels(width,height){
     }
     button.style.left=x+'px';
     button.style.top=y+'px';
+    button.style.setProperty('--label-color',node.appearance[1]);
+    button.dataset.personId=node.id;
+    button.dataset.category=node.appearance[0];
+    button.setAttribute('aria-label',node.name+'، '+node.appearance[0]);
+    button.title=node.name+' · '+node.appearance[0];
     button.setAttribute('aria-current',String(node===selection));
     if(!button.isConnected)el('labels').append(button);
     shown.push(item);
@@ -261,6 +300,7 @@ function reset(){
 }
 
 el('size').onchange=reset;
+el('color-mode').onchange=refreshColors;
 el('overview').onclick=overview;
 el('search').oninput=updateChoices;
 el('search').onkeydown=event=>{

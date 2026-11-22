@@ -15,4 +15,7 @@ section:not(.hero){padding-block:1.75rem;border-block-end:1px solid var(--line)}
 .cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem}
 article{background:var(--card);padding:1.2rem;border:1px solid var(--line);border-radius:7px}
 article a{display:block;margin-block:.3rem}.details{padding-inline-start:1.2rem}.foot{padding-block:1rem;color:var(--body);font-size:.9rem}
+.feature-cards article{border-block-start:4px solid var(--accent)}
+.feature-cards article:first-child{background:#e9f2e8}
+.sample-title{margin-block:1.65rem .75rem}
 @media(max-width:650px){.hero,.cards{grid-template-columns:1fr}.hero img{max-width:270px;margin-inline:auto}.bar{align-items:start}.bar nav{gap:.6rem}}

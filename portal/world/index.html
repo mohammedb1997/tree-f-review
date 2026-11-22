@@ -14,6 +14,7 @@
   <main>
     <section class="controls" aria-label="أدوات الجولة">
       <label>حجم العينة <select id="size"><option>50</option><option>150</option><option>500</option></select></label>
+      <label>التلوين <select id="color-mode"><option value="kinship">حسب القرابة</option><option value="generation">حسب الجيل</option><option value="gender">حسب الجنس</option></select></label>
       <label>ابحث بالاسم <input id="search" type="search" placeholder="مثال: عبدالرحمن"></label>
       <label>اختر شخصًا <select id="people"></select></label>
       <button id="overview" type="button">عرض الشجرة كاملة</button>
@@ -27,10 +28,12 @@
       <aside aria-labelledby="person-name">
         <p id="generation"></p>
         <h2 id="person-name" aria-live="polite"></h2>
+        <p id="person-gender"></p>
         <p id="details"></p>
         <h3>النسب حتى الجد</h3>
         <ol id="lineage"></ol>
-        <div class="legend"><span>● الشخص المحدد</span><span>● الأب والأجداد</span><span>● الأبناء والذرية</span></div>
+        <h3>مفتاح الألوان</h3>
+        <ul id="legend" class="legend" aria-live="polite"></ul>
       </aside>
     </div>
   </main>

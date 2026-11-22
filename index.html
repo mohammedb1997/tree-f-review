@@ -10,24 +10,28 @@
 <body>
   <header class="top"><div class="wrap bar">
     <a class="brand" href="#start">شجرة العائلة</a>
-    <nav aria-label="أقسام الصفحة"><a href="#try">التجربة</a><a href="#changes">التطوير</a><a href="#code">الكود</a></nav>
+    <nav aria-label="أقسام الصفحة"><a href="#try">التجربة</a><a href="#changes">الأعمال</a><a href="#references">المراجع</a><a href="#code">الكود</a></nav>
   </div></header>
   <main id="start" class="wrap">
     <section class="hero" aria-labelledby="title">
       <div>
         <p class="eyebrow">نسخة مراجعة · بيانات وهمية</p>
-        <h1 id="title">اللوحة التراثية<br>لشجرة العائلة</h1>
-        <p>جرّب التاج العضوي. ابحث عن اسم، وكبّر اللوحة، واضغط على شخص لتتبّع نسبه.</p>
-        <div class="actions"><a class="primary" href="samples/tree-51.html">افتح الشجرة التفاعلية</a><a href="#code">ملفات المطوّر</a></div>
+        <h1 id="title">شجرة العائلة</h1>
+        <p>استكشف النسب في جولة ثلاثية الأبعاد، وجرّب بوابة العائلة، وراجع اللوحة التراثية المعدّة للطباعة.</p>
+        <div class="actions"><a class="primary" href="portal/world/">ابدأ الجولة ثلاثية الأبعاد</a><a href="samples/tree-51.html">افتح اللوحة التراثية</a></div>
       </div>
       <a href="samples/tree-51.html" aria-label="افتح معاينة التاج العضوي">
         <img src="samples/tree-51.png" alt="التاج العضوي المزخرف: شارات بيج للأسماء فوق أوراق خضراء داخل إطار ذهبي">
       </a>
     </section>
     <section id="try" aria-labelledby="try-title">
-      <h2 id="try-title">جرّب الأحجام المختلفة</h2>
-      <p><a href="portal/preview.html">جرّب بوابة الحسابات والدعوات وشجرة العائلة</a></p>
-      <p><a href="portal/world/">استكشف شجرة العائلة ثلاثية الأبعاد</a></p>
+      <h2 id="try-title">تجارب المشروع</h2>
+      <div class="cards feature-cards">
+        <article><h3>جولة ثلاثية الأبعاد</h3><p>ابحث عن اسم، واتبع خط النسب، ولوّن الأسماء حسب القرابة أو الجيل أو الجنس. عينات من ٥٠ و١٥٠ و٥٠٠ شخص.</p><a href="portal/world/">استكشف الشجرة</a></article>
+        <article><h3>بوابة العائلة</h3><p>جرّب الحسابات والدعوات، وعرض الفرع، والإضافة ومعاينة التعديلات على بيانات وهمية.</p><a href="portal/preview.html">افتح البوابة التجريبية</a></article>
+        <article><h3>محرّر الشجرة</h3><p>معاينة القوالب والتعديل والاستيراد وخيارات إخراج اللوحات.</p><a href="Claud/family-tree.html">افتح محرّر الشجرة</a></article>
+      </div>
+      <h3 class="sample-title">عينات اللوحات للطباعة</h3>
       <div class="cards">
         <article><h3>٥١ اسمًا</h3><p>لوحة واحدة بتاج عضوي، مع البحث وتتبع النسب.</p><a href="samples/tree-51.html">تجربة اللوحة ↗</a></article>
         <article><h3>١٥٠ اسمًا</h3><p>أربع لوحات مترابطة مع فهرس. بروفة A2 من أربع صفحات.</p><a href="samples/branches-150.html">افتح لوحات الفروع ↗</a><a href="samples/branches-150.pdf">بروفة PDF</a></article>
@@ -41,12 +45,24 @@
         <li>تصدير SVG بخمس طبقات، مع خيارات لوحة كاملة أو صفحات للفروع.</li>
         <li>فهرس وإحالات بين صفحات الفروع، مع حفظ ألوان الأجيال وأرقامها.</li>
         <li>في عينة الـ٥١ المحسنة، لم يرصد الفحص تقاطعات بين الأغصان غير المتصلة. أصغر خط محسوب على A2 هو ١٤٫٩ نقطة.</li>
+        <li>دعوات وحسابات بصلاحيات حسب الفرع، مقارنة قبل التعديل وبعده، وعرض الأسماء الخاصة حسب نطاق الحساب.</li>
+        <li>إضافة أبناء دفعة واحدة، مراجعة تصحيح النسب والتكرار، سجل تعديلات، وتصدير الفرع بصيغتي SVG وHTML.</li>
+        <li>نسخ واسترجاع SQLite للبوابة الخاصة ودليل إعداد HTTPS والنسخ المجدول.</li>
+        <li>جولة ثلاثية الأبعاد، وتتبع خط النسب، وتلوين الأسماء والأجيال في الجولة والشجرة التفاعلية.</li>
       </ul>
+    </section>
+    <section id="references" aria-labelledby="references-title">
+      <h2 id="references-title">المراجع والتوثيق</h2>
+      <div class="cards">
+        <article><h3>اللوحة والطباعة</h3><a href="CHANGES-ornate-v3.md">سجل تطوير التاج العضوي</a><a href="developer/ornate-poster-proof.ar.md">توثيق بروفات الطباعة</a><a href="developer/ornate-v3-results.json">قياسات عينة ٥١</a><a href="developer/results.json">نتائج لوحات الفروع</a></article>
+        <article><h3>البوابة والجولة</h3><a href="portal/README.ar.md">الحسابات والصلاحيات والتشغيل</a><a href="portal/deploy/README.ar.md">الاستضافة والنسخ والاسترجاع</a><a href="portal/world/README.ar.md">تقنية الجولة واختباراتها</a><a href="https://threejs.org/docs/pages/OrbitControls.html">توثيق Three.js للتحكم بالكاميرا</a></article>
+        <article><h3>مراجع المقارنة</h3><a href="https://miro.com/ar/templates/family-tree/">Miro</a><a href="https://awraq.app/">أوراق</a><a href="https://livefamilytrees.com/wp/">منصة رسم شجرة العائلة</a><a href="https://www.familysearch.org/en/help/helpcenter/article/how-do-i-use-the-fan-chart-view-in-family-tree">FamilySearch</a><a href="https://www.grampsweb.org/features/">Gramps Web</a><a href="https://bloomsly.org/">Bloomsly 3D</a><a href="https://www.babylonjs.com/specifications/">Babylon.js</a></article>
+      </div>
     </section>
     <section id="code" aria-labelledby="code-title">
       <h2 id="code-title">للمطوّر</h2>
-      <p>تضم الحزمة ملفات التشغيل والاختبارات والبروفات. يحتوي ملف التعليمات على خطوات التشغيل وإعادة التحقق.</p>
-      <div class="actions"><a class="primary" href="developer/tree-f-review-ornate-v3.zip" download>حمّل حزمة الكود ZIP</a><a href="samples/tree-51.svg" download>تنزيل SVG</a><a href="developer/README.ar.md">تعليمات التشغيل</a></div>
+      <p>يضم المستودع أحدث كود للجولة والبوابة واللوحة. تتوفر أيضًا حزمة اللوحة v3 التاريخية للمقارنة.</p>
+      <div class="actions"><a class="primary" href="https://github.com/mohammedb1997/tree-f-review">أحدث الكود على GitHub</a><a href="developer/tree-f-review-ornate-v3.zip" download>حزمة اللوحة v3</a><a href="samples/tree-51.svg" download>تنزيل SVG</a><a href="developer/README.ar.md">تعليمات تشغيل اللوحة</a></div>
       <p><a href="developer/ornate-v3-results.json">نتائج عينة v3</a> · <a href="developer/results.json">نتائج لوحات الفروع من v2</a></p>
       <ul class="details"><li><a href="developer/heritage-poster.js.txt">اقرأ كود رسم الشجرة وتقسيم اللوحات</a></li><li><a href="developer/poster-print.js.txt">اقرأ كود المعاينة والتصدير</a></li></ul>
       <p>عند إرسال ملاحظة، اذكر حجم العينة ورقم الصفحة أو الاسم، وما ظهر لك وما توقّعته.</p>
