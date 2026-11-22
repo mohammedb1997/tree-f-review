@@ -7,6 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const {pathToFileURL} = require('node:url');
 const {chromium} = require('playwright-core');
+const core = require('../Claud/botanical-core.js');
 
 const fixture = name => pathToFileURL(path.join(__dirname,name)).href;
 const baselines = path.join(__dirname,'design-snapshots');
@@ -73,6 +74,45 @@ test('gallery: both starting points, search, access, add and reset',async () => 
   await page.reload();
   assert.equal(await page.locator('#demo-people button').count(),2);
   assert.deepEqual(external,[]);
+}));
+
+test('responsive portal: long Arabic names and results for 30, 150 and 500 people',async () => withBrowser(async browser => {
+  for (const [count,width,height,touch] of [[30,360,800,true],[150,768,1024,true],[500,1366,900,false]]) {
+    const data = core.fixture(count);
+    const parents = new Map(data.relationships.map(link => [link.childId,link.parentId]));
+    const name = 'عبد الرحمن بن عبد العزيز بن سليمان بن عبد الله الطويل التجريبي';
+    const last = data.persons.at(-1).personId;
+    const people = data.persons.map(person => ({
+      id:person.personId, name:person.personId===last?name:person.fullName,
+      parentId:parents.get(person.personId)??null, writable:true
+    }));
+    const page = await browser.newPage({viewport:{width,height},hasTouch:touch,isMobile:touch});
+    await page.addInitScript(({people}) => {
+      let preview;
+      Object.defineProperty(globalThis,'familyPortalPreview',{
+        get:() => preview,
+        set(adapter) {
+          preview = {request:(url,...args) => url==='/api/tree'
+            ? Promise.resolve({title:'عينة وهمية للمراجعة',revision:0,people})
+            : adapter.request(url,...args)};
+        }
+      });
+    },{people});
+    await page.goto(fixture('preview.html'));
+    await page.locator('#tree-view [data-person-id]').last().waitFor({state:'attached'});
+    assert.equal(await page.locator('#tree-view [data-person-id]').count(),count);
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.locator('.workspace-shortcut').click();
+    await page.locator('#search').fill(name);
+    const result = page.locator('#people button');
+    assert.equal(await result.count(),1);
+    assert.match(await result.textContent(),/الأب/);
+    await result.click();
+    assert.equal(await page.locator('#person-title').textContent(),name);
+    assert.equal(await page.evaluate(() => document.activeElement.id),'person-title');
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.close();
+  }
 }));
 
 test('visual baselines: gallery and portal at 390, 768 and 1280 CSS px',async () => withBrowser(async browser => {

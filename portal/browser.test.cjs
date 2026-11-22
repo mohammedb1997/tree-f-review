@@ -8,7 +8,7 @@ const {chromium}=require('playwright-core');
 const {createPortal}=require('./server.cjs');
 const core=require('../Claud/botanical-core.js');
 
-test('دعوة وتحديد موقع العضو ومقارنة تعديل حي في جلستين',{timeout:30000},async()=>{
+test('دعوة وتحديد موقع العضو ومقارنة تعديل حي في جلستين',{timeout:45000},async()=>{
   const origin='http://127.0.0.1:4186';
   const portal=createPortal({filename:':memory:',origin});
   const password='FamilyDemo-2026';
@@ -63,6 +63,9 @@ test('دعوة وتحديد موقع العضو ومقارنة تعديل حي �
     assert.equal(new URL(member.url()).hash,'#search');
     await member.locator('#people [data-person-id="test-1"]').click();
     assert.equal(await member.evaluate(()=>document.activeElement.id),'person-title');
+    await member.locator('#show-person-branch').click();
+    assert.equal(await member.locator('#tree-scope').inputValue(),'branch');
+    await member.locator('#locate-me').click();
     assert.equal(await member.locator('#tree-color-mode').isVisible(),false);
     await member.locator('.display-options summary').click();
     assert.equal(await member.locator('#administration').isVisible(),false);
@@ -83,6 +86,8 @@ test('دعوة وتحديد موقع العضو ومقارنة تعديل حي �
     assert.equal(await node(member,'test-4').getAttribute('data-generation'),'3');
     await member.locator('#tree-color-mode').selectOption('relationship');
     assert.equal(await admin.locator('#private-daughters').isVisible(),false);
+    await admin.locator('#quick-add').click();
+    assert.equal(await admin.evaluate(()=>document.activeElement.id),'child-name');
     await admin.locator('#child-gender').selectOption('f');
     assert.equal(await admin.locator('#parent').isEnabled(),true);
     await admin.locator('#parent').selectOption('test-1');
@@ -91,6 +96,8 @@ test('دعوة وتحديد موقع العضو ومقارنة تعديل حي �
     await admin.locator('#notice').filter({hasText:'حُفظت الابنة'}).waitFor();
     await member.locator('#private-daughters-list').getByText('ابنة أضافها المدير').waitFor();
     assert(!(await admin.locator('#tree-view').textContent()).includes('ابنة أضافها المدير'));
+    await member.locator('#quick-add').click();
+    assert.equal(await member.evaluate(()=>document.activeElement.id),'child-name');
     await member.locator('#child-gender').selectOption('f');
     assert.equal(await member.locator('#parent').isDisabled(),true);
     assert.equal(await member.locator('#parent').inputValue(),'test-1');
@@ -183,6 +190,7 @@ test('دعوة وتحديد موقع العضو ومقارنة تعديل حي �
     assert((await member.locator('#after-tree').textContent()).includes('ابن تجريبي جديد'));
     assert(await member.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
     await member.locator('#tree-scope').selectOption('branch');
+    await member.locator('#quick-add').click();
     await member.locator('#parent').selectOption('test-4');
     await member.locator('#child-name').fill('حفيد اختبار التحديث');
     await member.locator('#add-form button[type=submit]').click();

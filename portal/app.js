@@ -341,9 +341,7 @@ for(const [id,factor] of [['botanical-zoom-in',1.5],['botanical-zoom-out',1/1.5]
 byId('botanical-add').addEventListener('click',()=>{
   if(!people.some(person=>person.id===selectedId&&person.writable))return;
   byId('child-gender').value='m';
-  setChildForm();
-  byId('parent').value=selectedId;
-  byId('child-name').focus();
+  openAddPanel(selectedId);
 });
 
 for(const canvas of document.querySelectorAll('.tree-canvas')){
@@ -469,12 +467,15 @@ async function api(url, data, method = 'POST') {
 
 async function submit(form, action) {
   const buttons = [...form.querySelectorAll('button')];
+  const status = form.querySelector('[data-form-status]');
   buttons.forEach(button => { button.disabled = true; });
   notify('');
+  if (status) status.textContent = '';
   try {
     await action();
   } catch (error) {
-    notify(error.message, true);
+    if (status && user) status.textContent = error.message;
+    else notify(error.message, true);
   } finally {
     buttons.forEach(button => { button.disabled = false; });
   }
@@ -504,6 +505,12 @@ function showSignedOut() {
   byId('live-status').textContent = '';
   byId('workspace').hidden = true;
   byId('administration').hidden = true;
+  byId('admin-link').hidden = true;
+  byId('quick-add').hidden = true;
+  byId('show-person-branch').hidden = true;
+  byId('add-child-panel').open = false;
+  byId('edit-person-panel').open = false;
+  byId('add-form').querySelector('[data-form-status]').textContent = '';
   byId('session').hidden = true;
   byId('access').hidden = false;
   byId('people').replaceChildren();
@@ -540,6 +547,34 @@ function setChildForm(){
     ? chooseFather?'حفظ الابنة في فرع الأب':'إضافة إلى بناتي'
     : 'إضافة إلى الشجرة';
 }
+
+function openAddPanel(parentId) {
+  if (!people.some(person => person.id === parentId && person.writable)) return;
+  byId('add-child-panel').open = true;
+  byId('parent').value = parentId;
+  setChildForm();
+  byId('child-name').focus();
+}
+
+byId('quick-add').addEventListener('click', () => {
+  const parent = people.find(person => person.writable && person.id === selectedId)
+    || people.find(person => person.writable && person.id === user?.personId)
+    || people.find(person => person.writable);
+  if (!parent) return;
+  selectPerson(parent.id);
+  openAddPanel(parent.id);
+});
+
+byId('show-person-branch').addEventListener('click', () => {
+  const scope = byId('tree-scope');
+  if (scope.value !== 'branch') {
+    scope.value = 'branch';
+    scope.dispatchEvent(new Event('change'));
+  }
+  const tree = byId('tree-view');
+  tree.focus({preventScroll:true});
+  tree.scrollIntoView({block:'nearest'});
+});
 
 async function loadPrivateDaughters(){
   const account=user;
@@ -659,8 +694,11 @@ function selectPerson(id) {
     ? 'يمكنك تعديل هذا الاسم وإضافة الأبناء لهذا الفرع.'
     : 'يمكنك الاطلاع على هذا الفرع. التعديل متاح لصاحب الفرع والمدير.';
   byId('edit-form').hidden = !person.writable;
+  const editPanel = byId('edit-person-panel');
+  editPanel.hidden = !person.writable;
+  if (editPanel.hidden) editPanel.open = false;
   byId('person-name').value = person.name;
-  byId('add-form').hidden = !people.some(candidate => candidate.writable);
+  byId('show-person-branch').hidden = !treeSnapshot?.people.some(candidate => candidate.id === id);
   if (person.writable && (user?.role==='admin'||byId('child-gender').value==='m')) byId('parent').value = person.id;
   for (const button of byId('people').querySelectorAll('button')) {
     button.setAttribute('aria-pressed', String(button.dataset.personId === id));
@@ -720,9 +758,19 @@ function renderPeople() {
     button.setAttribute('aria-pressed', String(selectedId === person.id));
     button.classList.add('depth-' + Math.min(depth(person), 6));
     const name = document.createElement('span');
+    const label = document.createElement('span');
+    label.className = 'person-result';
     name.className = 'person-name';
     name.textContent = person.name;
-    button.append(name);
+    label.append(name);
+    const parent = map.get(person.parentId);
+    if (parent) {
+      const context = document.createElement('small');
+      context.className = 'person-result-context';
+      context.textContent = 'الأب · ' + parent.name;
+      label.append(context);
+    }
+    button.append(label);
     if (person.writable) {
       const access = document.createElement('small');
       access.textContent = 'متاح للتعديل';
@@ -794,6 +842,7 @@ function applyTree(result,forcePrivate=false) {
   people = [...treeSnapshot.people,...privatePeople];
   byId('tree-title').value = result.title || 'شجرة العائلة';
   byId('family-title').textContent = byId('tree-title').value;
+  byId('workspace-name').textContent = byId('tree-title').value;
   const writable = people.filter(person => person.writable);
   const oldBatchParent=byId('batch-parent').value;
   byId('batch-parent').replaceChildren(...treeSnapshot.people.filter(person=>person.writable).map(option));
@@ -808,6 +857,8 @@ function applyTree(result,forcePrivate=false) {
   if (initial) selectPerson(initial.id);
   if(writable.some(person=>person.id===currentParent))byId('parent').value=currentParent;
   byId('add-form').hidden = writable.length === 0;
+  byId('add-child-panel').hidden = writable.length === 0;
+  byId('quick-add').hidden = writable.length === 0;
   for(const [input,value] of draft){
     if(input.tagName!=='SELECT' || [...input.options].some(option=>option.value===value))input.value=value;
   }
@@ -835,12 +886,16 @@ async function enter() {
   byId('workspace').hidden = false;
   byId('session').hidden = false;
   byId('identity').textContent = user.identifier;
+  byId('workspace-role').textContent = user.role === 'admin' ? 'لوحة المدير' : 'بوابة العائلة';
+  byId('live-tree-title').textContent = user.personId ? 'موقعك في شجرة العائلة' : 'شجرة العائلة';
+  byId('locate-me').textContent = user.personId ? 'موقعي في الشجرة' : 'اعرض أصل الشجرة';
   byId('permission-summary').textContent = user.role === 'admin'
     ? 'أنت المدير العام. يمكنك إدارة جميع الأفراد وحسابات العائلة.'
     : user.canAddDaughter
       ? 'يمكنك تعديل بياناتك وبيانات أبنائك وأحفادك، والاطلاع على شجرة العائلة.'
       : 'يظهر حسابك عند موقعك في الشجرة. اختر «الكل» للاطلاع على أفراد العائلة المسجّلين.';
   byId('administration').hidden = user.role !== 'admin';
+  byId('admin-link').hidden = user.role !== 'admin';
   byId('child-gender').querySelector('option[value="f"]').disabled=!(user.role==='admin'||user.canAddDaughter);
   await loadTree();
   await loadPrivateDaughters();

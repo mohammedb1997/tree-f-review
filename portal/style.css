@@ -135,3 +135,69 @@ textarea{display:block;width:100%;font:inherit;padding:.7rem;border:1px solid #b
 #batch-preview{padding:.7rem;background:#eef3e8;border-radius:.5rem;margin-block:.7rem}
 #corrections-list li,#history-list li{padding:.7rem;border-bottom:1px solid #ded8c5}
 #corrections-list button{margin-inline:.3rem}
+
+/* Responsive portal composition. The tree remains scrollable within its own frame. */
+:root{--portal-ink:#203b31;--portal-gold:#a77635;--portal-edge:#d9d0bd;--portal-paper:#fffdf7}
+.site-header{min-height:64px;padding-block:.65rem}
+.site-header .brand{flex:none}
+#session{justify-content:flex-end;gap:.35rem .65rem}
+#identity{font-size:.8rem;color:#536559}
+#notice:empty{display:none}
+.preview-banner{margin-block:0 .7rem;padding:.45rem .7rem;border:1px solid var(--portal-edge);border-radius:.55rem;color:#4d6357;background:#fffaf0;font-size:.85rem}
+.workspace-heading{align-items:end;margin-block:0 .9rem}
+.workspace-heading h1{margin-block:.1rem .3rem;overflow-wrap:anywhere}
+.workspace-heading .eyebrow{margin-block:0;color:#72572d;font-size:.9rem}
+#permission-summary{margin-block:.25rem 0;color:#4d6357}
+.workspace-actions,.more-links,.person-actions{display:flex;align-items:center;flex-wrap:wrap;gap:.5rem}
+.workspace-actions>*{white-space:nowrap}
+.workspace-shortcut,.more-links a{display:inline-flex;align-items:center;min-height:44px;padding:.45rem .8rem;border:1px solid var(--portal-edge);border-radius:.6rem;background:var(--portal-paper);color:var(--portal-ink);text-decoration:none}
+.workspace-shortcut:hover,.more-links a:hover,.workspace-nav a:hover{background:#e4ecdf}
+.workspace-nav{border-radius:.7rem;background:#fffaf1}
+.workspace-help{background:var(--portal-paper)}
+.workspace-board{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(290px,1fr);gap:1rem;align-items:start}
+.workspace-board .live-panel{margin:0;min-width:0}
+.workspace-board .workspace-grid{grid-template-columns:minmax(0,1fr);gap:.8rem;min-width:0}
+.workspace-board :is(.panel,.tree-canvas){border-color:var(--portal-edge)}
+.workspace-board .panel{padding:1rem}
+.workspace-board .tree-heading{flex-wrap:wrap;gap:.25rem .75rem;margin-block-end:.75rem}
+.tree-heading h2,.family-panel h2{margin-block-end:.15rem}
+.tree-heading #live-status{margin-block:.2rem .5rem}
+.workspace-board .tree-canvas{height:clamp(340px,57svh,610px)}
+.workspace-board .display-options{margin-block:.65rem .4rem}
+.family-panel #family-title{margin-block:.15rem .55rem}
+.family-panel label{margin-block:.3rem .2rem}
+.family-panel .people{max-height:clamp(125px,26vh,275px);padding-inline-end:.2rem}
+.person-row[class*="depth-"]{padding-inline-start:.65rem}
+.person-result{flex:1;min-width:0}
+.person-result-context{display:block}
+.person-row .person-name{font-weight:700}
+.person-row>small{white-space:normal;flex:0 1 5rem}
+.details p{overflow-wrap:anywhere}
+.details summary{min-height:44px;padding:.45rem .6rem;border:1px solid var(--portal-edge);border-radius:.55rem;background:#fffcf2}
+.details summary:focus-visible{outline:3px solid var(--portal-gold);outline-offset:2px}
+[data-form-status]:not(:empty){padding:.45rem .65rem;color:#8f3625;background:#fff0e9;border-radius:.5rem}
+#tree-color-legend:not(:empty){margin-block:.4rem .55rem}
+#family-workflows,#administration,#child-name{scroll-margin-block-start:5rem}
+.more-links{margin-block:.5rem}
+@media(max-width:900px){
+  .workspace-board{grid-template-columns:minmax(0,1fr)}
+  .workspace-board .workspace-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:600px){
+  .site-header{align-items:center;gap:.45rem;padding-inline:.75rem}
+  .site-header .brand{font-size:1rem}
+  #session button{padding-inline:.6rem}
+  #identity{display:none}
+  main{padding-block-start:.75rem}
+  .workspace-heading{display:block}
+  .workspace-actions{margin-block:.65rem .25rem}
+  .workspace-actions>*{flex:1 1 auto;justify-content:center;text-align:center;white-space:normal}
+  .workspace-board .workspace-grid{grid-template-columns:minmax(0,1fr)}
+  .workspace-board .tree-canvas{height:clamp(235px,42svh,410px)}
+  .workspace-board .tree-tools{margin-block-end:.5rem}
+  .workspace-board .tree-heading .tree-tools>*:not(label){flex:1 1 auto}
+  .workspace-board .tree-tools select{min-width:0}
+}
+@media(max-height:520px) and (orientation:landscape){
+  .workspace-board .tree-canvas{height:245px}
+}
