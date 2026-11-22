@@ -30,6 +30,10 @@ async function run(){
         const before=JSON.stringify(doc);
         const dimensions=count<=51?[420,594]:[700,1000];
         const art=HeritagePoster.render(doc,...dimensions,measure,'engraved-crown');
+        if(count===150){
+          const renderAt=(w,h)=>HeritagePoster.render(doc,w,h,measure,'engraved-crown',0,{sizeFree:true}).svg;
+          if(renderAt(420,594)!==renderAt(2100,1350))throw Error('تغيّر رسم SVG الحر بتغيّر مقاس الورق');
+        }
         const old=count===51?HeritagePoster.render(doc,...dimensions,measure,'organic-improved').svg:null;
         const result={people:art.count,links:art.links.length,width:art.w,height:art.h,
           minimumPt:art.minimumPt,collisions:art.collisions,obstructions:art.obstructedBranches,

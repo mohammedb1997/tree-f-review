@@ -141,6 +141,13 @@ async function run() {
     await choose('engraved-crown');
     const engravedSvg=await save(app,'posterSvg','51-engraved-from-app.svg');
     assert.match(fs.readFileSync(engravedSvg,'utf8'),/M0 102V0H102/);
+    const wallSvg=await save(app,'posterWallSvg','51-wall-art.svg');
+    const wallMarkup=fs.readFileSync(wallSvg,'utf8');
+    const wallRoot=wallMarkup.match(/<svg\b[^>]*>/)[0];
+    assert.doesNotMatch(wallRoot,/\s(?:width|height)=/);
+    assert.match(wallRoot,/viewBox="0 0 [\d.]+ [\d.]+"/);
+    assert.match(wallRoot,/preserveAspectRatio="xMidYMid meet"/);
+    assert.equal((wallMarkup.match(/data-person-id=/g)||[]).length,51);
     await app.setViewportSize({width:1366,height:1000});
     await choose('organic-improved');
     assert.doesNotMatch(await app.locator('#posterStatus').textContent(), /تقاطعات|متداخلة|تمر خلف/);

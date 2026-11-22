@@ -41,12 +41,12 @@
     function printHtml(title,w,h,markup){
       return `<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><title>${escape(title)}</title><style>@page{size:${w}mm ${h}mm;margin:0}*{box-sizing:border-box}html,body{margin:0;padding:0;width:${w}mm;height:${h}mm;overflow:hidden;background:#faf5e8}body>svg{display:block;width:100%;height:100%}</style><body>${markup}</body></html>`;
     }
-    function compose(source,w,h){
+    function compose(source,w,h,options){
       if(![w,h].every(n=>Number.isFinite(n)&&n>=100&&n<=5000))throw Error('اختر عرضًا وارتفاعًا بين100و5000ملّيمتر');
       if(source.mode==='heritage'){
         const ctx=D.createElement('canvas').getContext('2d');
         const measure=(name,font)=>{ctx.font=font+'px Tahoma,Arial,sans-serif';return ctx.measureText(name).width;};
-        const art=scope.HeritagePoster.render(source.doc,w,h,measure,selectedStyle());
+        const art=scope.HeritagePoster.render(source.doc,w,h,measure,selectedStyle(),0,options);
         return {...art,html:printHtml(source.doc.title,w,h,art.svg)};
       }
       const parsed=new DOMParser().parseFromString(source.svg,'image/svg+xml');if(parsed.querySelector('parsererror'))throw Error('رسم الشجرة غير صالح');
@@ -106,11 +106,11 @@
       const factor=Math.min(w/boardWidth,h/boardHeight)*printNameTargetPt/pt;
       const roundUp=mm=>Math.ceil(mm*factor/5)*5;
       const width=Math.max(100,roundUp(boardWidth)),height=Math.max(100,roundUp(boardHeight));
-      if(width>5000||height>5000)return 'للوصول إلى ٩ نقاط، جرّب تصدير لوحات الفروع.';
+      if(width>5000||height>5000)return 'المقاس اللازم لوصول أصغر اسم إلى ٩ نقاط يتجاوز نطاق معاينة الطباعة. نزّل SVG بمقاس حر واتفق مع المطبعة على مقاس الجدار.';
       suggestedSize={width,height};
       applySuggestedSize.textContent=`جرّب مقاس ${width} × ${height} مم`;
       applySuggestedSize.hidden=false;
-      return 'أصغر خط دون ٩ نقاط. يمكنك تجربة المقاس المقترح أو تصدير لوحات الفروع.';
+      return 'أصغر خط دون ٩ نقاط على هذا المقاس. جرّب المقاس المقترح للوحة كاملة، أو حدّد المقاس لاحقًا مع المطبعة.';
     }
     frame.onload=()=>{try{ready=!!job&&!dirty&&frame.contentDocument?.body?.getAttribute('data-poster-token')===job.token;}catch{ready=false;}print.disabled=!ready;};
     function build(){
@@ -149,6 +149,17 @@
     };
     const applySize=button('posterApplySize','تحديث مقاس اللوحة',build);
     const saveSvg=button('posterSvg','تنزيل صورة الشجرة SVG للمطبعة',()=>{if(job&&!dirty)download('family-tree-complete-poster.svg',job.svg,'image/svg+xml');});
+    const saveWallSvg=button('posterWallSvg','تنزيل SVG بمقاس حر للمطبعة',()=>{
+      if(!captured)return;
+      try{
+        const result=compose(captured,700,1000,{sizeFree:true});
+        const svg=new DOMParser().parseFromString(result.svg,'image/svg+xml').documentElement;
+        svg.removeAttribute('width');
+        svg.removeAttribute('height');
+        svg.setAttribute('preserveAspectRatio','xMidYMid meet');
+        download('family-tree-wall-art.svg',new XMLSerializer().serializeToString(svg),'image/svg+xml');
+      }catch(error){toast(error.message);}
+    });
     const saveHtml=button('posterHtml','تنزيل ملف الطباعة — صفحة واحدة',()=>{if(job&&!dirty)download('family-tree-complete-poster.html',job.html,'text/html;charset=utf-8');});
     const saveReview=button('posterReviewHtml','تنزيل المعاينة التفاعلية HTML',()=>{
       if(job?.reviewHtml&&!dirty)download('family-tree-heritage-review.html',job.reviewHtml,'text/html;charset=utf-8');
@@ -202,8 +213,8 @@
     const heading=el('h2','صورة الشجرة كاملة — لوحة واحدة');
     const instructions=el('p');
     const printSettings=el('details');printSettings.id='posterPrintSettings';
-    printSettings.append(el('summary','خيارات الطباعة'),el('label','العرض بالملّيمتر'),width,el('label','الارتفاع بالملّيمتر'),height,applySize,saveHtml,print,saveBranches);
-    dialog.append(heading,instructions,stylePicker,status,applySuggestedSize,saveReview,saveSvg,png,close,reviewFrame,printSettings,frame);D.body.append(dialog);
+    printSettings.append(el('summary','خيارات الطباعة'),el('p','أدخل مقاس اللوحة الفعلي عند الحاجة إلى PDF بهذا المقاس. لتحديد المقاس لاحقًا مع المطبعة، نزّل SVG بمقاس حر.'),el('label','العرض بالملّيمتر'),width,el('label','الارتفاع بالملّيمتر'),height,applySize,saveHtml,print,saveBranches);
+    dialog.append(heading,instructions,stylePicker,status,applySuggestedSize,saveReview,saveWallSvg,saveSvg,png,close,reviewFrame,printSettings,frame);D.body.append(dialog);
     async function open(mode){
       if(dialog.open||gestureActive?.())return;
       try{

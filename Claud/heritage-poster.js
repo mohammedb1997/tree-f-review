@@ -1283,7 +1283,7 @@
     const { nodes, links, font, root, maxDepth } = result;
     const engraved=result.style==='engraved-crown';
     const engravedAdaptive=engraved&&!!result.boardWidth;
-    if(engravedAdaptive)centerEngravedBoard(result,w,h);
+    if(engravedAdaptive&&!options?.sizeFree)centerEngravedBoard(result,w,h);
     const improved = result.style === 'organic-improved' || engraved;
     const renderedLinks = improved && nodes.length<=80 ? rootFlares(links,root,nodes) : links;
     const boardWidth=result.boardWidth||width, boardHeight=result.boardHeight||height;
@@ -1306,7 +1306,8 @@
       return `<circle cx="${x}" cy="${y}" r="5" fill="${core.color(doc.presentation, i+generationOffset)}"/><text x="${x+8}" y="${y+4}" font-size="${generationFont*.7}" direction="ltr" text-anchor="start">${i+1+generationOffset}</text>`;
     }).join('');
     const fontFamily = options?.nameFont === 'Amiri' ? 'Amiri,Tahoma,Arial,sans-serif' : 'Tahoma,Arial,sans-serif';
-    const markup = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="${w}mm" height="${h}mm" viewBox="0 0 ${boardWidth} ${boardHeight}" text-rendering="geometricPrecision" font-family="${fontFamily}"><title>${escape(title)}</title>${decoration.definitions}
+    const dimensions=options?.sizeFree?'preserveAspectRatio="xMidYMid meet"':`width="${w}mm" height="${h}mm"`;
+    const markup = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" ${dimensions} viewBox="0 0 ${boardWidth} ${boardHeight}" text-rendering="geometricPrecision" font-family="${fontFamily}"><title>${escape(title)}</title>${decoration.definitions}
       <g id="hp-background-layer" inkscape:groupmode="layer" inkscape:label="الخلفية" transform="${boardTransform}">${decoration.background}</g>
       <g id="hp-frame-layer" inkscape:groupmode="layer" inkscape:label="الإطار" transform="${boardTransform}">${decoration.frame}</g>
       <g id="hp-trunk-layer" inkscape:groupmode="layer" inkscape:label="الجذع"${engraved?'':` transform="${trunkTransform}"`}>${engraved?`<g transform="${trunkTransform}">${decoration.trunk}</g>${rootMedallion(root)}`:`${decoration.trunk}${improved?rootMedallion(root):''}`}</g>
