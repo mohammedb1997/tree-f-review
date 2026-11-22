@@ -22,10 +22,25 @@ test('3D tour opens 50, 150 and 500 people with Arabic search and lineage',{time
     await mkdir(evidence,{recursive:true});
     for(const width of [1280,390]){
       const page=await browser.newPage({viewport:{width,height:900},hasTouch:width===390,isMobile:width===390});
+      const drawingRequests=[];
       page.on('pageerror',error=>errors.push(error.message));
-      page.on('request',request=>assert.equal(new URL(request.url()).origin,origin));
+      page.on('request',request=>{
+        const url=new URL(request.url());
+        assert.equal(url.origin,origin);
+        if(url.pathname.includes('/vendor/'))drawingRequests.push(url.pathname);
+      });
       await page.goto(origin+'/portal/preview.html');
       await page.getByRole('link',{name:'استكشف الشجرة ثلاثية الأبعاد'}).click();
+      await page.locator('#directory-names button').first().waitFor();
+      assert.equal(await page.locator('#show-static').getAttribute('aria-pressed'),'true');
+      assert.equal(await page.locator('#viewport canvas').count(),0);
+      assert.deepEqual(drawingRequests,[]);
+      await page.locator('#size').selectOption('500');
+      await page.locator('#directory-search').fill('مريم التجريبية 495');
+      await page.locator('#directory-names button').click();
+      assert.equal(await page.locator('#person-name').textContent(),'مريم التجريبية 495');
+      assert.equal(await page.locator('#viewport canvas').count(),0);
+      await page.locator('#show-spatial').click();
       await page.locator('#viewport canvas').waitFor();
       assert.equal(await page.locator('html').getAttribute('dir'),'rtl');
       for(const count of [50,150,500]){
@@ -86,10 +101,10 @@ test('3D tour opens 50, 150 and 500 people with Arabic search and lineage',{time
       const name=page.locator('#person-name');
       const initial=await name.textContent();
       const labels=page.locator('.node-label[aria-current=false]');
-      const box=await labels.first().boundingBox();
-      const x=Math.round(box.x+box.width/2),y=Math.round(box.y+box.height/2);
       const scene=page.locator('#viewport');
       const before=await scene.screenshot();
+      const box=await labels.first().boundingBox();
+      const x=Math.round(box.x+box.width/2),y=Math.round(box.y+box.height/2);
       if(width===390){
         const cdp=await page.context().newCDPSession(page);
         await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y}]});
@@ -153,6 +168,10 @@ test('3D tour opens 50, 150 and 500 people with Arabic search and lineage',{time
       await page.screenshot({path:path.join(evidence,'world-pinned-'+width+'.png'),fullPage:true});
       await page.locator('#clear-pin').click();
       assert.equal(await panel.isVisible(),false);
+      await page.locator('#show-static').click();
+      assert.equal(await page.locator('#viewport').isVisible(),false);
+      assert(await page.locator('#directory-names button').first().isVisible());
+      await page.screenshot({path:path.join(evidence,'world-static-'+width+'.png'),fullPage:true});
       await page.close();
     }
     const fallback=await browser.newPage();
@@ -164,6 +183,7 @@ test('3D tour opens 50, 150 and 500 people with Arabic search and lineage',{time
       };
     });
     await fallback.goto(origin+'/portal/world/index.html');
+    await fallback.locator('#show-spatial').click();
     await fallback.locator('#fallback').waitFor();
     await fallback.locator('#people').selectOption('test-49');
     assert((await fallback.locator('#person-name').textContent()).endsWith(' 49'));

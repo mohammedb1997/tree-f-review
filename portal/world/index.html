@@ -4,28 +4,33 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>جولة في شجرة العائلة</title>
-  <link rel="stylesheet" href="world.css?v=labels-2">
+  <link rel="stylesheet" href="world.css?v=quiet-1">
   <script type="importmap">{"imports":{"three":"./vendor/three.module.min.js"}}</script>
   <script src="../../Claud/botanical-core.js" defer></script>
-  <script type="module" src="world.js?v=labels-2"></script>
+  <script type="module" src="world.js?v=quiet-1"></script>
 </head>
 <body>
   <header><div><h1>جولة في شجرة العائلة</h1><p>مشهد تجريبي بأسماء وهمية</p></div><a href="../preview.html">العودة إلى بوابة العائلة</a></header>
   <main>
+    <div class="view-controls" role="group" aria-label="طريقة العرض">
+      <button id="show-static" type="button" aria-pressed="true">عرض ثابت</button>
+      <button id="show-spatial" type="button" aria-pressed="false">الجولة ثلاثية الأبعاد</button>
+    </div>
+    <p id="fallback" role="status" hidden>تعذّر تشغيل الرسم ثلاثي الأبعاد. العرض الثابت متاح.</p>
     <section class="controls" aria-label="أدوات الجولة">
       <label>حجم العينة <select id="size"><option>50</option><option>150</option><option>500</option></select></label>
       <label>التلوين <select id="color-mode"><option value="kinship">حسب القرابة</option><option value="generation">حسب الجيل</option><option value="gender">حسب الجنس</option></select></label>
       <label>ابحث بالاسم <input id="search" type="search" placeholder="مثال: عبدالرحمن"></label>
       <label>اختر شخصًا <select id="people"></select></label>
-      <button id="overview" type="button">عرض الشجرة كاملة</button>
+      <button id="overview" type="button" hidden>عرض الشجرة كاملة</button>
     </section>
-    <div id="view-controls" class="view-controls" aria-label="التحكم بالمشهد">
+    <div id="view-controls" class="view-controls" aria-label="التحكم بالمشهد" hidden>
       <button id="zoom-in" type="button">تكبير +</button>
       <button id="zoom-out" type="button">تصغير −</button>
       <button id="toggle-labels" type="button" aria-pressed="true" aria-controls="labels">إظهار الأسماء</button>
       <button id="expand-scene" type="button" aria-pressed="false" aria-controls="viewport">وسّع المشهد</button>
     </div>
-    <details id="directory">
+    <details id="directory" open>
       <summary>فهرس الأسماء <span id="directory-total"></span></summary>
       <label>ابحث في الفهرس <input id="directory-search" type="search"></label>
       <ul id="directory-names" aria-label="أسماء النطاق المعروض"></ul>
@@ -40,20 +45,19 @@
       </div>
       <ol id="pinned-people" aria-label="أفراد الفرع المثبّت" tabindex="0"></ol>
     </section>
-    <div class="layout" id="world-layout">
-      <section id="viewport" aria-label="مشهد الشجرة ثلاثي الأبعاد">
+    <div class="layout is-static" id="world-layout">
+      <section id="viewport" aria-label="مشهد الشجرة ثلاثي الأبعاد" hidden>
         <svg id="label-guides" aria-hidden="true"><path id="label-guide-path" fill="none"></path></svg>
         <div id="labels"></div>
         <span id="label-count"></span>
         <p id="hint">اسحب للدوران من أي مكان في المشهد. اضغط على اسم لفتح بطاقته.</p>
-        <p id="fallback" hidden>الرسم ثلاثي الأبعاد غير متاح. يمكنك البحث وتصفح النسب في البطاقة.</p>
       </section>
       <aside aria-labelledby="person-name">
         <p id="generation"></p>
         <h2 id="person-name" aria-live="polite"></h2>
         <p id="person-gender"></p>
         <p id="details"></p>
-        <button id="focus-person" type="button">قرّب إلى هذا الشخص</button>
+        <button id="focus-person" type="button" hidden>قرّب إلى هذا الشخص</button>
         <button id="pin-person" type="button" aria-controls="pinned-branch">ثبّت فرع هذا الشخص</button>
         <h3>النسب حتى الجد</h3>
         <ol id="lineage"></ol>

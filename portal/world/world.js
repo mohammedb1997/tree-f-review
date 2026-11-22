@@ -1,6 +1,3 @@
-import * as THREE from 'three';
-import {OrbitControls} from './vendor/OrbitControls.js';
-
 const el=id=>document.getElementById(id);
 const viewport=el('viewport');
 const kinship={
@@ -15,6 +12,7 @@ const normalize=value=>value.normalize('NFKD').replace(/[\p{M}ـ]/gu,'').replace
 let nodes,index,selection;
 let pinned=null,isolated=false,renderedNodes=[],renderedIds=new Set();
 let renderer,camera,controls,scene,tree,markers,lineagePaths;
+let THREE,spatial=false,sceneRequest=0;
 let curves;
 const labelMeasure=document.createElement('canvas').getContext('2d');
 let placements,labels=new Map(),frame=0;
@@ -88,7 +86,7 @@ function branchIds(root){
 
 function setPinned(root){
   pinned=root?{root,ids:branchIds(root)}:null;
-  isolated=Boolean(pinned&&renderer);
+  isolated=Boolean(pinned);
   const panel=el('pinned-branch');
   panel.hidden=!pinned;
   const list=el('pinned-people');
@@ -116,17 +114,16 @@ function setPinned(root){
 }
 
 function refreshScope(){
-  el('scope-branch').hidden=!renderer;
   el('scope-branch').textContent=isolated?'أظهر الشجرة كاملة':'اعزل الفرع';
   el('overview').textContent=isolated?'عرض الفرع كاملًا':'عرض الشجرة كاملة';
-  if(renderer)buildTree();
+  if(spatial)buildTree();
   refreshDirectory();
   select(selection,false);
   overview();
 }
 
 function refreshDirectory(){
-  const all=isolated?renderedNodes:nodes;
+  const all=isolated?nodes.filter(person=>pinned.ids.has(person.id)):nodes;
   const query=normalize(el('directory-search').value);
   const matches=all.filter(person=>normalize(person.name).includes(query));
   el('directory-total').textContent='('+format.format(matches.length)+(query?' من '+format.format(all.length):'')+')';
@@ -136,12 +133,26 @@ function refreshDirectory(){
   }
   el('directory-names').replaceChildren(...matches.map(person=>{
     const row=document.createElement('li');
-    const button=Object.assign(document.createElement('button'),{type:'button',textContent:person.name});
+    const button=Object.assign(document.createElement('button'),{type:'button'});
+    const name=Object.assign(document.createElement('strong'),{textContent:person.name});
+    const father=index.get(person.parent);
+    const detail=Object.assign(document.createElement('small'),{textContent:
+      generationTone(person.depth)[0]+' · '+(father?'الأب: '+father.name:'أصل الشجرة')});
+    button.append(name,detail);
     button.dataset.personId=person.id;
     button.onclick=()=>select(person,true);
     row.append(button);
     return row;
   }));
+  updateDirectorySelection();
+}
+
+function updateDirectorySelection(){
+  for(const button of el('directory-names').querySelectorAll('button')){
+    const person=index.get(button.dataset.personId);
+    button.setAttribute('aria-current',String(person===selection));
+    if(person.appearance)button.style.borderInlineStartColor=person.appearance[1];
+  }
 }
 
 function generationTone(depth){
@@ -164,7 +175,8 @@ function refreshColors(){
   for(const node of nodes){
     node.appearance=mode==='kinship'?kinship[node.tone]:mode==='gender'?genders[node.gender]:generationTone(node.depth);
   }
-  if(markers){
+  updateDirectorySelection();
+  if(spatial&&markers){
     renderedNodes.forEach((node,i)=>markers.setColorAt(i,new THREE.Color(node.appearance[1])));
     markers.instanceColor.needsUpdate=true;
   }
@@ -173,7 +185,7 @@ function refreshColors(){
 
 function select(node,visit){
   selection=node;
-  el('focus-person').disabled=!renderer||!renderedIds.has(node.id);
+  el('focus-person').disabled=!spatial||!renderedIds.has(node.id);
   el('pin-person').disabled=pinned?.root===node;
   el('pin-person').textContent=pinned?.root===node?'هذا الفرع مثبّت':'ثبّت فرع هذا الشخص';
   for(const button of el('pinned-people').querySelectorAll('button')){
@@ -200,7 +212,7 @@ function select(node,visit){
     person.tone=person===node?'selected':ancestorIds.has(person.id)?'ancestor':
       person.parent===node.id?'child':descendants.has(person.id)?'descendant':'other';
   }
-  if(renderer){
+  if(spatial){
     const pathPoints=[];
     for(const person of [node,...parents]){
       const points=curves.get(person.id)?.getPoints(12) || [];
@@ -222,7 +234,7 @@ function select(node,visit){
 }
 
 function overview(){
-  if(!renderer)return;
+  if(!spatial)return;
   if(isolated){
     const box=new THREE.Box3().setFromPoints(renderedNodes.map(node=>placements.get(node.id)));
     const center=box.getCenter(new THREE.Vector3());
@@ -397,9 +409,10 @@ function drawLabels(width,height){
 }
 
 function queueRender(){
-  if(!renderer||frame)return;
+  if(!spatial||frame)return;
   frame=requestAnimationFrame(()=>{
     frame=0;
+    if(!spatial)return;
     const width=viewport.clientWidth,height=viewport.clientHeight;
     if(!width||!height)return;
     camera.aspect=width/height;
@@ -410,17 +423,8 @@ function queueRender(){
   });
 }
 
-function setupScene(){
-  try{renderer=new THREE.WebGLRenderer({antialias:true});}
-  catch{
-    el('fallback').hidden=false;
-    el('hint').hidden=true;
-    el('overview').disabled=true;
-    el('focus-person').disabled=true;
-    el('view-controls').hidden=true;
-    el('label-count').hidden=true;
-    return;
-  }
+function setupScene(OrbitControls){
+  renderer=new THREE.WebGLRenderer({antialias:true});
   renderer.setPixelRatio(Math.min(window.devicePixelRatio,1.5));
   viewport.prepend(renderer.domElement);
   scene=new THREE.Scene();
@@ -460,6 +464,44 @@ function setupScene(){
   new ResizeObserver(queueRender).observe(viewport);
 }
 
+function applyMode(enabled){
+  spatial=enabled;
+  if(controls)controls.enabled=enabled;
+  el('viewport').hidden=!enabled;
+  el('view-controls').hidden=!enabled;
+  el('overview').hidden=!enabled;
+  el('focus-person').hidden=!enabled;
+  el('world-layout').classList.toggle('is-static',!enabled);
+  el('show-static').setAttribute('aria-pressed',String(!enabled));
+  el('show-spatial').setAttribute('aria-pressed',String(enabled));
+  el('directory').open=!enabled;
+  refreshScope();
+}
+
+el('show-static').onclick=()=>{
+  sceneRequest++;
+  el('fallback').hidden=true;
+  if(spatial)applyMode(false);
+};
+el('show-spatial').onclick=async()=>{
+  if(spatial)return;
+  const request=++sceneRequest;
+  el('show-spatial').disabled=true;
+  el('fallback').hidden=true;
+  try{
+    if(!renderer){
+      const [library,{OrbitControls}]=await Promise.all([import('three'),import('./vendor/OrbitControls.js')]);
+      if(request!==sceneRequest)return;
+      THREE=library;
+      setupScene(OrbitControls);
+    }
+    applyMode(true);
+  }catch{
+    applyMode(false);
+    el('fallback').hidden=false;
+  }finally{el('show-spatial').disabled=false;}
+};
+
 function reset(){
   ({list:nodes,byId:index}=fixture(Number(el('size').value)));
   el('search').value='';
@@ -495,5 +537,4 @@ el('people').onchange=event=>{
   const node=index.get(event.target.value);
   if(node)select(node,true);
 };
-setupScene();
 reset();

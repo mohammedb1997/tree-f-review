@@ -17,6 +17,8 @@ button:not(:disabled){cursor:pointer}
 :focus-visible{outline:2px solid #f3cd76;outline-offset:2px}
 .layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(13rem,20%);gap:1rem;align-items:start}
 .layout.is-wide{grid-template-columns:minmax(0,1fr)}
+.layout.is-static{grid-template-columns:minmax(0,1fr)}
+#show-static[aria-pressed=true],#show-spatial[aria-pressed=true]{background:#ead5a0;color:#173129;border-color:#ead5a0;font-weight:700}
 .is-wide #viewport{height:clamp(400px,83dvh,1000px)}
 #viewport{position:relative;height:clamp(350px,64dvh,760px);background:#c9ddce;border:1px solid #718677;border-radius:1rem;overflow:hidden;isolation:isolate;touch-action:none;user-select:none;cursor:grab}
 #viewport:active{cursor:grabbing}
@@ -34,8 +36,12 @@ button:not(:disabled){cursor:pointer}
 #directory-names{list-style:none;margin:0;padding:0;max-height:35dvh;overflow:auto;overscroll-behavior:contain}
 #directory-names li+li{margin-top:.25rem}
 #directory-names button{width:100%;text-align:start;overflow-wrap:anywhere}
+#directory-names button{background:#1c362c;display:flex;flex-wrap:wrap;align-items:baseline;gap:.15rem .65rem}
+#directory-names button[aria-current=true]{border-color:#dcb86b;background:#2c4736}
+#directory-names small{color:#c5d7c9;font-size:.85rem}
 .node-label[aria-current=true]{outline:2px solid #fff2bf;outline-offset:2px;font-weight:700}
-#hint,#fallback{position:absolute;z-index:2;bottom:.35rem;inset-inline:.6rem;background:#152b24ed;padding:.65rem;border-radius:.5rem;font-size:.8rem;pointer-events:none}
+#hint{position:absolute;z-index:2;bottom:.35rem;inset-inline:.6rem;background:#152b24ed;padding:.65rem;border-radius:.5rem;font-size:.8rem;pointer-events:none}
+#fallback{color:#e8cea1}
 aside{padding:1rem;border:1px solid #667661;border-radius:1rem;background:#1a3028;overflow-wrap:anywhere}
 #focus-person{margin-bottom:.9rem}
 #pin-person{margin-bottom:.9rem}
