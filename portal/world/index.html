@@ -19,10 +19,15 @@
       <label>اختر شخصًا <select id="people"></select></label>
       <button id="overview" type="button">عرض الشجرة كاملة</button>
     </section>
+    <div id="view-controls" class="view-controls" aria-label="التحكم بالمشهد">
+      <button id="zoom-in" type="button">تكبير +</button>
+      <button id="zoom-out" type="button">تصغير −</button>
+      <button id="toggle-labels" type="button" aria-pressed="true" aria-controls="labels">إظهار الأسماء</button>
+    </div>
     <div class="layout">
       <section id="viewport" aria-label="مشهد الشجرة ثلاثي الأبعاد">
         <div id="labels"></div>
-        <p id="hint">اسحب للدوران، وقرّب بإصبعين أو بعجلة الفأرة. اضغط على اسم لزيارة موقعه.</p>
+        <p id="hint">اسحب للدوران من أي مكان في المشهد. اضغط على اسم لفتح بطاقته.</p>
         <p id="fallback" hidden>الرسم ثلاثي الأبعاد غير متاح. يمكنك البحث وتصفح النسب في البطاقة.</p>
       </section>
       <aside aria-labelledby="person-name">
@@ -30,6 +35,7 @@
         <h2 id="person-name" aria-live="polite"></h2>
         <p id="person-gender"></p>
         <p id="details"></p>
+        <button id="focus-person" type="button">قرّب إلى هذا الشخص</button>
         <h3>النسب حتى الجد</h3>
         <ol id="lineage"></ol>
         <h3>مفتاح الألوان</h3>

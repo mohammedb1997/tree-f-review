@@ -60,6 +60,41 @@ test('3D tour opens 50, 150 and 500 people with Arabic search and lineage',{time
         console.log(width+'px / '+count+' people: '+(Date.now()-started)+' ms including interaction');
       }
       assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+      const name=page.locator('#person-name');
+      const initial=await name.textContent();
+      const labels=page.locator('.node-label[aria-current=false]');
+      const box=await labels.first().boundingBox();
+      const x=Math.round(box.x+box.width/2),y=Math.round(box.y+box.height/2);
+      const scene=page.locator('#viewport');
+      const before=await scene.screenshot();
+      if(width===390){
+        const cdp=await page.context().newCDPSession(page);
+        await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y}]});
+        await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:x+35,y:y+20}]});
+        await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+        await cdp.detach();
+      }else{
+        await page.mouse.move(x,y);
+        await page.mouse.down();
+        await page.mouse.move(x+45,y+22,{steps:5});
+        await page.mouse.up();
+      }
+      assert.equal(await name.textContent(),initial);
+      assert(!(await scene.screenshot()).equals(before),'Dragging a label should rotate the view');
+      await page.locator('#overview').click();
+      const target=labels.first();
+      const targetName=await target.textContent();
+      if(width===390)await target.tap();
+      else await target.click();
+      assert.equal(await name.textContent(),targetName);
+      await page.locator('#focus-person').click();
+      await page.locator('.node-label[aria-current=true]').waitFor();
+      await page.locator('#toggle-labels').click();
+      assert.equal(await page.locator('#labels').isVisible(),false);
+      await page.locator('#zoom-out').click();
+      await page.locator('#zoom-in').click();
+      await page.locator('#toggle-labels').click();
+      await page.locator('#overview').click();
       await page.screenshot({path:path.join(evidence,'world-'+width+'.png'),fullPage:true});
       await page.close();
     }

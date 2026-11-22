@@ -15,6 +15,7 @@ const normalize=value=>value.normalize('NFKD').replace(/[\p{M}ـ]/gu,'').replace
 let nodes,index,selection;
 let renderer,camera,controls,scene,tree,markers,lineagePaths;
 let curves;
+const labelMeasure=document.createElement('canvas').getContext('2d');
 let placements,labels=new Map(),frame=0;
 
 function fixture(size){
@@ -42,8 +43,8 @@ function positions(){
     const level=node.depth/maxDepth;
     const angle=start+span/2;
     const variation=Math.sin(Number(node.id.slice(5))*29.19);
-    const radius=12*Math.pow(level,.72)*(1+variation*.18*level);
-    const height=node.depth===0?2.8:3.8+level*11+Math.cos(angle*3)*.48+variation*level*1.65;
+    const radius=12*Math.pow(level,.72)*(1+variation*.19*level-.13*level*level);
+    const height=node.depth===0?2.8:3.8+level*11+Math.cos(angle*3)*.66+variation*level*2.05;
     result.set(node.id,new THREE.Vector3(Math.cos(angle)*radius,height,Math.sin(angle)*radius));
     let next=start;
     for(const child of node.children){
@@ -157,6 +158,42 @@ function overview(){
   queueRender();
 }
 
+function zoom(factor){
+  const offset=camera.position.clone().sub(controls.target);
+  offset.setLength(THREE.MathUtils.clamp(offset.length()*factor,controls.minDistance,controls.maxDistance));
+  camera.position.copy(controls.target).add(offset);
+  controls.update();
+  queueRender();
+}
+
+function bindNameGestures(){
+  const held=new Set();
+  let tap=null;
+  const moved=event=>Math.hypot(event.clientX-tap.x,event.clientY-tap.y)>9;
+  viewport.addEventListener('pointerdown',event=>{
+    held.add(event.pointerId);
+    const label=event.target.closest('.node-label');
+    tap=held.size===1&&event.button===0&&label
+      ?{id:event.pointerId,personId:label.dataset.personId,x:event.clientX,y:event.clientY}:null;
+  },true);
+  viewport.addEventListener('pointermove',event=>{
+    if(tap?.id===event.pointerId&&moved(event))tap=null;
+  },true);
+  viewport.addEventListener('pointerup',event=>{
+    held.delete(event.pointerId);
+    if(tap?.id!==event.pointerId)return;
+    const person=!moved(event)&&!el('labels').hidden&&index.get(tap.personId);
+    tap=null;
+    if(person)select(person,false);
+  },true);
+  for(const type of ['pointercancel','lostpointercapture']){
+    viewport.addEventListener(type,event=>{
+      held.delete(event.pointerId);
+      if(tap?.id===event.pointerId)tap=null;
+    });
+  }
+}
+
 function buildTree(){
   if(tree){
     scene.remove(tree);
@@ -212,7 +249,9 @@ function buildTree(){
 }
 
 function drawLabels(width,height){
+  if(el('labels').hidden)return;
   const projected=new THREE.Vector3();
+  labelMeasure.font='bold 14px Tahoma,Arial,sans-serif';
   const ranked=nodes.map(node=>{
     const point=placements.get(node.id);
     projected.copy(point).project(camera);
@@ -223,17 +262,19 @@ function drawLabels(width,height){
   const active=new Set();
   for(const item of ranked){
     if(shown.length>=Math.min(28,Math.ceil(width/24)))break;
-    if(item.z>1||item.z< -1||item.x<65||item.x>width-65||item.y<38||item.y>height-55)continue;
-    if(shown.some(other=>Math.abs(other.x-item.x)<138&&Math.abs(other.y-item.y)<36))continue;
+    const labelWidth=Math.min(width<550?156:208,Math.ceil(labelMeasure.measureText(item.node.name).width)+24);
+    if(item.z>1||item.z< -1||item.x<labelWidth/2+4||item.x>width-labelWidth/2-4||item.y<48||item.y>height-55)continue;
+    if(shown.some(other=>Math.abs(other.x-item.x)<(other.width+labelWidth)/2+8&&Math.abs(other.y-item.y)<44))continue;
     const {node,x,y}=item;
     let button=labels.get(node.id);
     if(!button){
       button=Object.assign(document.createElement('button'),{type:'button',className:'node-label',textContent:node.name,tabIndex:-1,title:node.name});
-      button.onclick=()=>select(node,true);
+      button.onclick=event=>{if(event.detail===0)select(node,false);};
       labels.set(node.id,button);
     }
     button.style.left=x+'px';
     button.style.top=y+'px';
+    button.style.width=labelWidth+'px';
     button.style.setProperty('--label-color',node.appearance[1]);
     button.dataset.personId=node.id;
     button.dataset.category=node.appearance[0];
@@ -241,7 +282,7 @@ function drawLabels(width,height){
     button.title=node.name+' · '+node.appearance[0];
     button.setAttribute('aria-current',String(node===selection));
     if(!button.isConnected)el('labels').append(button);
-    shown.push(item);
+    shown.push({...item,width:labelWidth});
     active.add(node.id);
   }
   for(const [id,button] of labels)if(!active.has(id))button.remove();
@@ -267,15 +308,27 @@ function setupScene(){
     el('fallback').hidden=false;
     el('hint').hidden=true;
     el('overview').disabled=true;
+    el('focus-person').disabled=true;
+    el('view-controls').hidden=true;
     return;
   }
   renderer.setPixelRatio(Math.min(window.devicePixelRatio,1.5));
   viewport.prepend(renderer.domElement);
   scene=new THREE.Scene();
   scene.background=new THREE.Color(0xc5dacc);
-  scene.fog=new THREE.Fog(0xc5dacc,38,100);
+  scene.fog=new THREE.Fog(0xc5dacc,55,115);
   camera=new THREE.PerspectiveCamera(42,1,.15,150);
-  controls=new OrbitControls(camera,renderer.domElement);
+  controls=new OrbitControls(camera,viewport);
+  bindNameGestures();
+  el('zoom-in').onclick=()=>zoom(.78);
+  el('zoom-out').onclick=()=>zoom(1/.78);
+  el('focus-person').onclick=()=>select(selection,true);
+  el('toggle-labels').onclick=event=>{
+    const visible=el('labels').hidden;
+    el('labels').hidden=!visible;
+    event.currentTarget.setAttribute('aria-pressed',String(visible));
+    queueRender();
+  };
   controls.minDistance=3;
   controls.maxDistance=72;
   controls.maxPolarAngle=Math.PI*.49;
