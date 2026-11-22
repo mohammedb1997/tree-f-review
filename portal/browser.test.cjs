@@ -19,13 +19,17 @@ test('دعوة وتحديد موقع العضو ومقارنة تعديل حي �
     browser=await chromium.launch({channel:'chrome',chromiumSandbox:true});
     const errors=[];
     const admin=await browser.newPage({viewport:{width:1280,height:950}});
-    const member=await browser.newPage({viewport:{width:390,height:844}});
+    const memberContext=await browser.newContext({viewport:{width:390,height:844}});
+    const member=await memberContext.newPage();
     const daughter=await browser.newPage({viewport:{width:390,height:844}});
     for(const page of [admin,member,daughter]){
       page.setDefaultTimeout(5000);
       page.on('pageerror',error=>errors.push(error.message));
       await page.goto(origin);
     }
+    await daughter.goto(origin+'/portal/world/');
+    await daughter.waitForURL(origin+'/portal/');
+    await daughter.locator('#access').waitFor();
     await admin.locator('#identifier').fill('admin@example.test');
     await admin.locator('#password').fill(password);
     await admin.locator('#login-form button[type=submit]').click();
@@ -79,6 +83,25 @@ test('دعوة وتحديد موقع العضو ومقارنة تعديل حي �
     await member.locator('#add-form button[type=submit]').click();
     await member.locator('#private-daughters-list').getByText('ابنة اختبار خصوصية الأب').waitFor();
     await member.locator('#tree-view').getByText('ابنة اختبار خصوصية الأب').waitFor();
+    const world=await member.context().newPage();
+    const worldErrors=[];
+    world.on('pageerror',error=>worldErrors.push(error.message));
+    await world.goto(origin);
+    await world.getByRole('link',{name:'استكشف شجرة الحساب بالعرض الثابت أو ثلاثي الأبعاد'}).click();
+    const worldNames=world.locator('#directory-names');
+    await worldNames.getByText('ابنة اختبار خصوصية الأب',{exact:true}).waitFor();
+    assert.equal(await world.locator('#account-scope').inputValue(),'mine');
+    assert.equal(await world.locator('#person-name').textContent(),'أحمد 1');
+    assert.equal(await worldNames.locator('[data-person-id="test-2"]').count(),0);
+    assert.equal(await world.locator('canvas').count(),0);
+    await world.locator('#account-scope').selectOption('shared');
+    await worldNames.locator('[data-person-id="test-2"]').waitFor();
+    assert.equal(await worldNames.getByText('ابنة اختبار خصوصية الأب',{exact:true}).count(),0);
+    await world.locator('#account-scope').selectOption('all');
+    await worldNames.getByText('ابنة اختبار خصوصية الأب',{exact:true}).waitFor();
+    await world.locator('#show-spatial').click();
+    await world.locator('#viewport canvas').waitFor();
+    await world.locator('#show-static').click();
     assert(!(await admin.locator('#workspace').textContent()).includes('ابنة اختبار خصوصية الأب'));
     await admin.locator('#tree-scope').selectOption('all');
     await admin.locator('#tree-view').getByText('ابنة اختبار خصوصية الأب').waitFor();
@@ -162,6 +185,7 @@ test('دعوة وتحديد موقع العضو ومقارنة تعديل حي �
     assert.deepEqual(await grandchild(member),visible);
     assert((await member.locator('#after-tree [data-change="added"]').textContent()).includes('حفيد اختبار التحديث'));
     assert(!(await member.locator('#before-tree').textContent()).includes('حفيد اختبار التحديث'));
+    await worldNames.getByText('حفيد اختبار التحديث',{exact:true}).waitFor();
     await member.locator('#locate-me').click();
     assert.equal(await member.locator('#tree-view [data-change="added"]').getAttribute('data-relationship'),'descendant');
     await member.locator('.live-panel').screenshot({path:'evidence/family-portal/tree-colors-relationship.png'});
@@ -170,6 +194,9 @@ test('دعوة وتحديد موقع العضو ومقارنة تعديل حي �
       .filter({hasText:'حفيد اختبار التحديث'}).waitFor({state:'attached'});
     await admin.locator('.live-panel').screenshot({path:'evidence/family-portal/tree-colors-relationship-desktop.png'});
     await member.locator('#logout').click();
+    await world.waitForURL(origin+'/portal/');
+    await world.locator('#access').waitFor();
+    assert.deepEqual(worldErrors,[]);
     await member.locator('#identifier').fill(code);
     await member.locator('#password').fill(password);
     await member.locator('#login-form button[type=submit]').click();

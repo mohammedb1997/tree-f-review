@@ -11,6 +11,8 @@ a{color:#f0d79f}
 .view-controls[hidden]{display:none}
 #toggle-labels[aria-pressed=false]{background:#172e25}
 label{display:grid;min-width:0;gap:.4rem}
+label[hidden]{display:none}
+#world-status{margin-inline:auto;padding:.75rem 1rem;max-width:1500px;color:#f2d6a0}
 input,select,button{font:inherit;color:inherit;background:#253c32;border:1px solid #738679;border-radius:.5rem;padding:.5rem;min-height:44px;max-width:100%}
 #people{width:min(22rem,80vw)}
 button:not(:disabled){cursor:pointer}

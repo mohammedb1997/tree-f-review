@@ -1,16 +1,17 @@
 <!doctype html>
-<html lang="ar" dir="rtl">
+<html lang="ar" dir="rtl" data-source="demo">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>جولة في شجرة العائلة</title>
-  <link rel="stylesheet" href="world.css?v=quiet-1">
+  <link rel="stylesheet" href="world.css?v=portal-1">
   <script type="importmap">{"imports":{"three":"./vendor/three.module.min.js"}}</script>
   <script src="../../Claud/botanical-core.js" defer></script>
-  <script type="module" src="world.js?v=quiet-1"></script>
+  <script type="module" src="world.js?v=portal-1"></script>
 </head>
 <body>
-  <header><div><h1>جولة في شجرة العائلة</h1><p>مشهد تجريبي بأسماء وهمية</p></div><a href="../preview.html">العودة إلى بوابة العائلة</a></header>
+  <header><div><h1>جولة في شجرة العائلة</h1><p id="world-source">مشهد تجريبي بأسماء وهمية</p></div><a href="../preview.html">العودة إلى بوابة العائلة</a></header>
+  <p id="world-status" role="status" hidden></p>
   <main>
     <div class="view-controls" role="group" aria-label="طريقة العرض">
       <button id="show-static" type="button" aria-pressed="true">عرض ثابت</button>
@@ -18,7 +19,8 @@
     </div>
     <p id="fallback" role="status" hidden>تعذّر تشغيل الرسم ثلاثي الأبعاد. العرض الثابت متاح.</p>
     <section class="controls" aria-label="أدوات الجولة">
-      <label>حجم العينة <select id="size"><option>50</option><option>150</option><option>500</option></select></label>
+      <label id="sample-option">حجم العينة <select id="size"><option>50</option><option>150</option><option>500</option></select></label>
+      <label id="portal-scope" hidden>نطاق العرض <select id="account-scope"><option value="mine">فرعي</option><option value="shared">الشجرة الرئيسية</option><option value="all">الكل</option></select></label>
       <label>التلوين <select id="color-mode"><option value="kinship">حسب القرابة</option><option value="generation">حسب الجيل</option><option value="gender">حسب الجنس</option></select></label>
       <label>ابحث بالاسم <input id="search" type="search" placeholder="مثال: عبدالرحمن"></label>
       <label>اختر شخصًا <select id="people"></select></label>

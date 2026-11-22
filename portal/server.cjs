@@ -27,7 +27,11 @@ const assets = new Map([
   ['/', ['index.html','text/html;charset=utf-8']],
   ['/portal/',['index.html','text/html;charset=utf-8']],
   ['/portal/app.js',['app.js','text/javascript;charset=utf-8']],
-  ['/portal/style.css',['style.css','text/css;charset=utf-8']]
+  ['/portal/style.css',['style.css','text/css;charset=utf-8']],
+  ['/portal/world/',['world/index.html','text/html;charset=utf-8']],
+  ['/portal/world/world.css',['world/world.css','text/css;charset=utf-8']],
+  ...['world.js','vendor/three.core.min.js','vendor/three.module.min.js','vendor/OrbitControls.js']
+    .map(file=>['/portal/world/'+file,['world/'+file,'text/javascript;charset=utf-8']])
 ]);
 
 function identifier(value) {
@@ -463,6 +467,17 @@ function createPortal({filename,origin}) {
     if(method==='GET'&&assets.has(pathname)){
       const [file,type]=assets.get(pathname);
       res.setHeader('Content-Type',type);
+      if(file==='world/index.html'){
+        const html=readFileSync(path.join(__dirname,file),'utf8');
+        const map=html.match(/<script type="importmap">([^<]+)<\/script>/)[1];
+        const hash=createHash('sha256').update(map).digest('base64');
+        res.setHeader('Content-Security-Policy',`default-src 'self'; script-src 'self' 'sha256-${hash}'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'`);
+        res.end(html.replace('data-source="demo"','data-source="account"')
+          .replace('مشهد تجريبي بأسماء وهمية','عرض شجرة الحساب')
+          .replace('href="../preview.html"','href="../"')
+          .replace(/ *<script src="\.\.\/\.\.\/Claud\/botanical-core\.js" defer><\/script>\r?\n/,''));
+        return;
+      }
       res.end(readFileSync(path.join(__dirname,file)));
       return;
     }

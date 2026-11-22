@@ -16,34 +16,53 @@ let THREE,spatial=false,sceneRequest=0;
 let curves;
 const labelMeasure=document.createElement('canvas').getContext('2d');
 let placements,labels=new Map(),frame=0;
+const accountMode=document.documentElement.dataset.source==='account';
+let account,live,loadNumber=0;
 
 function fixture(size){
   const {nodes:rows}=BotanicalCore.visible(BotanicalCore.fixture(size));
-  const byId=new Map(rows.map(row=>[row.personId,{id:row.personId,parent:row.parentId,
-    name:row.fullName,children:[],depth:0,weight:1}]));
-  const list=[...byId.values()];
+  const {list,byId}=graph(rows.map(row=>({id:row.personId,parentId:row.parentId,name:row.fullName})));
   for(const node of list){
-    const parent=byId.get(node.parent);
-    if(parent){node.depth=parent.depth+1;parent.children.push(node);}
-  }
-  for(const node of list.slice().reverse()){
-    node.weight=Math.max(1,node.children.reduce((sum,child)=>sum+child.weight,0));
-    // Synthetic sample only. The real portal supplies gender from authorized records.
     node.gender=node.depth && !node.children.length && Number(node.id.slice(5))%5===0?'f':'m';
     if(node.gender==='f')node.name='مريم التجريبية '+node.id.slice(5);
   }
   return {list,byId};
 }
 
+function graph(rows){
+  const byId=new Map(rows.map(row=>[row.id,{id:row.id,parent:row.parentId,
+    name:row.name,gender:row.gender==='f'?'f':'m',children:[],depth:0,weight:1}]));
+  const list=[...byId.values()];
+  for(const node of list){
+    const parent=byId.get(node.parent);
+    if(parent){node.depth=parent.depth+1;parent.children.push(node);}
+  }
+  const ordered=[];
+  const pending=list.filter(node=>!byId.has(node.parent)).reverse();
+  while(pending.length){
+    const node=pending.pop();
+    const parent=byId.get(node.parent);
+    node.depth=parent?parent.depth+1:0;
+    ordered.push(node);
+    pending.push(...node.children.slice().reverse());
+  }
+  for(const node of ordered.slice().reverse()){
+    node.weight=Math.max(1,node.children.reduce((sum,child)=>sum+child.weight,0));
+  }
+  return {list:ordered,byId};
+}
+
 function positions(){
   const result=new Map();
-  const maxDepth=nodes.reduce((max,node)=>Math.max(max,node.depth),1);
+  const startDepth=nodes[0].depth;
+  const maxDepth=nodes.reduce((max,node)=>Math.max(max,node.depth-startDepth),1);
   function place(node,start,span){
-    const level=node.depth/maxDepth;
+    const level=(node.depth-startDepth)/maxDepth;
     const angle=start+span/2;
-    const variation=Math.sin(Number(node.id.slice(5))*29.19);
+    const seed=Array.from(node.id).reduce((sum,char)=>(sum*31+char.codePointAt(0))|0,0);
+    const variation=Math.sin(seed*29.19);
     const radius=12*Math.pow(level,.72)*(1+variation*.19*level-.13*level*level);
-    const height=node.depth===0?2.8:3.8+level*11+Math.cos(angle*3)*.66+variation*level*2.05;
+    const height=level===0?2.8:3.8+level*11+Math.cos(angle*3)*.66+variation*level*2.05;
     result.set(node.id,new THREE.Vector3(Math.cos(angle)*radius,height,Math.sin(angle)*radius));
     let next=start;
     for(const child of node.children){
@@ -84,9 +103,9 @@ function branchIds(root){
   return found;
 }
 
-function setPinned(root){
+function setPinned(root,isolate=true){
   pinned=root?{root,ids:branchIds(root)}:null;
-  isolated=Boolean(pinned);
+  isolated=Boolean(pinned&&isolate);
   const panel=el('pinned-branch');
   panel.hidden=!pinned;
   const list=el('pinned-people');
@@ -325,8 +344,9 @@ function buildTree(){
     bend.z=start.z+(end.z-start.z)*.22;
     const curve=new THREE.QuadraticBezierCurve3(start,bend,end);
     curves.set(node.id,curve);
-    if(node.depth<=2){
-      const radius=node.depth===1?.24:.105;
+    const relativeDepth=node.depth-nodes[0].depth;
+    if(relativeDepth<=2){
+      const radius=relativeDepth===1?.24:.105;
       tree.add(new THREE.Mesh(new THREE.TubeGeometry(curve,12,radius,6,false),wood));
     }else{
       const points=curve.getPoints(8);
@@ -510,6 +530,83 @@ function reset(){
   setPinned(null);
 }
 
+function endAccountView(){
+  loadNumber++;
+  live?.close();
+  document.querySelector('main').hidden=true;
+  window.location.replace('../');
+}
+
+async function accountApi(route){
+  const response=await fetch(route,{credentials:'same-origin',cache:'no-store'});
+  if(response.status===401){endAccountView();return null;}
+  if(!response.ok)throw Error('تعذّر تحميل بيانات الشجرة. أعد فتح العرض من البوابة.');
+  return response.json();
+}
+
+async function loadAccountTree({changeScope=false}={}){
+  const request=++loadNumber;
+  const main=document.querySelector('main');
+  const scope=el('account-scope').value;
+  const message=el('world-status');
+  if(changeScope){
+    main.hidden=true;
+    message.textContent='جارٍ تحميل الشجرة…';
+    message.hidden=false;
+  }
+  try{
+    const data=await accountApi('/api/tree'+(scope==='all'?'?scope=all':''));
+    if(!data||request!==loadNumber)return;
+    const previous=changeScope?null:selection?.id;
+    const pinId=changeScope?null:pinned?.root.id;
+    const isolatePin=isolated;
+    const privatePeople=scope==='shared'?[]:data.privatePeople;
+    const graphData=graph([...data.people,...privatePeople]);
+    const own=graphData.byId.get(account.personId);
+    if(scope==='mine'&&!own)throw Error('لا يوجد فرع مرتبط بهذا الحساب. اختر نطاقًا آخر من البوابة.');
+    const allowed=scope==='mine'?branchIds(own):null;
+    nodes=allowed?graphData.list.filter(node=>allowed.has(node.id)):graphData.list;
+    if(!nodes.length)throw Error('لا توجد أسماء في هذا النطاق.');
+    index=new Map(nodes.map(node=>[node.id,node]));
+    selection=index.get(previous)||index.get(account.personId)||nodes[0];
+    el('world-source').textContent=data.title;
+    main.hidden=false;
+    message.hidden=true;
+    setPinned(index.get(pinId),isolatePin);
+  }catch(error){
+    if(request!==loadNumber)return;
+    message.textContent=error.message;
+    message.hidden=false;
+  }
+}
+
+async function startAccountView(){
+  const main=document.querySelector('main');
+  main.hidden=true;
+  el('sample-option').hidden=true;
+  el('portal-scope').hidden=false;
+  const message=el('world-status');
+  message.textContent='جارٍ التحقق من جلسة الدخول…';
+  message.hidden=false;
+  try{
+    account=await accountApi('/api/me');
+    if(!account)return;
+    const scope=el('account-scope');
+    scope.querySelector('[value="mine"]').disabled=!account.personId;
+    scope.value=account.personId?'mine':'shared';
+    scope.onchange=()=>loadAccountTree({changeScope:true});
+    await loadAccountTree({changeScope:true});
+    live=new EventSource('/api/live');
+    for(const event of ['tree','private-people']){
+      live.addEventListener(event,()=>{if(!main.hidden)loadAccountTree();});
+    }
+    live.addEventListener('session-expired',endAccountView);
+    live.onerror=()=>{accountApi('/api/me').catch(()=>{});};
+  }catch(error){
+    message.textContent=error.message;
+  }
+}
+
 el('size').onchange=reset;
 el('color-mode').onchange=refreshColors;
 el('overview').onclick=overview;
@@ -537,4 +634,12 @@ el('people').onchange=event=>{
   const node=index.get(event.target.value);
   if(node)select(node,true);
 };
-reset();
+if(accountMode){
+  window.addEventListener('pagehide',()=>{
+    loadNumber++;
+    live?.close();
+    document.querySelector('main').hidden=true;
+  });
+  window.addEventListener('pageshow',event=>{if(event.persisted)window.location.reload();});
+  startAccountView();
+}else reset();
