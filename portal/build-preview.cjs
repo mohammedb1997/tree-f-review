@@ -19,7 +19,7 @@ const preview=source
   .replace('href="/portal/world/"','href="world/"')
   .replace('src="/Claud/botanical-core.js"',`src="../Claud/botanical-core.js?v=${revision}"`)
   .replace('استكشف شجرة الحساب بالعرض الثابت أو ثلاثي الأبعاد','استكشف الجولة بعينة مستقلة بالعرض الثابت أو ثلاثي الأبعاد')
-  .replace('<main>','<main>\n    <p class="preview-banner">معاينة ببيانات وهمية. تعود العينة الأصلية بعد إعادة تحميل الصفحة.</p>')
+  .replace('<main>','<main>\n    <aside class="preview-banner" aria-label="أدوار المعاينة"><p>معاينة ببيانات وهمية. يبدأ تبديل الدور تجربة جديدة.</p><nav aria-label="اختر دورًا تجريبيًا"><a href="?role=member">جرّب كعضو</a><a href="?role=admin">جرّب كمدير</a></nav></aside>')
   .replace(/ *<p><a href="\/api\/backup".*?<\/p>\r?\n/,'')
   .replace('اطلب من المدير دعوة لحسابك أو إعادة تفعيله عند فقد كلمة المرور.','للعودة إلى المدير التجريبي استخدم admin@example.test وكلمة المرور FamilyDemo-2026.');
 fs.writeFileSync(path.join(__dirname,'preview.html'),preview);

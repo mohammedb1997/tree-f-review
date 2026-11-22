@@ -100,8 +100,15 @@
           <h2>البحث والأفراد</h2>
           <p id="family-title" class="hint">أفراد العائلة</p>
           <label for="search">الاسم</label>
-          <input id="search" type="search" placeholder="ابحث عن اسم…" autocomplete="off">
-          <p id="tree-count" class="hint"></p>
+          <div class="search-field">
+            <input id="search" type="search" placeholder="ابحث عن اسم…" autocomplete="off">
+            <button id="clear-search" type="button" hidden>مسح</button>
+          </div>
+          <p id="tree-count" class="hint" role="status"></p>
+          <div id="search-empty" class="hint" hidden>
+            <p>لم نجد اسمًا مطابقًا. جرّب جزءًا من الاسم.</p>
+            <button id="search-main-tree" type="button" hidden>ابحث في الشجرة الرئيسية</button>
+          </div>
           <div id="people" class="people"></div>
         </section>
         <aside class="panel details" aria-labelledby="person-title">

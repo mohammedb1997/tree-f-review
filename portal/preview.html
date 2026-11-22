@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>تجربة بوابة العائلة</title>
-  <link rel="stylesheet" href="style.css?v=cf81dad55e">
-  <script src="../Claud/botanical-core.js?v=cf81dad55e" defer></script>
-  <script src="preview.js?v=cf81dad55e" defer></script>
-  <script src="app.js?v=cf81dad55e" defer></script>
+  <link rel="stylesheet" href="style.css?v=90c2ab3359">
+  <script src="../Claud/botanical-core.js?v=90c2ab3359" defer></script>
+  <script src="preview.js?v=90c2ab3359" defer></script>
+  <script src="app.js?v=90c2ab3359" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -15,7 +15,7 @@
     <div id="session" hidden><span id="identity" dir="ltr"></span><button id="logout" type="button">تسجيل الخروج</button></div>
   </header>
   <main>
-    <p class="preview-banner">معاينة ببيانات وهمية. تعود العينة الأصلية بعد إعادة تحميل الصفحة.</p>
+    <aside class="preview-banner" aria-label="أدوار المعاينة"><p>معاينة ببيانات وهمية. يبدأ تبديل الدور تجربة جديدة.</p><nav aria-label="اختر دورًا تجريبيًا"><a href="?role=member">جرّب كعضو</a><a href="?role=admin">جرّب كمدير</a></nav></aside>
     <p id="notice" role="status" aria-live="polite" tabindex="-1"></p>
     <section id="access" class="access">
       <div class="intro"><p class="eyebrow">بوابة العائلة</p><h1>ادخل إلى شجرة عائلتك</h1><p>شاهد موقعك في الشجرة وتصفّح أفراد العائلة والفرع المرتبط بحسابك.</p></div>
@@ -102,8 +102,15 @@
           <h2>البحث والأفراد</h2>
           <p id="family-title" class="hint">أفراد العائلة</p>
           <label for="search">الاسم</label>
-          <input id="search" type="search" placeholder="ابحث عن اسم…" autocomplete="off">
-          <p id="tree-count" class="hint"></p>
+          <div class="search-field">
+            <input id="search" type="search" placeholder="ابحث عن اسم…" autocomplete="off">
+            <button id="clear-search" type="button" hidden>مسح</button>
+          </div>
+          <p id="tree-count" class="hint" role="status"></p>
+          <div id="search-empty" class="hint" hidden>
+            <p>لم نجد اسمًا مطابقًا. جرّب جزءًا من الاسم.</p>
+            <button id="search-main-tree" type="button" hidden>ابحث في الشجرة الرئيسية</button>
+          </div>
           <div id="people" class="people"></div>
         </section>
         <aside class="panel details" aria-labelledby="person-title">

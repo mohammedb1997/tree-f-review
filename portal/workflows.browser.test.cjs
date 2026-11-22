@@ -149,3 +149,35 @@ test('public Chrome preview is interactive and resets to synthetic data',{timeou
     await browser.close();
   }
 });
+
+test('public review: member mode, scoped search and admin switch',{timeout:20000},async()=>{
+  const preview=process.env.TREEF_PREVIEW_URL || pathToFileURL(path.join(__dirname,'preview.html')).href;
+  const browser=await chromium.launch({channel:'chrome',chromiumSandbox:true});
+  try{
+    const page=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
+    page.setDefaultTimeout(6000);
+    const requests=[];
+    page.on('request',request=>{if(new URL(request.url()).pathname.startsWith('/api/'))requests.push(request.url());});
+    await page.goto(preview);
+    await page.getByRole('link',{name:'جرّب كعضو'}).tap();
+    await page.locator('#tree-view [data-person-id="father"]').waitFor({state:'attached'});
+    assert.equal(await page.locator('#tree-scope').inputValue(),'mine');
+    assert.equal(await page.locator('#administration').isVisible(),false);
+    assert.equal(await page.locator('#tree-view [data-person-id="uncle"]').count(),0);
+    await page.locator('.workspace-shortcut').tap();
+    await page.locator('#search').fill('إبراهيم');
+    await page.locator('#search-empty').waitFor();
+    await page.locator('#search-main-tree').tap();
+    await page.locator('#people [data-person-id="uncle"]').waitFor();
+    assert.equal(await page.locator('#tree-scope').inputValue(),'shared');
+    await page.locator('#clear-search').tap();
+    assert.equal(await page.locator('#search').inputValue(),'');
+    assert.equal(await page.evaluate(()=>document.activeElement.id),'search');
+    await page.getByRole('link',{name:'جرّب كمدير'}).tap();
+    await page.locator('#administration').waitFor();
+    assert.equal(await page.locator('#tree-scope').inputValue(),'shared');
+    assert.deepEqual(requests,[]);
+  }finally{
+    await browser.close();
+  }
+});

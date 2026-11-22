@@ -5,6 +5,11 @@
   const admin={id:'admin',role:'admin',identifier:'admin@example.test',personId:null,password:'FamilyDemo-2026'};
   const accounts=[admin];
   let user=admin;
+  if(new URLSearchParams(location.search).get('role')==='member'){
+    user={id:'demo-member',role:'member',identifier:'member@example.test',personId:'father',password:'FamilyDemo-2026'};
+    accounts.push(user);
+  }
+  document.querySelector(`[href="?role=${user.role}"]`)?.setAttribute('aria-current','page');
   let sequence=0;
   let previous;
   const privateDaughters=new Map();

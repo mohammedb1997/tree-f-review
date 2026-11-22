@@ -144,6 +144,14 @@ textarea{display:block;width:100%;font:inherit;padding:.7rem;border:1px solid #b
 #identity{font-size:.8rem;color:#536559}
 #notice:empty{display:none}
 .preview-banner{margin-block:0 .7rem;padding:.45rem .7rem;border:1px solid var(--portal-edge);border-radius:.55rem;color:#4d6357;background:#fffaf0;font-size:.85rem}
+.preview-banner,.preview-banner nav{display:flex;align-items:center;flex-wrap:wrap;gap:.15rem .65rem}
+.preview-banner{justify-content:space-between}
+.preview-banner p{margin:0}
+.preview-banner a{display:inline-grid;min-height:44px;place-items:center;color:var(--portal-ink);font-weight:700}
+.preview-banner a[aria-current=page]{text-decoration-thickness:2px}
+.search-field{display:flex;align-items:center;gap:.35rem}
+.search-field input{min-width:0}
+.search-field button{flex:none}
 .workspace-heading{align-items:end;margin-block:0 .9rem}
 .workspace-heading h1{margin-block:.1rem .3rem;overflow-wrap:anywhere}
 .workspace-heading .eyebrow{margin-block:0;color:#72572d;font-size:.9rem}

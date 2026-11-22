@@ -514,6 +514,9 @@ function showSignedOut() {
   byId('session').hidden = true;
   byId('access').hidden = false;
   byId('people').replaceChildren();
+  byId('clear-search').hidden = true;
+  byId('search-empty').hidden = true;
+  byId('search-main-tree').hidden = true;
   byId('accounts').replaceChildren();
   byId('parent').replaceChildren();
   byId('invite-person').replaceChildren();
@@ -748,6 +751,9 @@ function renderPeople() {
   const ownBranch=byId('tree-scope').value==='mine'?descendants(people,user?.personId):null;
   const shown = ordered.filter(person => (!ownBranch||ownBranch.has(person.id)) &&
     (!search||person.name.includes(search)));
+  byId('clear-search').hidden = !byId('search').value;
+  byId('search-empty').hidden = !search || shown.length > 0;
+  byId('search-main-tree').hidden = !ownBranch;
   const list = byId('people');
   list.replaceChildren();
   for (const person of shown) {
@@ -905,6 +911,18 @@ async function enter() {
 byId('show-login').addEventListener('click', () => setAccessMode(false));
 byId('show-activate').addEventListener('click', () => setAccessMode(true));
 byId('search').addEventListener('input', renderPeople);
+byId('clear-search').addEventListener('click', () => {
+  byId('search').value = '';
+  renderPeople();
+  byId('search').focus();
+});
+byId('search-main-tree').addEventListener('click', () => {
+  const scope = byId('tree-scope');
+  if (scope.value !== 'mine') return;
+  scope.value = 'shared';
+  scope.dispatchEvent(new Event('change'));
+  byId('search').focus();
+});
 byId('child-gender').addEventListener('change',setChildForm);
 function discardOutOfScopePeople(){
   treeRequest++;
