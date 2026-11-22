@@ -445,7 +445,7 @@
 
   // Measure the required subtree rectangles bottom-up. No fixed crown, shrink,
   // or post-layout relaxation: each family's reserved space stays with it.
-  function growingCrown(root, nodes, font, paper) {
+  function growingCrown(root, nodes, font, paper, engraved) {
     const pad = 8, gap = 14, lane = 34;
     const cache = new Map();
     const aspects=[.2,.4,.7,1,1.5,2.5,5];
@@ -548,7 +548,7 @@
       const result=choices.reduce((a,b)=>a.cost<=b.cost?a:b);
       cache.set(key,result); return result;
     }
-    const tree = plan(root,'bottom','left');
+    const tree = plan(root,'bottom','left',engraved?.76:1);
     let boardWidth = Math.max(1200,tree.w/.86);
     let boardHeight = Math.max(1200,(tree.h+40)/.64);
     const ox = (boardWidth-tree.w)/2, oy = boardHeight*.14;
@@ -595,10 +595,13 @@
       }
     }
     place(tree,ox,oy);
+    if(engraved){
+      for(const link of links)link.width=Math.min(42,3.5+Math.sqrt(link.child.descendantCount+1)*2.25);
+    }
     // Bend corridors, branches and labels together so the crown has a rounded
     // silhouette and the long limbs sweep outward instead of forming rows.
     const center={x:ox+tree.w/2,y:oy+tree.h/2};
-    const curvature=.38*Math.min(tree.w/tree.h,tree.h/tree.w);
+    const curvature=(engraved?.58:.38)*Math.min(tree.w/tree.h,tree.h/tree.w);
     const warp=p=>{
       const u=(p.x-center.x)/(tree.w/2),v=(p.y-center.y)/(tree.h/2);
       const span = Math.min(tree.w, tree.h);
@@ -630,7 +633,7 @@
         }
       return l=>{
         const hits=new Set();
-        const start=branchWidth(l.child),end=Math.max(1.7,start*.48);
+        const start=l.width??branchWidth(l.child),end=Math.max(1.7,start*.48);
         for(const [i,p] of l.samples.entries())for(const n of buckets.get(`${Math.floor(p.x/cell)}:${Math.floor(p.y/cell)}`)||[]) {
           if(n===l.parent||n===l.child||hits.has(n))continue;
           const clearance=stroke?4+mix(start,end,i/(l.samples.length-1))/2:2;
@@ -648,8 +651,9 @@
       nodes.forEach((n,i)=>Object.assign(n,{x:positions[i].x*expansion,y:positions[i].y*expansion}));
       links.forEach((l,i)=>{l.samples=paths[i].map(p=>({x:p.x*expansion,y:p.y*expansion}));});
     }
-    if(conflicts()) throw Error('تعذر فصل جميع الأغصان والأسماء في التوزيع المتسع. لم تتغير بيانات الشجرة.');
+    if(conflicts()) throw new RangeError('تعذر فصل جميع الأغصان والأسماء في التوزيع المتسع. لم تتغير بيانات الشجرة.');
     boardWidth*=expansion; boardHeight*=expansion;
+    if(engraved) bendCorridors(links,labelHits(true));
     // Preserve the exported relationship order independently of traversal.
     const order=new Map(nodes.flatMap(n=>n.children.map(c=>[c.personId,0])).map(([id],i)=>[id,i]));
     links.sort((a,b)=>order.get(a.child.personId)-order.get(b.child.personId));
@@ -668,11 +672,43 @@
     for(let i=0;i<nodes.length;i++) for(let j=i+1;j<nodes.length;j++) if(!separates(nodes[i],nodes[j],0)) collisions++;
     const hits=labelHits(false);
     for(const link of links) link.hits=hits(link);
-    return {root,nodes,links,font,boardWidth,boardHeight,style:'growing',collisions,
+    return {root,nodes,links,font,boardWidth,boardHeight,style:engraved?'engraved-crown':'growing',collisions,
       maxDepth:Math.max(...nodes.map(n=>n.generation)),
       minimumPt:font*Math.min(paper.width/boardWidth,paper.height/boardHeight)*72/25.4,
       obstructedBranches:links.filter(l=>l.hits).length,
       branchCrossings};
+  }
+
+  function bendCorridors(links, labelHits) {
+    const branches=branchIndex();
+    for(const link of links)branches.add(link);
+    for(const [index,link] of links.entries()){
+      const distance=[0];
+      for(let i=1;i<link.samples.length;i++){
+        const a=link.samples[i-1],b=link.samples[i];
+        distance.push(distance[i-1]+Math.hypot(b.x-a.x,b.y-a.y));
+      }
+      const length=distance.at(-1);
+      if(length<38)continue;
+      const amplitude=Math.min(45,length*.115)*(index%2?1:-1);
+      const existing=branches.intersections(link.samples,link.parent,link.child);
+      for(const factor of [1,.55,.28]){
+        const samples=link.samples.map((point,i,points)=>{
+          if(i===0||i===points.length-1)return point;
+          const t=distance[i]/length;
+          const dx=points[i+1].x-points[i-1].x,dy=points[i+1].y-points[i-1].y;
+          const bend=Math.sin(Math.PI*t)**2 * (1+.45*Math.cos(3*Math.PI*t)) *
+            amplitude*factor/(Math.hypot(dx,dy)||1);
+          return {x:point.x-dy*bend,y:point.y+dx*bend};
+        });
+        const revised={...link,samples};
+        if(labelHits(revised)||[...branches.intersections(samples,link.parent,link.child)].some(other=>!existing.has(other)))continue;
+        branches.remove(link);
+        branches.add(revised);
+        links[index]=revised;
+        break;
+      }
+    }
   }
 
   function sectorCrown(root, nodes, paper, measure) {
@@ -797,6 +833,15 @@
   }
 
   function layout(doc, paper, measure, style, retryPt, arcFactor, stagger = true) {
+    if(style==='engraved-crown'){
+      const count=core.visible(doc).nodes.length;
+      if(count<=80)return {...layout(doc,paper,measure,'organic-improved'),style:'engraved-crown'};
+      try{return layout(doc,paper,measure,'engraved-layout');}
+      catch(error){
+        if(!(error instanceof RangeError))throw error;
+        return {...layout(doc,paper,measure,'growing'),style:'engraved-crown'};
+      }
+    }
     if (style === 'organic-improved' && arcFactor === undefined) {
       let best;
       const score = r => r.collisions*1e6 + r.obstructedBranches*1e4 + r.branchCrossings*100 + (r.ribbonContacts??0);
@@ -816,6 +861,7 @@
     }
     const { root, nodes } = core.visible(doc);
     style = style || 'growing';
+    const engraved=style==='engraved-layout';
     const improved = style === 'organic-improved';
     const staggerLeaves = improved && stagger;
     if (improved) style = 'organic';
@@ -845,10 +891,10 @@
     }
     targetPt = retryPt ?? targetPt;
     // Lettering is sized on the artboard. Paper only converts those units to points.
-    const font = style === 'growing' ? 16 : targetPt * 25.4 / (72 * (700 / width));
+    const font = style === 'growing' || engraved ? 16 : targetPt * 25.4 / (72 * (700 / width));
     for (const [index, node] of nodes.entries()) {
       node.index = index;
-      const lettering=style==='growing' && node.generation===0 ? font*Math.max(1.6,Math.sqrt(nodes.length)/6) : font;
+      const lettering=(style==='growing'||engraved) && node.generation===0 ? font*Math.max(1.6,Math.sqrt(nodes.length)/6) : font;
       node.font=lettering;
       const measured=text=>measure(text,lettering);
       node.lines = wrap(node.fullName, lettering * 10, measured);
@@ -865,9 +911,9 @@
       const angle = Math.abs(node.tilt) * Math.PI / 180;
       node.w = node.shapeWidth * Math.cos(angle) + node.shapeHeight * Math.sin(angle);
       node.h = node.shapeHeight * Math.cos(angle) + node.shapeWidth * Math.sin(angle);
-      if (style !== 'growing' && (node.w > 1030 || node.h > 580)) throw Error('اسم طويل لا يتسع على هذا المقاس. اختر ورقًا أكبر.');
+      if (style !== 'growing' && !engraved && (node.w > 1030 || node.h > 580)) throw Error('اسم طويل لا يتسع على هذا المقاس. اختر ورقًا أكبر.');
     }
-    if (style === 'growing') return growingCrown(root,nodes,font,paper);
+    if (style === 'growing'||engraved) return growingCrown(root,nodes,font,paper,engraved);
     root.x = 600; root.y = 1225;
     const weights = new Map();
     const meanArea = nodes.reduce((sum,node) => sum+node.w*node.h,0)/nodes.length;
@@ -1019,21 +1065,21 @@
     return `<g data-parent-id="${escape(link.parent.personId)}" data-child-id="${escape(child.personId)}"${flare}><path d="${silhouette}" fill="${wood}"/><path d="M${grain.map(pair).join('L')}" stroke="${grainColor}" opacity="${grainOpacity}" stroke-width="${round(Math.max(.42, start * .18))}" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>`;
   }
 
-  function artwork(improved) {
+  function artwork(improved, engraved) {
     const corner = '<path d="M0 44V0H44M5 32V5H32M10 24Q21 25 25 10M10 24Q5 12 25 10" fill="none" stroke="#9d743c" stroke-width="1.5"/><path d="M10 10l5 2-3 4z" fill="#51766a"/>';
     // Diamond medallion like the reference poster: rotated square, inner diamond, star dot.
     const medallion = (cx, cy, s) => `<g transform="translate(${cx} ${cy})"><path d="M0 ${-s}L${s} 0L0 ${s}L${-s} 0Z" fill="url(#hp-gold)" stroke="#8a6d2f" stroke-width="2.2"/><path d="M0 ${-s*.62}L${s*.62} 0L0 ${s*.62}L${-s*.62} 0Z" fill="none" stroke="#8a6d2f" stroke-width="1.1"/><path d="M0 ${-s*.28}L${s*.28} 0L0 ${s*.28}L${-s*.28} 0Z" fill="#fff8e8" stroke="#8a6d2f" stroke-width=".8"/><circle r="${Math.max(2, s*.09)}" fill="#8a6d2f"/></g>`;
     if (improved) {
       const definitions = `<defs>
       <radialGradient id="hp-sky" cx=".5" cy=".36" r=".74"><stop stop-color="#fffdf5"/><stop offset=".68" stop-color="#f9f2df"/><stop offset="1" stop-color="#efe3c8"/></radialGradient>
-      <pattern id="hp-paper" width="34" height="34" patternUnits="userSpaceOnUse"><path d="M17 2L32 17L17 32L2 17Z" fill="none" stroke="#c9b98a" stroke-width=".55" opacity=".28"/><circle cx="17" cy="17" r="1.1" fill="#c9b98a" opacity=".3"/></pattern>
+      ${engraved?'<pattern id="hp-paper" width="64" height="64" patternUnits="userSpaceOnUse"><path d="M0 0L16 16L32 6L48 16L64 0M0 64L16 48L32 58L48 48L64 64M0 32L16 16L26 32L16 48Z M64 32L48 16L38 32L48 48Z M26 32L32 26L38 32L32 38Z" fill="none" stroke="#ae8f60" stroke-width=".7" opacity=".23"/></pattern>':'<pattern id="hp-paper" width="34" height="34" patternUnits="userSpaceOnUse"><path d="M17 2L32 17L17 32L2 17Z" fill="none" stroke="#c9b98a" stroke-width=".55" opacity=".28"/><circle cx="17" cy="17" r="1.1" fill="#c9b98a" opacity=".3"/></pattern>'}
       <linearGradient id="hp-field" x2="0" y2="1"><stop stop-color="#9aaa54"/><stop offset="1" stop-color="#344a2d"/></linearGradient>
       <linearGradient id="hp-meadow" x2="0" y2="1"><stop stop-color="#dce5ba" stop-opacity=".46"/><stop offset="1" stop-color="#829650" stop-opacity=".8"/></linearGradient>
       <linearGradient id="hp-bark"><stop stop-color="#4a2c17"/><stop offset=".42" stop-color="#8a5a33"/><stop offset=".65" stop-color="#6b4226"/><stop offset="1" stop-color="#3d2215"/></linearGradient>
       <linearGradient id="hp-branch-wood" gradientUnits="userSpaceOnUse" x1="0" x2="1200" y1="0" y2="0"><stop stop-color="#573923"/><stop offset=".35" stop-color="#6d472c"/><stop offset=".53" stop-color="#4d2d1c"/><stop offset=".76" stop-color="#6e492e"/><stop offset="1" stop-color="#50311f"/></linearGradient>
       <linearGradient id="hp-leaf" x2="0" y2="1"><stop stop-color="#f1edaf"/><stop offset=".48" stop-color="#d7e4a2"/><stop offset="1" stop-color="#99b679"/></linearGradient>
       <linearGradient id="hp-leaf-dark" x2="0" y2="1"><stop stop-color="#3f8a4a"/><stop offset="1" stop-color="#1e5c2e"/></linearGradient>
-      <linearGradient id="hp-leaf-green" x2="0" y2="1"><stop stop-color="#79994c"/><stop offset=".48" stop-color="#476c39"/><stop offset="1" stop-color="#294d2c"/></linearGradient>
+      <linearGradient id="hp-leaf-green" x2="0" y2="1"><stop stop-color="${engraved?'#517f48':'#79994c'}"/><stop offset=".48" stop-color="${engraved?'#276047':'#476c39'}"/><stop offset="1" stop-color="${engraved?'#194637':'#294d2c'}"/></linearGradient>
       <linearGradient id="hp-leaf-light" x2="0" y2="1"><stop stop-color="#acb965"/><stop offset=".48" stop-color="#789448"/><stop offset="1" stop-color="#456330"/></linearGradient>
       <linearGradient id="hp-leaf-deep" x2="0" y2="1"><stop stop-color="#66804a"/><stop offset=".52" stop-color="#3d6337"/><stop offset="1" stop-color="#213d28"/></linearGradient>
       <linearGradient id="hp-gold" x2="0" y2="1"><stop stop-color="#fff5d9"/><stop offset=".6" stop-color="#f4dc9e"/><stop offset="1" stop-color="#c3974c"/></linearGradient>
@@ -1044,8 +1090,8 @@
       const background = `
     <rect x="28" y="28" width="1144" height="1641" rx="3" fill="url(#hp-sky)" stroke="#b8892b" stroke-width="2.5"/>
     <rect x="30" y="30" width="1140" height="1637" fill="url(#hp-paper)"/>
-    <path d="M30 1586C254 1533 394 1564 575 1598C756 1548 949 1533 1170 1573V1667H30Z" fill="#c4cc9a" opacity=".36"/>
-    <path d="M30 1623C255 1571 431 1611 597 1621C776 1584 982 1575 1170 1608V1667H30Z" fill="url(#hp-meadow)"/>
+    ${engraved?'':`<path d="M30 1586C254 1533 394 1564 575 1598C756 1548 949 1533 1170 1573V1667H30Z" fill="#c4cc9a" opacity=".36"/>
+    <path d="M30 1623C255 1571 431 1611 597 1621C776 1584 982 1575 1170 1608V1667H30Z" fill="url(#hp-meadow)"/>`}
     `;
       const frame = `
     <path d="M0 0H1200V1697H0Z M28 28H1172V1669H28Z" fill="url(#hp-border)" fill-rule="evenodd"/>
@@ -1053,7 +1099,11 @@
     <rect x="47" y="47" width="1106" height="1603" rx="2" fill="none" stroke="#c9a95f" stroke-width="1"/>
     <rect x="54" y="54" width="1092" height="1589" rx="2" fill="none" stroke="#8a6d2f" stroke-width=".7"/>
     ${medallion(54,54,26)}${medallion(1146,54,26)}${medallion(54,1643,26)}${medallion(1146,1643,26)}
-    ${medallion(165,150,42)}${medallion(1035,150,42)}
+    ${engraved?[[60,60,1,1],[1140,60,-1,1],[60,1638,1,-1],[1140,1638,-1,-1]].map(([x,y,sx,sy])=>`
+      <g transform="translate(${x} ${y}) scale(${sx} ${sy})" aria-hidden="true">
+       <path d="M0 102V0H102M7 78C8 36 30 15 81 7M8 58C18 27 43 5 68 8M7 36C9 14 14 7 36 7M17 28C13 9 42 14 34 28C30 37 22 35 19 29" fill="none" stroke="#805321" stroke-width="2.2"/>
+       <path d="M16 57Q30 42 49 37Q40 53 16 57ZM36 16Q52 20 70 11Q57 25 36 16Z" fill="#526c45" stroke="#967449" stroke-width=".9"/>
+      </g>`).join(''):`${medallion(165,150,42)}${medallion(1035,150,42)}`}
     `;
       const trunk = `
     <ellipse cx="600" cy="1587" rx="162" ry="20" fill="#435135" opacity=".18"/>
@@ -1099,7 +1149,7 @@
     return { definitions, background, frame, trunk };
   }
 
-  function label(node, font, presentation, sector, dark, generationOffset = 0) {
+  function label(node, font, presentation, sector, dark, generationOffset = 0, engraved = false) {
     font=node.font||font;
     const x = node.shapeWidth / 2, y = node.shapeHeight / 2;
     const generation = core.color(presentation, node.generation + generationOffset);
@@ -1110,7 +1160,9 @@
     const leafFill = noise(node.index + 11) > .66 ? 'url(#hp-leaf-light)' : noise(node.index + 11) > .33 ? 'url(#hp-leaf-green)' : 'url(#hp-leaf-deep)';
     const decoLeaf = (lx, ly, dx, dy, rot) => `<g transform="translate(${round(dx)} ${round(dy)}) rotate(${round(rot)})"><path d="M${round(-lx*1.15)} ${round(ly*.55)}Q${round(-lx*.4)} ${round(ly*.3)} ${round(-lx*.85)} 0" stroke="#2e5d3a" stroke-width="1.1" fill="none"/><path d="M${-lx} 0C${-lx} ${-ly} ${round(lx*.25)} ${round(-ly*1.3)} ${lx} 0C${round(lx*.25)} ${round(ly*1.3)} ${-lx} ${ly} ${-lx} 0Z" fill="${leafFill}" stroke="#2e5d3a" stroke-width="1"/><path d="M${round(-lx*.82)} 0Q0 ${round(-ly*.22)} ${round(lx*.82)} 0" stroke="#c8e6c9" opacity=".65" fill="none" stroke-width=".9"/><path d="M${round(-lx*.3)} ${round(-ly*.28)}Q${round(-lx*.05)} ${round(-ly*.05)} ${round(lx*.3)} ${round(-ly*.28)}M${round(-lx*.3)} ${round(ly*.28)}Q${round(-lx*.05)} ${round(ly*.05)} ${round(lx*.3)} ${round(ly*.28)}" stroke="#a8d5a2" opacity=".4" fill="none" stroke-width=".6"/></g>`;
     let shape, textFill = ink;
-    if (dark && leaf) {
+    if (engraved) {
+      shape=leaf?badge:`<path d="M0 -1C.21 -.87 .41 -1 .58 -.79C.74 -.65 .9 -.74 .92 -.43C1 -.28 1 .28 .92 .43C.9 .74 .74 .65 .58 .79C.41 1 .21 .87 0 1C-.21 .87 -.41 1 -.58 .79C-.74 .65 -.9 .74 -.92 .43C-1 .28 -1 -.28 -.92 -.43C-.9 -.74 -.74 -.65 -.58 -.79C-.41 -1 -.21 -.87 0 -1Z" transform="scale(${x} ${y})" vector-effect="non-scaling-stroke" fill="url(#hp-gold)" stroke="${generation}" stroke-width="1"/>`;
+    } else if (dark && leaf) {
       // Green leaf peeking above/behind the badge, badge on top (reference style).
       shape = decoLeaf(x*.92, y*1.15, -x*.12, -y*1.05, (node.leafFacing||1)*-18) + badge;
       textFill = ink;
@@ -1129,9 +1181,23 @@
   }
 
   // Decorative green leaves along branches (ornament only, never persons).
-  function decorativeLeaves(links, nodes) {
+  function decorativeLeaves(links, nodes, engraved) {
     const out = [];
     const placements = [];
+    const cell=48,buckets=new Map();
+    for(const link of links) for(const point of link.samples||[]){
+      const key=`${Math.floor(point.x/cell)}:${Math.floor(point.y/cell)}`;
+      if(!buckets.has(key))buckets.set(key,[]);
+      buckets.get(key).push({link,point});
+    }
+    function nearAnotherBranch(link,x,y,distance){
+      for(let col=Math.floor((x-distance)/cell);col<=Math.floor((x+distance)/cell);col++){
+        for(let row=Math.floor((y-distance)/cell);row<=Math.floor((y+distance)/cell);row++){
+          if((buckets.get(`${col}:${row}`)||[]).some(item=>item.link!==link&&Math.hypot(item.point.x-x,item.point.y-y)<distance))return true;
+        }
+      }
+      return false;
+    }
     links.forEach((link, idx) => {
       const s = link.samples;
       if (!s || s.length < 10) return;
@@ -1141,7 +1207,7 @@
         distances.push(distances[i-1] + Math.hypot(s[i].x-s[i-1].x,s[i].y-s[i-1].y));
       }
       const length = distances.at(-1);
-      if (length < 76) return;
+      if (length < (engraved?58:76)) return;
       const spots = length > 350 ? [.22,.39,.58,.76] :
         length > 240 ? [.26,.5,.74] : length > 140 ? [.36,.64] : [.5];
       for (const [slot, frac] of spots.entries()) {
@@ -1163,12 +1229,11 @@
           if (nodes.some(node => Math.abs(x-node.x) < node.w/2+lx+9 &&
               Math.abs(y-node.y) < node.h/2+lx+9)) continue;
           if (placements.some(leaf => Math.hypot(leaf.x-x,leaf.y-y) < leaf.radius+lx)) continue;
-          if (links.some(other => other !== link && other.samples.some(point =>
-            Math.hypot(point.x-x,point.y-y) < lx+1))) continue;
+          if (nearAnotherBranch(link,x,y,lx+1)) continue;
           placements.push({x,y,radius:lx});
           const rot = Math.atan2(uy,ux)*180/Math.PI;
           out.push(`<g data-poster-ornament="leaf" transform="translate(${round(x)} ${round(y)}) rotate(${round(rot)})" pointer-events="none" aria-hidden="true"><path d="M${round(-reach)} 0H${round(-lx)}" stroke="#607745" stroke-width="1.6"/><path d="M${-lx} 0C${round(-lx*.64)} ${round(-ly*1.45)} ${round(lx*.31)} ${round(-ly*.93)} ${lx} ${round(-ly*.26)}C${round(lx*.60)} ${round(ly*1.42)} ${round(-lx*.47)} ${round(ly*.99)} ${-lx} 0Z" fill="${fill}" stroke="#355a38" stroke-width=".9"/><path d="M${round(-lx*.82)} 0Q0 ${round(ly*.22)} ${round(lx*.79)} ${round(-ly*.16)}m${round(-lx*.69)} ${round(ly*.16)}l${round(-lx*.30)} ${round(-ly*.46)}m${round(lx*.45)} ${round(ly*.44)}l${round(lx*.26)} ${round(ly*.28)}" stroke="#d8e7ac" opacity=".68" fill="none" stroke-width=".75"/></g>`);
-          break;
+          if(!engraved||length<180)break;
         }
       }
     });
@@ -1200,19 +1265,35 @@
     </g>`;
   }
 
+  function centerEngravedBoard(result,w,h){
+    const nextWidth=Math.max(result.boardWidth,result.boardHeight*w/h);
+    const nextHeight=nextWidth*h/w;
+    const dx=(nextWidth-result.boardWidth)/2;
+    const dy=(nextHeight-result.boardHeight)/2;
+    for(const node of result.nodes){node.x+=dx;node.y+=dy;}
+    for(const link of result.links){
+      link.samples=link.samples.map(point=>({x:point.x+dx,y:point.y+dy}));
+    }
+    result.boardWidth=nextWidth;
+    result.boardHeight=nextHeight;
+  }
+
   function render(doc, w, h, measure, style, generationOffset = 0, options) {
     const result = layout(doc, { width: w, height: h }, measure, style);
     const { nodes, links, font, root, maxDepth } = result;
-    const improved = result.style === 'organic-improved';
+    const engraved=result.style==='engraved-crown';
+    const engravedAdaptive=engraved&&!!result.boardWidth;
+    if(engravedAdaptive)centerEngravedBoard(result,w,h);
+    const improved = result.style === 'organic-improved' || engraved;
     const renderedLinks = improved && nodes.length<=80 ? rootFlares(links,root,nodes) : links;
     const boardWidth=result.boardWidth||width, boardHeight=result.boardHeight||height;
     const sx=boardWidth/width, sy=boardHeight/height;
-    const decoration = artwork(improved);
+    const decoration = artwork(improved,engraved);
     const boardTransform = `scale(${sx} ${sy})`;
     let trunkTransform = boardTransform;
-    if(result.style==='growing' || result.style==='sector') {
+    if(result.style==='growing' || result.style==='sector' || engravedAdaptive) {
       const trunkY=(boardHeight*.92-root.y)/(1560-1225);
-      const trunkX=result.style==='sector' ? boardWidth*.10/228 : Math.max(1,root.shapeWidth/100);
+      const trunkX=result.style==='sector' ? boardWidth*.10/228 : Math.max(1,root.shapeWidth/(engraved?82:100));
       trunkTransform = `translate(${root.x-600*trunkX} ${root.y-1225*trunkY}) scale(${trunkX} ${trunkY})`;
     }
     const decorScale=Math.min(sx,sy);
@@ -1228,10 +1309,10 @@
     const markup = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="${w}mm" height="${h}mm" viewBox="0 0 ${boardWidth} ${boardHeight}" text-rendering="geometricPrecision" font-family="${fontFamily}"><title>${escape(title)}</title>${decoration.definitions}
       <g id="hp-background-layer" inkscape:groupmode="layer" inkscape:label="الخلفية" transform="${boardTransform}">${decoration.background}</g>
       <g id="hp-frame-layer" inkscape:groupmode="layer" inkscape:label="الإطار" transform="${boardTransform}">${decoration.frame}</g>
-      <g id="hp-trunk-layer" inkscape:groupmode="layer" inkscape:label="الجذع" transform="${trunkTransform}">${decoration.trunk}${improved?rootMedallion(root):''}</g>
+      <g id="hp-trunk-layer" inkscape:groupmode="layer" inkscape:label="الجذع"${engraved?'':` transform="${trunkTransform}"`}>${engraved?`<g transform="${trunkTransform}">${decoration.trunk}</g>${rootMedallion(root)}`:`${decoration.trunk}${improved?rootMedallion(root):''}`}</g>
       <g transform="${headerTransform}" fill="${ink}" direction="rtl" text-anchor="middle">${improved?`<text x="600" y="118" font-size="${Math.min(64,titleFont+6)}" font-weight="700" font-family="Amiri,Tahoma,serif">${escape(title)}</text><text x="600" y="146" font-size="17" font-family="Amiri,Tahoma,serif" fill="#8a6d2f">شجرة النسب · لوحة تراثية</text><path d="M235 162H482M718 162H965M582 162l18-11 18 11-18 11Z" fill="none" stroke="#a88342" stroke-width="2"/>`:`<path d="M235 157H482M718 157H965M582 157l18-11 18 11-18 11Z" fill="none" stroke="#a88342" stroke-width="2"/><text x="600" y="128" font-size="${titleFont}" font-weight="700">${escape(title)}</text>`}</g>
-      <g id="hp-branches-layer" inkscape:groupmode="layer" inkscape:label="أغصان النسب">${renderedLinks.map(link=>ribbon(link,improved)).join('')}${improved?decorativeLeaves(renderedLinks,nodes):''}</g>
-      <g id="hp-names-layer" inkscape:groupmode="layer" inkscape:label="الأوراق والأسماء">${nodes.map(node => label(node,font,doc.presentation,result.style==='sector',improved,generationOffset)).join('')}</g>
+      <g id="hp-branches-layer" inkscape:groupmode="layer" inkscape:label="أغصان النسب">${renderedLinks.map(link=>ribbon(link,improved)).join('')}${improved?decorativeLeaves(renderedLinks,nodes,engraved):''}</g>
+      <g id="hp-names-layer" inkscape:groupmode="layer" inkscape:label="الأوراق والأسماء">${nodes.map(node => label(node,font,doc.presentation,result.style==='sector',improved,generationOffset,engraved)).join('')}</g>
       <g transform="scale(${sx} ${sy})" fill="${ink}" text-anchor="middle" direction="rtl">${improved?`${editorialPanel(options?.notes,nodes.length,maxDepth+1,measure)}<rect x="852" y="1520" width="270" height="104" rx="10" fill="#fff8e8" stroke="#b8892b" stroke-width="2.2"/><rect x="858" y="1526" width="258" height="92" rx="7" fill="none" stroke="#c9a95f" stroke-width=".8"/><text x="987" y="1553" font-size="17" font-weight="700" font-family="Amiri,Tahoma,serif">ألوان الأجيال</text>${legend}`:`<rect x="76" y="1520" width="270" height="104" rx="12" fill="url(#hp-gold)" stroke="#865c31" stroke-width="2"/><text x="211" y="1561" font-size="19" font-weight="700">${nodes.length} اسمًا في الشجرة</text><text x="211" y="1596" font-size="16">${maxDepth+1} أجيال</text><rect x="852" y="1520" width="270" height="104" rx="12" fill="url(#hp-gold)" stroke="#865c31" stroke-width="2"/><text x="987" y="1553" font-size="17" font-weight="700">ألوان الأجيال</text>${legend}`}</g></svg>`;
     return { ...result, svg: markup, w, h, pt: result.minimumPt, count: nodes.length, rootName: root.fullName };
   }

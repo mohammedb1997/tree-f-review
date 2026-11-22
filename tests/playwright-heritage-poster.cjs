@@ -126,7 +126,7 @@ async function run() {
       assert.equal(await radio(value).isChecked(),true);
     };
     assert.equal(await radio('organic-improved').isChecked(),true);
-    assert.equal(await picker.getByRole('radio').count(),3);
+    assert.equal(await picker.getByRole('radio').count(),4);
     await app.setViewportSize({width:390,height:844});
     assert(await picker.locator('img').evaluateAll(images=>images.every(img=>img.complete && img.naturalWidth>0)));
     await radio('organic-improved').focus();
@@ -138,6 +138,9 @@ async function run() {
     const originalSvg = fs.readFileSync('evidence/organic-preview/51.svg','utf8');
     assert.equal(fs.readFileSync(preferredSvg,'utf8'), originalSvg, 'The UI must reproduce the accepted 51-person SVG');
     assert(fs.readFileSync(preferredHtml,'utf8').includes(originalSvg));
+    await choose('engraved-crown');
+    const engravedSvg=await save(app,'posterSvg','51-engraved-from-app.svg');
+    assert.match(fs.readFileSync(engravedSvg,'utf8'),/M0 102V0H102/);
     await app.setViewportSize({width:1366,height:1000});
     await choose('organic-improved');
     assert.doesNotMatch(await app.locator('#posterStatus').textContent(), /تقاطعات|متداخلة|تمر خلف/);
@@ -195,7 +198,7 @@ async function run() {
     assert.equal(await radio('growing').isChecked(),true);
     await app.locator('#posterClose').click();
     report.preferredStyle = { count: 51, svgMatches: true, interactiveDownload: true,
-      templatePicker:{mobileKeyboard:true, thumbnails:3, reopenRetained:true}, measured };
+      templatePicker:{mobileKeyboard:true, thumbnails:4, reopenRetained:true}, measured };
     for (const count of [30, 150, 280, 500]) {
       const fixture = core.fixture(count);
       fixture.title = 'شجرة عائلة السند · نموذج تجريبي';

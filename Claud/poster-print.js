@@ -22,7 +22,7 @@
     stylePicker.append(el('legend','قالب اللوحة'));
     const styleCards=el('div');styleCards.className='poster-style-cards';stylePicker.append(styleCards);
     const styleInputs=new Map();
-    for(const [value,title] of [['organic-improved','التاج العضوي المحسّن'],['organic','التاج العضوي الأصلي'],['growing','التوزيع المتّسع']]){
+    for(const [value,title] of [['organic-improved','التاج العضوي المحسّن'],['organic','التاج العضوي الأصلي'],['growing','التوزيع المتّسع'],['engraved-crown','التاج التراثي المزخرف']]){
       const card=el('label'),input=el('input'),preview=el('span'),image=el('img');
       input.type='radio';input.name='poster-heritage-style';input.value=value;
       preview.className='poster-style-card';
