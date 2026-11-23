@@ -52,6 +52,28 @@
     account.temporary='PreviewOnly-'+(++sequence);
     return {code:account.identifier,initialPassword:account.temporary};
   }
+  const profiles=new Map();
+  function previewTarget(id){
+    const person=tree.people.find(row=>row.id===id);
+    if(person&&writable(id))return {row:person};
+    for(const [fatherId,daughters] of privateDaughters){
+      const row=daughters.find(daughter=>daughter.id===id);
+      if(row&&(user.role==='admin'||user.personId===id||user.personId===fatherId))return {row,fatherId,daughters};
+    }
+    fail('التعديل ضمن الفرع المخوّل.');
+  }
+
+  function previewRemovalOptions(id){
+    const {row,fatherId}=previewTarget(id);
+    const direct=tree.people.filter(person=>person.parentId===id);
+    if(user.role==='admin'||user.personId===id){
+      direct.push(...(privateDaughters.get(id)||[]).map(daughter=>({...daughter,gender:'f'})));
+    }
+    return [...(row.parentId||fatherId?[{...row,gender:fatherId?'f':'m'}]:[]),...direct].filter(person=>
+      !accounts.some(account=>account.personId===person.id)&&
+      !tree.people.some(child=>child.parentId===person.id)&&!privateDaughters.get(person.id)?.length);
+  }
+
   function request(route,data,method){
     if(route==='/api/login'){
       user=accounts.find(account=>account.identifier.toLowerCase()===data.identifier.toLowerCase()&&account.password===data.password);
@@ -153,6 +175,29 @@
       const id='preview-person-'+(++sequence);
       update(()=>tree.people.push({id,parentId:data.parentId,name:data.name}));
       record('add','إضافة '+data.name,id);
+      return {id};
+    }
+    const action=route.match(/^\/api\/people\/([^/]+)\/(profile|remove-options)$/);
+    if(action){
+      const id=decodeURIComponent(action[1]);
+      if(action[2]==='remove-options')return {options:previewRemovalOptions(id)};
+      const {row,daughters}=previewTarget(id);
+      if(data===undefined)return {lifeStatus:'unknown',phone:'',email:'',photo:'',...profiles.get(id),name:row.name};
+      const {name,lifeStatus,phone,email,photo=profiles.get(id)?.photo||''}=data;
+      profiles.set(id,{lifeStatus,phone,email,photo});
+      if(daughters)row.name=name;
+      else if(row.name!==name)update(()=>{row.name=name;});
+      record('profile','تعديل بيانات شخص',id);
+      return {id};
+    }
+    if(/^\/api\/people\/[^/]+$/.test(route)&&method==='DELETE'){
+      const id=decodeURIComponent(route.split('/').at(-1));
+      if(!previewRemovalOptions(data.anchor).some(person=>person.id===id))fail('السجل محمي من الحذف.');
+      const {row,daughters}=previewTarget(id);
+      if(daughters)daughters.splice(daughters.indexOf(row),1);
+      else update(()=>{tree.people=tree.people.filter(person=>person.id!==id);});
+      profiles.delete(id);
+      record('remove','حذف سجل شخص',id);
       return {id};
     }
     if(route.startsWith('/api/people/')&&method==='PATCH'){

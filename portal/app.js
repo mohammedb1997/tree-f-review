@@ -483,6 +483,7 @@ async function submit(form, action) {
 }
 
 function showSignedOut() {
+  if(byId('person-action-dialog').open)byId('person-action-dialog').close();
   batchDraft=null;
   byId('batch-preview').replaceChildren();
   byId('batch-preview').hidden=true;
@@ -511,8 +512,8 @@ function showSignedOut() {
   byId('quick-add').hidden = true;
   byId('show-person-branch').hidden = true;
   byId('return-to-results').hidden = true;
-  byId('add-child-panel').open = false;
-  byId('edit-person-panel').open = false;
+  byId('edit-form').reset();
+  byId('person-photo-preview').removeAttribute('src');
   byId('add-form').querySelector('[data-form-status]').textContent = '';
   byId('session').hidden = true;
   byId('access').hidden = false;
@@ -541,12 +542,19 @@ function showSignedOut() {
   setChildForm();
 }
 
+let personAction=null;
+const personDialog=byId('person-action-dialog');
+const actionForms={add:'add-form',edit:'edit-form',remove:'person-delete-form'};
+
 function setChildForm(){
   const daughter=byId('child-gender').value==='f';
   const parent=byId('parent');
   const chooseFather=daughter&&user?.role==='admin';
-  if(daughter&&!chooseFather&&user?.personId)parent.value=user.personId;
-  parent.disabled=daughter&&!chooseFather;
+  const locked=personAction?.kind==='add'&&personAction.locked;
+  if(locked)parent.value=personAction.id;
+  else if(daughter&&!chooseFather&&user?.personId)parent.value=user.personId;
+  parent.disabled=locked||(daughter&&!chooseFather);
+  if(personAction?.kind==='add')byId('person-action-target').textContent=parent.selectedOptions[0]?.textContent||'';
   byId('child-name-label').textContent=daughter?'اسم الابنة الكامل':'اسم الابن الكامل';
   byId('private-child-hint').hidden=!daughter;
   byId('add-child-button').textContent=daughter
@@ -554,12 +562,93 @@ function setChildForm(){
     : 'إضافة إلى الشجرة';
 }
 
-function openAddPanel(parentId) {
-  if (!people.some(person => person.id === parentId && person.writable)) return;
-  byId('add-child-panel').open = true;
+function openAction(kind,person,locked=false){
+  if(personDialog.open)return null;
+  const action={kind,id:person.id,locked,trigger:document.activeElement};
+  personAction=action;
+  for(const id of Object.values(actionForms)){
+    const form=byId(id);
+    form.hidden=true;
+    form.querySelector('[data-form-status]').textContent='';
+  }
+  byId('person-action-title').textContent={add:'إضافة ابن أو ابنة',edit:'تعديل بيانات الشخص',remove:'حذف شخص'}[kind];
+  byId('person-action-target').textContent=person.name;
+  byId('person-action-status').textContent='';
+  personDialog.showModal();
+  byId('person-action-title').focus();
+  return action;
+}
+
+function openAddPanel(parentId,locked=false) {
+  const person=people.find(person=>person.id===parentId&&person.writable);
+  if(!person||!openAction('add',person,locked))return;
+  byId('add-form').hidden=false;
+  const gender=byId('child-gender');
+  const daughterAllowed=user.role==='admin'||user.canAddDaughter&&(!locked||user.personId===parentId);
+  gender.querySelector('option[value="f"]').disabled=!daughterAllowed;
+  if(!daughterAllowed)gender.value='m';
   byId('parent').value = parentId;
   setChildForm();
   byId('child-name').focus();
+}
+
+personDialog.addEventListener('close',()=>{
+  if(personDialog.open)return;
+  const trigger=personAction?.trigger;
+  personAction=null;
+  for(const id of Object.values(actionForms))byId(id).hidden=true;
+  byId('child-name').value='';
+  byId('edit-form').reset();
+  byId('person-photo-preview').removeAttribute('src');
+  byId('person-delete-target').replaceChildren();
+  if(!user)return;
+  if(trigger?.isConnected&&!trigger.closest('[hidden]'))trigger.focus({preventScroll:true});
+  else byId('person-title').focus({preventScroll:true});
+});
+byId('person-action-close').addEventListener('click',()=>personDialog.close());
+
+function managesPerson(person){
+  return person.writable||person.gender==='f'&&
+    (user?.role==='admin'||[person.id,person.parentId].includes(user?.personId));
+}
+
+byId('person-add').addEventListener('click',()=>openAddPanel(selectedId,true));
+for(const [button,kind,endpoint] of [['person-edit','edit','profile'],['person-delete','remove','remove-options']]){
+  byId(button).addEventListener('click',async()=>{
+    const person=people.find(row=>row.id===selectedId);
+    if(!person||!managesPerson(person))return;
+    const action=openAction(kind,person);
+    if(!action)return;
+    const status=byId('person-action-status');
+    status.textContent='جارٍ التحميل…';
+    try{
+      const result=await api('/api/people/'+encodeURIComponent(action.id)+'/'+endpoint);
+      if(!personDialog.open||personAction!==action)return;
+      status.textContent='';
+      const form=byId(actionForms[kind]);
+      form.reset();
+      if(kind==='edit'){
+        for(const [id,key] of [['person-name','name'],['person-life','lifeStatus'],['person-phone','phone'],['person-email','email']]){
+          byId(id).value=result[key];
+        }
+        const image=byId('person-photo-preview');
+        if(result.photo)image.src=result.photo;
+        image.hidden=!result.photo;
+        byId('person-photo-remove-label').hidden=!result.photo;
+      }else{
+        if(!result.options.length){
+          status.textContent='لا توجد سجلات قابلة للحذف هنا. يُحمى أصل الشجرة ومن له أبناء أو حساب مرتبط.';
+          return;
+        }
+        const select=byId('person-delete-target');
+        select.replaceChildren(new Option('اختر اسمًا',''),...result.options.map(row=>
+          new Option((row.id===action.id?'الشخص المحدد':row.gender==='f'?'ابنة':'ابن')+' · '+row.name,row.id)));
+      }
+      form.hidden=false;
+    }catch(error){
+      if(personDialog.open&&personAction===action)status.textContent=error.message;
+    }
+  });
 }
 
 byId('quick-add').addEventListener('click', () => {
@@ -699,11 +788,8 @@ function selectPerson(id) {
     : person.writable
     ? 'يمكنك تعديل هذا الاسم وإضافة الأبناء لهذا الفرع.'
     : 'يمكنك الاطلاع على هذا الفرع. التعديل متاح لصاحب الفرع والمدير.';
-  byId('edit-form').hidden = !person.writable;
-  const editPanel = byId('edit-person-panel');
-  editPanel.hidden = !person.writable;
-  if (editPanel.hidden) editPanel.open = false;
-  byId('person-name').value = person.name;
+  byId('person-quick-actions').hidden=!managesPerson(person);
+  byId('person-add').hidden=!person.writable;
   byId('show-person-branch').hidden = !treeSnapshot?.people.some(candidate => candidate.id === id);
   if (person.writable && (user?.role==='admin'||byId('child-gender').value==='m')) byId('parent').value = person.id;
   for (const button of byId('people').querySelectorAll('button')) {
@@ -718,7 +804,7 @@ function openPersonCard(id, fromResults = false) {
   selectPerson(id);
   const title = byId('person-title');
   title.focus({preventScroll:true});
-  title.scrollIntoView({block:'nearest'});
+  title.scrollIntoView({block:matchMedia('(max-width:760px)').matches?'start':'nearest'});
 }
 
 byId('return-to-results').addEventListener('click', () => {
@@ -851,7 +937,7 @@ function applyTree(result,forcePrivate=false) {
   if(!newer && JSON.stringify(nextPrivate)===JSON.stringify(privatePeople))return false;
   const firstSnapshot = !treeSnapshot;
   const currentParent=byId('parent').value;
-  const editing = document.activeElement?.closest('#edit-form, #add-form, #title-form');
+  const editing = document.activeElement?.closest('#add-form, #title-form');
   const draft = editing ? [...editing.querySelectorAll('input,select')].map(input=>[input,input.value]) : [];
   if(newer){
     beforeSnapshot = result.before || treeSnapshot;
@@ -875,8 +961,7 @@ function applyTree(result,forcePrivate=false) {
   const initial = current || people.find(person => person.id === user.personId) || writable[0] || people[0];
   if (initial) selectPerson(initial.id);
   if(writable.some(person=>person.id===currentParent))byId('parent').value=currentParent;
-  byId('add-form').hidden = writable.length === 0;
-  byId('add-child-panel').hidden = writable.length === 0;
+  if(personAction&&!people.some(person=>person.id===personAction.id&&managesPerson(person)))personDialog.close();
   byId('quick-add').hidden = writable.length === 0;
   for(const [input,value] of draft){
     if(input.tagName!=='SELECT' || [...input.options].some(option=>option.value===value))input.value=value;
@@ -937,6 +1022,7 @@ byId('search-main-tree').addEventListener('click', () => {
   byId('search').focus();
 });
 byId('child-gender').addEventListener('change',setChildForm);
+byId('parent').addEventListener('change',setChildForm);
 function discardOutOfScopePeople(){
   treeRequest++;
   privatePeople=visiblePrivatePeople(privatePeople.filter(person=>person.id===user?.personId || person.parentId===user?.personId));
@@ -1001,22 +1087,68 @@ byId('refresh').addEventListener('click', () => submit(byId('workspace'), async 
   notify('حُدّثت الشجرة.');
 }));
 
+async function profilePhoto(file){
+  if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>15*1024*1024)
+    throw Error('اختر صورة JPEG أو PNG أو WebP بحجم لا يزيد على ١٥ ميغابايت.');
+  let bitmap;
+  try{bitmap=await createImageBitmap(file);}catch{throw Error('تعذر قراءة الصورة المختارة.');}
+  try{
+    const canvas=document.createElement('canvas');
+    const scale=Math.min(1,360/Math.max(bitmap.width,bitmap.height));
+    canvas.width=Math.max(1,Math.round(bitmap.width*scale));
+    canvas.height=Math.max(1,Math.round(bitmap.height*scale));
+    const context=canvas.getContext('2d');
+    context.fillStyle='#fff';
+    context.fillRect(0,0,canvas.width,canvas.height);
+    context.drawImage(bitmap,0,0,canvas.width,canvas.height);
+    return canvas.toDataURL('image/jpeg',0.78);
+  }finally{bitmap.close();}
+}
+
 byId('edit-form').addEventListener('submit', event => {
   event.preventDefault();
+  const action=personAction;
+  if(action?.kind!=='edit')return;
   submit(event.currentTarget, async () => {
-    await api('/api/people/' + encodeURIComponent(selectedId), {name:byId('person-name').value.trim()}, 'PATCH');
+    const data={name:byId('person-name').value.trim(),lifeStatus:byId('person-life').value,
+      phone:byId('person-phone').value.trim(),email:byId('person-email').value.trim()};
+    const file=byId('person-photo').files[0];
+    if(file)data.photo=await profilePhoto(file);
+    else if(byId('person-photo-remove').checked)data.photo='';
+    if(personAction!==action||!personDialog.open)return;
+    await api('/api/people/'+encodeURIComponent(action.id)+'/profile',data,'PATCH');
+    if(personAction===action)personDialog.close();
     await loadTree();
-    notify('حُفظ الاسم.');
+    if(user?.canAddDaughter)await loadPrivateDaughters();
+    notify('حُفظت بيانات الشخص.');
+  });
+});
+
+byId('person-delete-form').addEventListener('submit',event=>{
+  event.preventDefault();
+  const action=personAction;
+  if(action?.kind!=='remove'||!byId('person-delete-confirm').checked)return;
+  const id=byId('person-delete-target').value;
+  if(!id)return;
+  submit(event.currentTarget,async()=>{
+    await api('/api/people/'+encodeURIComponent(id),{anchor:action.id},'DELETE');
+    if(personAction===action)personDialog.close();
+    await loadTree();
+    if(user?.canAddDaughter)await loadPrivateDaughters();
+    notify('حُذف السجل المحدد.');
   });
 });
 
 byId('add-form').addEventListener('submit', event => {
   event.preventDefault();
+  const action=personAction;
+  if(action?.kind!=='add')return;
   submit(event.currentTarget, async () => {
     const gender=byId('child-gender').value;
-    const parentId=byId('parent').value;
+    const parentId=action.locked?action.id:byId('parent').value;
     const result=await api('/api/people', {parentId, gender, name:byId('child-name').value.trim()});
     byId('child-name').value = '';
+    if(personAction===action)personDialog.close();
     if(result.private){
       await loadTree();
       if(user?.canAddDaughter && user.personId===parentId){

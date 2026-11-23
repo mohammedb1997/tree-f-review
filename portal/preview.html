@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>تجربة بوابة العائلة</title>
-  <link rel="stylesheet" href="style.css?v=731bbac90a">
-  <script src="../Claud/botanical-core.js?v=731bbac90a" defer></script>
-  <script src="preview.js?v=731bbac90a" defer></script>
-  <script src="app.js?v=731bbac90a" defer></script>
+  <link rel="stylesheet" href="style.css?v=3d824c05a8">
+  <script src="../Claud/botanical-core.js?v=3d824c05a8" defer></script>
+  <script src="preview.js?v=3d824c05a8" defer></script>
+  <script src="app.js?v=3d824c05a8" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -115,6 +115,11 @@
         </section>
         <aside class="panel details" aria-labelledby="person-title">
           <h2 id="person-title" tabindex="-1">اختر شخصًا من الشجرة</h2>
+          <div id="person-quick-actions" class="person-quick-actions" hidden>
+            <button id="person-add" type="button" class="primary">إضافة ابن/ابنة</button>
+            <button id="person-delete" type="button">حذف</button>
+            <button id="person-edit" type="button">تعديل</button>
+          </div>
           <p id="person-parent"></p>
           <p id="person-lineage" class="hint"></p>
           <p id="person-descendants" class="hint"></p>
@@ -123,16 +128,30 @@
             <button id="show-person-branch" type="button" hidden>اعرض فرع هذا الشخص</button>
             <button id="return-to-results" type="button" hidden>العودة إلى النتائج</button>
           </div>
-          <details id="edit-person-panel" hidden>
-            <summary>تعديل الاسم</summary>
+          <dialog id="person-action-dialog" aria-labelledby="person-action-title" aria-describedby="person-action-target">
+          <div class="person-dialog-head">
+            <h2 id="person-action-title" tabindex="-1"></h2>
+            <button id="person-action-close" type="button">إغلاق</button>
+          </div>
+          <p id="person-action-target" class="hint"></p>
+          <p id="person-action-status" class="hint" role="status"></p>
           <form id="edit-form" method="post" hidden>
             <label for="person-name">الاسم الكامل</label>
             <input id="person-name" name="name" required maxlength="300">
-            <button type="submit">حفظ الاسم</button>
+            <label for="person-life">الحالة</label>
+            <select id="person-life"><option value="unknown">غير محددة</option><option value="living">على قيد الحياة</option><option value="deceased">متوفّى</option></select>
+            <label for="person-phone">رقم الجوال</label>
+            <input id="person-phone" type="tel" dir="ltr" maxlength="32">
+            <label for="person-email">البريد الإلكتروني</label>
+            <input id="person-email" type="email" dir="ltr" maxlength="254">
+            <label for="person-photo">الصورة الشخصية</label>
+            <img id="person-photo-preview" alt="الصورة الشخصية" hidden>
+            <input id="person-photo" type="file" accept="image/jpeg,image/png,image/webp">
+            <label id="person-photo-remove-label" hidden><input id="person-photo-remove" type="checkbox"> إزالة الصورة الحالية</label>
+            <p class="hint">بيانات التواصل والصورة تظهر في نموذج التعديل للحسابات المخوّلة. هذه الحقول لا تغيّر بيانات الدخول.</p>
+            <button type="submit" class="primary">حفظ التعديلات</button>
+            <p data-form-status class="hint" role="status"></p>
           </form>
-          </details>
-          <details id="add-child-panel" hidden>
-            <summary>إضافة ابن أو ابنة</summary>
           <form id="add-form" method="post" hidden>
             <label for="child-gender">الجنس</label>
             <select id="child-gender" name="gender"><option value="m">ابن</option><option value="f">ابنة</option></select>
@@ -144,7 +163,14 @@
             <button id="add-child-button" class="primary" type="submit">إضافة إلى الشجرة</button>
             <p data-form-status class="hint" role="status"></p>
           </form>
-          </details>
+          <form id="person-delete-form" hidden>
+            <label for="person-delete-target">اختر الشخص المراد حذفه</label>
+            <select id="person-delete-target" required></select>
+            <label><input id="person-delete-confirm" type="checkbox" required> أؤكد حذف السجل المحدد نهائيًا</label>
+            <button type="submit" class="danger">حذف السجل</button>
+            <p data-form-status class="hint" role="status"></p>
+          </form>
+          </dialog>
         </aside>
       </div>
       </div>

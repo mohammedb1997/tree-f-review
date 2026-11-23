@@ -172,6 +172,7 @@ test('دعوة وتحديد موقع العضو ومقارنة تعديل حي �
     await daughter.locator('#new-password').fill('RecoveryTest-New-2026');
     await daughter.locator('#activate-form button[type=submit]').click();
     await daughter.locator('#tree-view .is-self').getByText('ابنة بعد تصحيح الاسم').waitFor();
+    await member.locator('#quick-add').click();
     await member.locator('#child-gender').selectOption('m');
     await member.locator('#tree-view svg [data-person-id="test-1"]').waitFor();
     assert.match(await member.locator('#person-title').textContent(),/أحمد 1/);

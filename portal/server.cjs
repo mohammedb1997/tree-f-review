@@ -82,6 +82,7 @@ function createPortal({filename,origin}) {
       id TEXT PRIMARY KEY, father_id TEXT NOT NULL, name TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS private_daughters_father ON private_daughters(father_id);
+    CREATE TABLE IF NOT EXISTS person_profiles (person_id TEXT PRIMARY KEY, document TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS accounts (
       id TEXT PRIMARY KEY, identifier TEXT UNIQUE NOT NULL, person_id TEXT UNIQUE,
       role TEXT NOT NULL CHECK(role IN ('admin','member')), password TEXT,
@@ -378,13 +379,13 @@ function createPortal({filename,origin}) {
   },20000);
   heartbeat.unref();
 
-  async function input(req) {
+  async function input(req,limit=8192) {
     if(!/^application\/json(?:;|$)/i.test(req.headers['content-type']||''))throw bad(415,error.invalid);
     const chunks=[];
     let size=0;
     for await(const chunk of req){
       size+=chunk.length;
-      if(size>8192)throw bad(413,error.invalid);
+      if(size>limit)throw bad(413,error.invalid);
       chunks.push(chunk);
     }
     let result;
@@ -395,6 +396,95 @@ function createPortal({filename,origin}) {
 
   function fields(data,allowed){
     if(Object.keys(data).some(key=>!allowed.includes(key)))throw bad(400,error.invalid);
+  }
+
+  function personTarget(account,id){
+    const doc=tree(), before=publicTree(doc);
+    if(projection(before,account).writable.has(id)){
+      const person=doc.persons.find(item=>item.personId===id);
+      return {doc,before,person,name:person.fullName};
+    }
+    const daughter=db.prepare('SELECT * FROM private_daughters WHERE id=?').get(id);
+    if(daughter&&(account.role==='admin'||account.person_id===id||account.person_id===daughter.father_id))
+      return {doc,before,daughter,name:daughter.name};
+    throw bad(403,error.forbidden);
+  }
+
+  function profileFor(id,target){
+    const row=db.prepare('SELECT document FROM person_profiles WHERE person_id=?').get(id);
+    return {lifeStatus:target.person?.lifeStatus||'unknown',phone:'',email:'',photo:'',
+      ...(row?JSON.parse(row.document):{}),name:target.name};
+  }
+
+  function saveProfile(account,id,data){
+    return transaction(()=>{
+      const target=personTarget(account,id);
+      const {doc,before,person,daughter}=target;
+      const name=personName(data.name);
+      const {lifeStatus,phone,email}=data;
+      const photo=data.photo===undefined?profileFor(id,target).photo:data.photo;
+      if(!['unknown','living','deceased'].includes(lifeStatus)||typeof phone!=='string'||
+        (phone&&!/^[+\d٠-٩۰-۹() -]{7,32}$/u.test(phone))||typeof email!=='string'||
+        (email&&(email.length>254||!/^\S+@[^\s@]+\.[^\s@]+$/.test(email)))||typeof photo!=='string'||
+        (photo&&(photo.length>180000||!/^data:image\/jpeg;base64,\/9j\/[A-Za-z0-9+/]+={0,2}$/.test(photo))))
+        throw bad(400,'راجع الحالة وبيانات التواصل وصيغة الصورة.');
+      db.prepare('INSERT INTO person_profiles VALUES(?,?) ON CONFLICT(person_id) DO UPDATE SET document=excluded.document')
+        .run(id,JSON.stringify({lifeStatus,phone,email,photo}));
+      if(person&&(person.fullName!==name||person.lifeStatus!==lifeStatus)){
+        person.fullName=name;
+        person.lifeStatus=lifeStatus;
+        validateTree(doc);
+        saveTree(doc,before);
+      }else if(daughter&&daughter.name!==name){
+        db.prepare('UPDATE private_daughters SET name=? WHERE id=?').run(name,id);
+      }
+      auditChange(account,'person-profile','تعديل بيانات شخص',[id],daughter?.father_id);
+      return {id};
+    });
+  }
+
+  function removePerson(account,id,anchor){
+    return transaction(()=>{
+      const {doc,before,person,daughter}=personTarget(account,id);
+      const parentId=daughter?.father_id||before.people.find(row=>row.id===id)?.parentId;
+      if(id!==anchor&&parentId!==anchor)throw bad(403,error.forbidden);
+      if(id!==anchor)personTarget(account,anchor);
+      const blocked=removalBlock(doc,id,parentId);
+      if(blocked)throw bad(409,blocked);
+      if(daughter)db.prepare('DELETE FROM private_daughters WHERE id=?').run(id);
+      if(person){
+        doc.persons=doc.persons.filter(row=>row.personId!==id);
+        doc.relationships=doc.relationships.filter(row=>row.childId!==id);
+        validateTree(doc);
+        saveTree(doc,before);
+      }
+      db.prepare('DELETE FROM person_profiles WHERE person_id=?').run(id);
+      auditChange(account,'person-remove','حذف سجل شخص',[id],daughter?.father_id);
+      return {id,private:!!daughter};
+    });
+  }
+
+  function removalBlock(doc,id,parentId){
+    if(!parentId)return 'لا يمكن حذف أصل الشجرة.';
+    if(db.prepare('SELECT 1 FROM accounts WHERE person_id=?').get(id))return 'هذا الشخص مرتبط بحساب أو دعوة.';
+    if(doc.relationships.some(row=>row.parentId===id||(row.childId===id&&row.type!=='father'))||
+      db.prepare('SELECT 1 FROM private_daughters WHERE father_id=?').get(id))return 'لا يمكن حذف شخص له أبناء أو علاقات مرتبطة.';
+    if(db.prepare("SELECT 1 FROM corrections WHERE status='pending' AND (person_id=? OR parent_id=? OR source_parent_id=?)").get(id,id,id))
+      return 'يوجد طلب تصحيح قيد المراجعة لهذا الشخص.';
+    return null;
+  }
+
+  function removalOptions(account,id){
+    const {before,doc,daughter,name}=personTarget(account,id);
+    const males=projection(before,account).writable;
+    const direct=before.people.filter(row=>row.parentId===id&&males.has(row.id));
+    if(account.role==='admin'||account.person_id===id){
+      const daughters=db.prepare('SELECT id,name FROM private_daughters WHERE father_id=? ORDER BY rowid').all(id);
+      direct.push(...daughters.map(row=>({...row,gender:'f'})));
+    }
+    const parentId=daughter?.father_id||before.people.find(person=>person.id===id)?.parentId;
+    return {options:[{id,name,gender:daughter?'f':'m'},...direct].filter(row=>
+      !removalBlock(doc,row.id,row.id===id?parentId:id))};
   }
 
   function updatePerson(account,personId,data,method){
@@ -482,7 +572,7 @@ function createPortal({filename,origin}) {
       res.end(readFileSync(path.join(__dirname,file)));
       return;
     }
-    if(['POST','PATCH'].includes(method)&&req.headers.origin!==origin)throw bad(403,error.forbidden);
+    if(['POST','PATCH','DELETE'].includes(method)&&req.headers.origin!==origin)throw bad(403,error.forbidden);
     const account=accountFor(req);
     let payload;
     if(method==='POST'&&pathname==='/api/login'){
@@ -603,6 +693,21 @@ function createPortal({filename,origin}) {
           payload=updatePerson(acting,data.parentId,data,method);
           publishTree();
         }
+      }else if(method==='GET'&&/^\/api\/people\/[^/]+\/remove-options$/.test(pathname)){
+        payload=removalOptions(account,decodeURIComponent(pathname.split('/')[3]));
+      }else if(/^\/api\/people\/[^/]+\/profile$/.test(pathname)&&['GET','PATCH'].includes(method)){
+        const id=decodeURIComponent(pathname.split('/')[3]);
+        if(method==='GET')payload=profileFor(id,personTarget(account,id));
+        else{
+          const data=await input(req,184000);fields(data,['name','lifeStatus','phone','email','photo']);
+          payload=saveProfile(requireCurrent(req),id,data);
+          publishTree();
+          signalPrivateChange();
+        }
+      }else if(method==='DELETE'&&/^\/api\/people\/[^/]+$/.test(pathname)){
+        const data=await input(req);fields(data,['anchor']);
+        payload=removePerson(requireCurrent(req),decodeURIComponent(pathname.split('/').at(-1)),data.anchor);
+        if(payload.private)signalPrivateChange();else publishTree();
       }else if(method==='PATCH'&&/^\/api\/people\/[^/]+$/.test(pathname)){
         const data=await input(req);fields(data,['name']);
         payload=updatePerson(requireCurrent(req),decodeURIComponent(pathname.split('/').at(-1)),data,method);
@@ -694,7 +799,7 @@ function createPortal({filename,origin}) {
     res.setHeader('Cache-Control','no-store');
     res.setHeader('X-Content-Type-Options','nosniff');
     res.setHeader('Referrer-Policy','no-referrer');
-    res.setHeader('Content-Security-Policy',"default-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
+    res.setHeader('Content-Security-Policy',"default-src 'self'; img-src 'self' data:; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
     handle(req,res).catch(e=>{
       res.statusCode=e.status||500;
       res.setHeader('Content-Type','application/json;charset=utf-8');
