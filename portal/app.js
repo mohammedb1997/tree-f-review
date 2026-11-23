@@ -62,6 +62,7 @@ let botanicalZoom=1;
 let overviewMode=false;
 let treePinch=null;
 let radialCache=null;
+const branchExpansion=new Map();
 const detailZoomThreshold=1.24;
 const minimumReadingScale=0.8;
 let inlineSelection=null;
@@ -309,6 +310,7 @@ function drawTree(container, snapshot, colored = true) {
   const family = descendants(source, anchor||selectedId);
   const relatives = anchor && anchor!==selectedId ? descendants(source,selectedId) : family;
   const allPeople = new Map(source.map(person=>[person.id,person]));
+  const folded=container.id==='tree-view'&&byId('tree-drawing').value==='folded';
   const ancestors = ancestorIds(allPeople,selectedId);
   const accountAncestors=ancestorIds(allPeople,user?.personId);
   const colorMode = colored ? byId('tree-color-mode').value : '';
@@ -333,22 +335,36 @@ function drawTree(container, snapshot, colored = true) {
   context.font = '15px Tahoma,Arial,sans-serif';
   const radial=container.id==='tree-view'&&byId('tree-drawing').value==='radial';
   const roots=children.get(null)||[];
-  const measure=person=>Math.max(radial?126:150,Math.ceil(context.measureText(person.name).width+38));
+  const rootIds=new Set(roots.map(person=>person.id));
+  const isExpanded=id=>branchExpansion.get(id)??rootIds.has(id);
+  const descendantCounts=new Map();
+  if(folded){
+    // Count only people the current view is allowed to display.
+    function count(person){
+      const total=(children.get(person.id)||[]).reduce((sum,child)=>sum+1+count(child),0);
+      descendantCounts.set(person.id,total);
+      return total;
+    }
+    roots.forEach(count);
+    container.dataset.drawing='folded';
+  }
+  const measure=person=>Math.max(folded?124:radial?126:150,Math.ceil(context.measureText(person.name).width+(folded?28:38)));
   if(radial&&(radialCache?.source!==source||radialCache.anchor!==anchor)){
     radialCache={source,anchor,layout:radialLayout(roots,children,measure,allPeople)};
   }
   const {positions,radii}=radial?radialCache.layout:{positions:new Map(),radii:[]};
   let cursor = 25;
   let maximumDepth = 0;
-  const gap = 32;
+  const gap = folded?22:32;
+  const rowHeight=folded?154:120;
   function place(person, depth, generation) {
     if (positions.has(person.id)) return;
     const width = measure(person);
-    const position = {x:0, y:depth * 120 + 65, width, generation};
+    const position = {x:0, y:depth * rowHeight + 65, width, generation};
     positions.set(person.id, position);
     maximumDepth = Math.max(maximumDepth, depth);
     const start = cursor;
-    const childrenHere = children.get(person.id) || [];
+    const childrenHere = !folded||isExpanded(person.id)?children.get(person.id)||[]:[];
     for (const child of childrenHere) place(child, depth + 1, generation + 1);
     const subtreeWidth = Math.max(width, cursor - start - (childrenHere.length ? gap : 0));
     position.x = start + subtreeWidth / 2;
@@ -367,8 +383,8 @@ function drawTree(container, snapshot, colored = true) {
     byId('tree-ancestor-hint').hidden=colorMode!=='relationship'||![...ancestors].some(id=>!map.has(id));
   }
   const width = Math.max(650, cursor + 25);
-  let height = maximumDepth * 120 + 140;
-  const fit=radial||container.id==='tree-view'&&byId('live-tree').classList.contains('is-focused');
+  let height = maximumDepth * rowHeight + (folded?158:140);
+  const fit=folded||radial||container.id==='tree-view'&&byId('live-tree').classList.contains('is-focused');
   const screenX=position=>radial?position.x:width-position.x;
   let left=0,top=0,viewWidth=width;
   if(fit){
@@ -399,7 +415,8 @@ function drawTree(container, snapshot, colored = true) {
     const parent = positions.get(person.parentId);
     if (!parent || !child) continue;
     const middle=radial?(parent.radius+child.radius)/2:0;
-    const branch=radial?`M${parent.x} ${parent.y}C${parent.ux*middle} ${parent.uy*middle} ${child.ux*middle} ${child.uy*middle} ${child.x} ${child.y}`:
+    const branch=radial?`M${parent.x} ${parent.y}C${parent.ux*middle} ${parent.uy*middle} ${child.ux*middle} ${child.uy*middle} ${child.x} ${child.y}`:folded?
+      `M${screenX(parent)} ${parent.y+73}C${screenX(parent)} ${parent.y+100} ${screenX(child)} ${child.y-50} ${screenX(child)} ${child.y-25}`:
       `M${screenX(parent)} ${parent.y+25}C${screenX(parent)} ${parent.y+77} ${screenX(child)} ${child.y-77} ${screenX(child)} ${child.y-25}`;
     const path = svgElement('path', {
       d:branch,
@@ -458,6 +475,41 @@ function drawTree(container, snapshot, colored = true) {
       if(event.key==='Enter'||event.key===' '){event.preventDefault();openPersonCard(person.id,false,container.id==='tree-view',true);}
     });
     svg.append(group);
+    const count=descendantCounts.get(person.id);
+    if(count){
+      const expanded=isExpanded(person.id);
+      const x=screenX(position),y=position.y;
+      svg.append(svgElement('path',{d:`M${x} ${y+25}v48`,class:'branch-toggle-stem','aria-hidden':'true'}));
+      const toggle=svgElement('g',{class:'branch-toggle',transform:`translate(${x} ${y+53})`,tabindex:0,role:'button',
+        'data-branch-id':person.id,'aria-expanded':String(expanded),
+        'aria-label':`${expanded?'طي':'توسيع'} فرع ${person.name}، عدد الذرية ${arabicNumber.format(count)}`});
+      toggle.append(svgElement('circle',{r:28,class:'branch-toggle-target'}));
+      toggle.append(svgElement('circle',{r:20,class:'branch-toggle-ring'}));
+      toggle.append(svgElement('text',{'text-anchor':'middle',y:5,'aria-hidden':'true'},expanded?'−':arabicNumber.format(count)));
+      function toggleBranch(){
+        const previous=toggle.getBoundingClientRect();
+        if(expanded){
+          const stack=[...(children.get(person.id)||[])];
+          while(stack.length){
+            const child=stack.pop();
+            branchExpansion.delete(child.id);
+            stack.push(...(children.get(child.id)||[]));
+          }
+        }
+        branchExpansion.set(person.id,!expanded);
+        renderTrees();
+        const replacement=container.querySelector('[data-branch-id="'+CSS.escape(person.id)+'"]');
+        const current=replacement.getBoundingClientRect();
+        container.scrollLeft+=current.left-previous.left;
+        container.scrollTop+=current.top-previous.top;
+        replacement.focus({preventScroll:true});
+      }
+      toggle.addEventListener('click',toggleBranch);
+      toggle.addEventListener('keydown',event=>{
+        if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleBranch();}
+      });
+      svg.append(toggle);
+    }
   }
   container.append(svg);
 }
@@ -467,13 +519,15 @@ byId('tree-color-mode').addEventListener('change',renderTrees);
 function renderTrees() {
   const botanical=byId('tree-drawing').value==='botanical';
   const radial=byId('tree-drawing').value==='radial';
+  const folded=byId('tree-drawing').value==='folded';
   const focused=byId('live-tree').classList.contains('is-focused');
-  byId('botanical-zoom').hidden=!botanical&&!radial&&!focused;
+  byId('botanical-zoom').hidden=!botanical&&!radial&&!folded&&!focused;
   byId('tree-overview').setAttribute('aria-pressed',String(overviewMode));
   byId('botanical-add').hidden=!botanical||!people.some(person=>person.id===selectedId&&canAddPerson(person));
   const scroll=Array.from(document.querySelectorAll('.tree-canvas'),node=>[node,node.scrollLeft,node.scrollTop]);
   const active = document.activeElement;
   const focusPersonId = active?.dataset?.personId;
+  const focusBranchId = active?.dataset?.branchId;
   const focusContainer = active?.closest('.tree-canvas')?.id;
   drawTree(byId('tree-view'), treeSnapshot && {...treeSnapshot,people});
   const comparison = byId('comparison');
@@ -490,7 +544,8 @@ function renderTrees() {
       .find(element=>element.dataset.personId===focusPersonId);
     replacement?.focus({preventScroll:true});
   }
-  if(botanical||radial||focused||inlineSelection)for(const [node,x,y] of scroll){node.scrollLeft=x;node.scrollTop=y;}
+  if(focusBranchId&&folded)byId('tree-view').querySelector('[data-branch-id="'+CSS.escape(focusBranchId)+'"]')?.focus({preventScroll:true});
+  if(botanical||radial||folded||focused||inlineSelection)for(const [node,x,y] of scroll){node.scrollLeft=x;node.scrollTop=y;}
   positionTreeActions();
 }
 
@@ -552,7 +607,7 @@ function setTreeFocus(active){
   const compactOptions={
     'tree-scope':{mine:'فرعي',family:'العائلة وفرعي',shared:'الرئيسية',all:'الكل',branch:'الفرع المحدد'},
     'tree-color-mode':{relationship:'القرابة',membership:'تمييز فرعي',generation:'الأجيال',gender:'الجنس'},
-    'tree-drawing':{classic:'المخطط الأصلي',radial:'شعاعي',botanical:'نباتي'}
+    'tree-drawing':{classic:'المخطط الأصلي',folded:'الفروع',radial:'شعاعي',botanical:'نباتي'}
   };
   for(const [id,labels] of Object.entries(compactOptions))for(const option of byId(id).options){
     if(active)option.label=labels[option.value];else option.removeAttribute('label');
@@ -710,8 +765,22 @@ window.addEventListener('resize',()=>{
   else positionTreeActions();
 });
 
-function locatePerson(id, container = byId('tree-view')) {
-  const node = [...container.querySelectorAll('[data-person-id]')].find(element=>element.dataset.personId===id);
+function locatePerson(id, container = byId('tree-view'), revealBranch = false) {
+  if(!id)return false;
+  const selector='[data-person-id="'+CSS.escape(id)+'"]';
+  let node=container.querySelector(selector);
+  if(!node&&revealBranch&&container.dataset.drawing==='folded'){
+    const map=new Map(people.map(person=>[person.id,person]));
+    if(!map.has(id))return false;
+    const ancestry=ancestorIds(map,id);
+    const scope=byId('tree-scope').value;
+    const anchor=scope==='mine'?user?.personId:scope==='branch'?selectedId:null;
+    if(anchor&&id!==anchor&&!ancestry.has(anchor))return false;
+    if(![...container.querySelectorAll('[data-person-id]')].some(element=>ancestry.has(element.dataset.personId)))return false;
+    for(const ancestor of ancestry)branchExpansion.set(ancestor,true);
+    renderTrees();
+    node=container.querySelector(selector);
+  }
   if (!node) return false;
   const bounds = node.getBoundingClientRect();
   const parent = container.getBoundingClientRect();
@@ -723,7 +792,7 @@ function locatePerson(id, container = byId('tree-view')) {
 function showTreeChange(personId) {
   const person = people.find(candidate => candidate.id === personId);
   const tree = byId('tree-view');
-  if (!locatePerson(personId, tree)) locatePerson(selectedId, tree);
+  if (!locatePerson(personId, tree, true)) locatePerson(selectedId, tree);
   if (beforeSnapshot) {
     const before = byId('before-tree');
     const after = byId('after-tree');
@@ -822,6 +891,7 @@ async function submit(form, action) {
 }
 
 function showSignedOut() {
+  branchExpansion.clear();
   radialCache=null;
   treePinch=null;
   if(byId('person-action-dialog').open)byId('person-action-dialog').close();
@@ -1292,6 +1362,7 @@ function openPersonCard(id, fromResults = false, inTree = false, keyboard = fals
     if(keyboard&&!actions.hidden)actions.querySelector('button:not([hidden])')?.focus({preventScroll:true});
     return;
   }
+  if(fromResults&&byId('tree-view').dataset.drawing==='folded')locatePerson(id,byId('tree-view'),true);
   const title = byId('person-title');
   title.focus({preventScroll:true});
   title.scrollIntoView({block:matchMedia('(max-width:760px)').matches?'start':'nearest'});
@@ -1495,7 +1566,7 @@ function renderMemberContext(){
         scope.dispatchEvent(new Event('change'));
       }
       selectPerson(row.id);
-      locatePerson(row.id);
+      locatePerson(row.id, byId('tree-view'), true);
     });
     return button;
   }));
@@ -1512,7 +1583,7 @@ function permissionLabel(){
 async function enter() {
   user = await api('/api/me');
   const params=new URLSearchParams(location.search);
-  if(params.get('layout')==='radial')byId('tree-drawing').value='radial';
+  if(['radial','folded'].includes(params.get('layout')))byId('tree-drawing').value=params.get('layout');
   const familyView=!!user.personId&&params.get('welcome')==='family';
   const scope=byId('tree-scope');
   scope.querySelector('option[value="mine"]').hidden=!user.personId;
@@ -1582,7 +1653,7 @@ byId('locate-me').addEventListener('click',()=>{
     discardOutOfScopePeople();
     selectPerson(id);
     renderPeople();
-    locatePerson(id);
+    locatePerson(id, byId('tree-view'), true);
     loadTree().catch(error=>notify(error.message,true));
   }
 });

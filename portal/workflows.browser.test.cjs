@@ -437,6 +437,58 @@ test('public Chrome preview is interactive and resets to synthetic data',{timeou
   }
 });
 
+test('folded tree shows authorized descendant counts and opens one generation at a time',{timeout:30000},async()=>{
+  const preview=process.env.TREEF_PREVIEW_URL || pathToFileURL(path.join(__dirname,'preview.html')).href;
+  const browser=await chromium.launch({channel:'chrome',chromiumSandbox:true});
+  const number=new Intl.NumberFormat('ar-u-nu-arab');
+  try{
+    const page=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
+    page.setDefaultTimeout(5000);
+    const canvas=page.locator('#tree-view');
+    const ids=()=>canvas.locator('[data-person-id]').evaluateAll(nodes=>nodes.map(node=>node.dataset.personId).sort());
+    const toggle=id=>canvas.locator('[data-branch-id="'+id+'"]');
+    for(const size of [30,150,500]){
+      await page.goto(preview+'?role=admin&tree=full&layout=folded&sample='+size);
+      await canvas.locator('[data-person-id="test-0"]').waitFor();
+      const fixture=core.visible(core.fixture(size)).nodes;
+      const children=id=>fixture.filter(row=>row.parentId===id);
+      const descendants=id=>children(id).reduce((total,child)=>total+1+descendants(child.personId),0);
+      const founders=children('test-0');
+      const top=['test-0',...founders.map(row=>row.personId)];
+      const branch=founders.find(row=>children(row.personId).some(child=>children(child.personId).length)).personId;
+      const next=children(branch);
+      const sub=next.find(row=>children(row.personId).length).personId;
+      assert.deepEqual(await ids(),top.toSorted());
+      assert.equal(await toggle(branch).locator('text').textContent(),number.format(descendants(branch)));
+      await toggle(branch).tap();
+      assert.equal(await toggle(branch).getAttribute('aria-expanded'),'true');
+      assert.deepEqual(await ids(),top.concat(next.map(row=>row.personId)).toSorted());
+      await toggle(sub).press('Enter');
+      const deeper=children(sub);
+      assert.deepEqual(await ids(),top.concat(next,deeper).map(entry=>entry.personId||entry).toSorted());
+      const links=await canvas.locator('[data-child-id]').evaluateAll(paths=>paths.map(path=>[path.dataset.parentId,path.dataset.childId]).sort());
+      const visible=new Set(await ids());
+      assert.deepEqual(links,fixture.filter(row=>visible.has(row.parentId)&&visible.has(row.personId)).map(row=>[row.parentId,row.personId]).sort());
+      await toggle(branch).tap();
+      assert.deepEqual(await ids(),top.toSorted());
+      await toggle(branch).tap();
+      assert.equal(await toggle(sub).getAttribute('aria-expanded'),'false');
+    }
+    await page.goto(preview+'?role=admin&layout=folded');
+    await page.locator('#search').fill('يوسف');
+    await page.locator('#people [data-person-id="grandson"]').tap();
+    await canvas.locator('[data-person-id="grandson"]').waitFor();
+    await page.goto(preview+'?role=member&layout=folded');
+    await canvas.locator('[data-person-id="father"]').waitFor();
+    assert.deepEqual(await ids(),['father','son']);
+    assert.equal(await toggle('son').locator('text').textContent(),number.format(1));
+    await toggle('son').tap();
+    assert.deepEqual(await ids(),['father','grandson','son']);
+  }finally{
+    await browser.close();
+  }
+});
+
 test('public review: member mode, scoped search and admin switch',{timeout:20000},async()=>{
   const preview=process.env.TREEF_PREVIEW_URL || pathToFileURL(path.join(__dirname,'preview.html')).href;
   const browser=await chromium.launch({channel:'chrome',chromiumSandbox:true});

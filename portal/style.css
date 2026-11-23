@@ -108,6 +108,14 @@ body.tree-focus-open{overflow:hidden}
 #tree-overview[aria-pressed=true]{border-color:#31694d;background:#dceee3}
 .tree-canvas[data-drawing=radial]{cursor:grab;user-select:none}
 #tree-view{touch-action:pan-x pan-y}
+.branch-toggle{cursor:pointer}
+.branch-toggle-stem{fill:none;stroke:#a89871;stroke-width:1.5;pointer-events:none}
+.branch-toggle-target{fill:transparent}
+.branch-toggle-ring{fill:#edf4eb;stroke:#3f694f;stroke-width:1.5}
+.branch-toggle text{fill:#213c2b;font-size:15px;font-weight:700;pointer-events:none}
+.branch-toggle:focus-visible{outline:none}
+.branch-toggle:is(:hover,:focus-visible) .branch-toggle-ring{stroke:#213c2b;stroke-width:3}
+.branch-toggle[aria-expanded=true] .branch-toggle-ring{fill:#fffdf6}
 .tree-canvas .radial-guide{fill:none;stroke:#cbbd94;stroke-width:1;stroke-dasharray:4 8;pointer-events:none}
 #live-tree.is-focused .tree-heading>.tree-tools{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
 #focused-color-slot .tree-color-tools{margin:0;display:block}
