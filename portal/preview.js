@@ -53,6 +53,7 @@
     return {code:account.identifier,initialPassword:account.temporary};
   }
   const profiles=new Map();
+  const siblingOrder=new Map(tree.people.map((row,index)=>[row.id,index]));
   function previewTarget(id){
     const person=tree.people.find(row=>row.id===id);
     if(person&&writable(id))return {row:person};
@@ -72,6 +73,10 @@
     return [...(row.parentId||fatherId?[{...row,gender:fatherId?'f':'m'}]:[]),...direct].filter(person=>
       !accounts.some(account=>account.personId===person.id)&&
       !tree.people.some(child=>child.parentId===person.id)&&!privateDaughters.get(person.id)?.length);
+  }
+
+  function storeNewProfile(id,{birthDate,photo}){
+    if(birthDate||photo)profiles.set(id,{birthDate:birthDate||'',photo:photo||''});
   }
 
   function request(route,data,method){
@@ -169,11 +174,13 @@
         const id='preview-daughter-'+(++sequence);
         if(!privateDaughters.has(data.parentId))privateDaughters.set(data.parentId,[]);
         privateDaughters.get(data.parentId).push({id,name:data.name});
+        storeNewProfile(id,data);
         return {id,private:true};
       }
       if(!writable(data.parentId))fail('الإضافة ضمن الفرع المخوّل.');
       const id='preview-person-'+(++sequence);
       update(()=>tree.people.push({id,parentId:data.parentId,name:data.name}));
+      storeNewProfile(id,data);
       record('add','إضافة '+data.name,id);
       return {id};
     }
@@ -181,12 +188,29 @@
     if(action){
       const id=decodeURIComponent(action[1]);
       if(action[2]==='remove-options')return {options:previewRemovalOptions(id)};
-      const {row,daughters}=previewTarget(id);
-      if(data===undefined)return {lifeStatus:'unknown',phone:'',email:'',photo:'',...profiles.get(id),name:row.name};
-      const {name,lifeStatus,phone,email,photo=profiles.get(id)?.photo||''}=data;
-      profiles.set(id,{lifeStatus,phone,email,photo});
-      if(daughters)row.name=name;
+      const {row,daughters,fatherId}=previewTarget(id);
+      const gender=daughters?'f':'m';
+      const canChangeGender=user.role==='admin'&&previewRemovalOptions(id).some(person=>person.id===id);
+      if(data===undefined)return {lifeStatus:'unknown',phone:'',email:'',photo:'',birthDate:'',...profiles.get(id),
+        gender,canChangeGender,name:row.name};
+      const {name,lifeStatus,phone,email,photo=profiles.get(id)?.photo||'',birthDate=profiles.get(id)?.birthDate||''}=data;
+      if(data.gender&&data.gender!==gender){
+        if(!canChangeGender)fail('تعديل الجنس متاح للمدير للسجلات غير المرتبطة.');
+        if(data.gender==='f'){
+          if(!privateDaughters.has(row.parentId))privateDaughters.set(row.parentId,[]);
+          privateDaughters.get(row.parentId).push({id,name});
+          update(()=>{tree.people=tree.people.filter(person=>person.id!==id);});
+          previous=null;
+        }else{
+          daughters.splice(daughters.indexOf(row),1);
+          update(()=>{
+            tree.people.push({id,parentId:fatherId,name});
+            tree.people.sort((a,b)=>(siblingOrder.get(a.id)??Infinity)-(siblingOrder.get(b.id)??Infinity));
+          });
+        }
+      }else if(daughters)row.name=name;
       else if(row.name!==name)update(()=>{row.name=name;});
+      profiles.set(id,{lifeStatus,phone,email,photo,birthDate});
       record('profile','تعديل بيانات شخص',id);
       return {id};
     }

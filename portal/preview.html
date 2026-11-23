@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>تجربة بوابة العائلة</title>
-  <link rel="stylesheet" href="style.css?v=3d824c05a8">
-  <script src="../Claud/botanical-core.js?v=3d824c05a8" defer></script>
-  <script src="preview.js?v=3d824c05a8" defer></script>
-  <script src="app.js?v=3d824c05a8" defer></script>
+  <link rel="stylesheet" href="style.css?v=e45645cc00">
+  <script src="../Claud/botanical-core.js?v=e45645cc00" defer></script>
+  <script src="preview.js?v=e45645cc00" defer></script>
+  <script src="app.js?v=e45645cc00" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -70,6 +70,7 @@
         <div class="tree-heading"><div><h2 id="live-tree-title">موقعك في شجرة العائلة</h2><p id="live-status" class="hint" role="status">جارٍ الاتصال بالتحديثات…</p></div>
           <div class="tree-tools"><button id="locate-me" type="button">موقعي في الشجرة</button><label for="tree-scope" class="sr-only">نطاق عرض الشجرة</label><select id="tree-scope"><option value="mine" hidden>فرعي: أبنائي وأحفادي</option><option value="shared">الشجرة الرئيسية</option><option value="all">الكل: شجرة العائلة</option><option value="branch">فرع الشخص المحدد</option></select></div></div>
         <div class="tree-tools">
+          <button id="tree-focus-toggle" class="primary" type="button" aria-pressed="false">ملء الشاشة</button>
           <div id="botanical-zoom" hidden>
             <button id="botanical-zoom-in" type="button">تكبير +</button>
             <button id="botanical-zoom-out" type="button">تصغير −</button>
@@ -77,7 +78,18 @@
           </div>
           <button id="botanical-add" type="button" hidden>إضافة ابن للشخص المحدد</button>
         </div>
-        <div id="tree-view" class="tree-canvas" tabindex="0" aria-label="شجرة العائلة الحية"></div>
+        <p id="tree-focus-status" class="hint" aria-hidden="true"></p>
+        <div id="tree-stage">
+          <div id="tree-view" class="tree-canvas" tabindex="0" aria-label="شجرة العائلة الحية"></div>
+          <div id="tree-node-actions" class="tree-node-actions" role="group" aria-label="إجراءات الشخص المحدد" hidden>
+            <p id="tree-node-detail" hidden></p>
+            <div class="tree-node-buttons">
+              <button type="button" data-action="person-add" class="primary">إضافة</button>
+              <button type="button" data-action="person-edit">تعديل</button>
+              <button type="button" data-action="person-delete">حذف</button>
+            </div>
+          </div>
+        </div>
         <details class="display-options">
           <summary>خيارات العرض</summary>
           <div class="tree-tools botanical-tools">
@@ -138,6 +150,12 @@
           <form id="edit-form" method="post" hidden>
             <label for="person-name">الاسم الكامل</label>
             <input id="person-name" name="name" required maxlength="300">
+            <label for="person-gender">الجنس</label>
+            <select id="person-gender"><option value="m">ذكر</option><option value="f">أنثى</option></select>
+            <p id="person-gender-hint" class="hint" hidden>تغيير الجنس يغيّر نطاق ظهور الاسم في الشجرة.</p>
+            <label for="person-birth">تاريخ الميلاد (ميلادي)</label>
+            <input id="person-birth" type="date" aria-describedby="person-age">
+            <output id="person-age" for="person-birth person-life" class="hint"></output>
             <label for="person-life">الحالة</label>
             <select id="person-life"><option value="unknown">غير محددة</option><option value="living">على قيد الحياة</option><option value="deceased">متوفّى</option></select>
             <label for="person-phone">رقم الجوال</label>
@@ -159,6 +177,11 @@
             <select id="parent" name="parentId" required></select>
             <label id="child-name-label" for="child-name">اسم الابن الكامل</label>
             <input id="child-name" name="name" required maxlength="300">
+            <label for="child-birth">تاريخ الميلاد (ميلادي، اختياري)</label>
+            <input id="child-birth" type="date" aria-describedby="child-age">
+            <output id="child-age" for="child-birth" class="hint"></output>
+            <label for="child-photo">الصورة (اختيارية)</label>
+            <input id="child-photo" type="file" accept="image/jpeg,image/png,image/webp">
             <p id="private-child-hint" class="hint" hidden>تظهر الابنة في فرع أبيها، وفي «الكل» لأفراد العائلة المسجّلين.</p>
             <button id="add-child-button" class="primary" type="submit">إضافة إلى الشجرة</button>
             <p data-form-status class="hint" role="status"></p>

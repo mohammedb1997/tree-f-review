@@ -410,10 +410,89 @@ function createPortal({filename,origin}) {
     throw bad(403,error.forbidden);
   }
 
-  function profileFor(id,target){
+  function profileDocument(id){
     const row=db.prepare('SELECT document FROM person_profiles WHERE person_id=?').get(id);
-    return {lifeStatus:target.person?.lifeStatus||'unknown',phone:'',email:'',photo:'',
-      ...(row?JSON.parse(row.document):{}),name:target.name};
+    return row?JSON.parse(row.document):{};
+  }
+
+  function genderChangeReason(account,id,target){
+    if(account.role!=='admin')return 'تصحيح الجنس متاح للمدير العام.';
+    const parentId=target.daughter?.father_id||target.before.people.find(row=>row.id===id)?.parentId;
+    if(!parentId)return 'أصل الشجرة مرتبط بالأنساب ولا يمكن تغيير جنسه من هذه النافذة.';
+    if(db.prepare('SELECT 1 FROM accounts WHERE person_id=?').get(id))return 'هذا السجل مرتبط بحساب أو دعوة.';
+    if(target.doc.relationships.some(row=>row.parentId===id||(row.childId===id&&row.type!=='father'))||
+      db.prepare('SELECT 1 FROM private_daughters WHERE father_id=?').get(id))return 'هذا السجل مرتبط بأبناء أو علاقات أخرى.';
+    if(db.prepare('SELECT 1 FROM corrections WHERE person_id=? OR parent_id=? OR source_parent_id=?').get(id,id,id))
+      return 'هذا السجل مرتبط بطلب تصحيح نسب.';
+    const saved=profileDocument(id);
+    if(target.daughter&&saved.genderArchive?.relationship&&target.doc.relationships.some(row=>
+      row.type==='father'&&row.parentId===parentId&&row.siblingOrder===saved.genderArchive.relationship.siblingOrder))
+      return 'ترتيب الإخوة السابق مشغول بسجل أحدث ويحتاج مراجعة المدير.';
+    return '';
+  }
+
+  function profileFor(id,target,account){
+    const saved=profileDocument(id);
+    const reason=genderChangeReason(account,id,target);
+    return {name:target.name,gender:target.daughter?'f':'m',
+      lifeStatus:saved.lifeStatus||target.person?.lifeStatus||'unknown',
+      phone:saved.phone||'',email:saved.email||'',photo:saved.photo||'',birthDate:saved.birthDate||'',
+      canChangeGender:!reason,genderChangeReason:reason};
+  }
+
+  function profileValues(data,previous={}){
+    const lifeStatus=data.lifeStatus===undefined?previous.lifeStatus||'unknown':data.lifeStatus;
+    const phone=data.phone===undefined?previous.phone||'':data.phone;
+    const email=data.email===undefined?previous.email||'':data.email;
+    const photo=data.photo===undefined?previous.photo||'':data.photo;
+    const birthDate=data.birthDate===undefined?previous.birthDate||'':data.birthDate;
+    if(!['unknown','living','deceased'].includes(lifeStatus)||typeof phone!=='string'||
+      (phone&&!/^[+\d٠-٩۰-۹() -]{7,32}$/u.test(phone))||typeof email!=='string'||
+      (email&&(email.length>254||!/^\S+@[^\s@]+\.[^\s@]+$/.test(email)))||typeof photo!=='string'||
+      (photo&&(photo.length>180000||!/^data:image\/jpeg;base64,\/9j\/[A-Za-z0-9+/]+={0,2}$/.test(photo))))
+      throw bad(400,'راجع الحالة وبيانات التواصل وصيغة الصورة.');
+    if(typeof birthDate!=='string'||(birthDate&&(!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)||
+      birthDate<'0001-01-01'||birthDate>new Date().toISOString().slice(0,10)||
+      !Number.isFinite(Date.parse(birthDate+'T00:00:00Z'))||
+      new Date(birthDate+'T00:00:00Z').toISOString().slice(0,10)!==birthDate)))
+      throw bad(400,'أدخل تاريخ ميلاد ميلاديًا صحيحًا لا يتجاوز اليوم.');
+    return {...previous,lifeStatus,phone,email,photo,birthDate};
+  }
+
+  function storeProfile(id,profile){
+    db.prepare('INSERT INTO person_profiles VALUES(?,?) ON CONFLICT(person_id) DO UPDATE SET document=excluded.document')
+      .run(id,JSON.stringify(profile));
+  }
+
+  function changeGender(account,id,target,gender,profile,name){
+    const reason=genderChangeReason(account,id,target);
+    if(reason)throw bad(409,reason);
+    const {doc,person,daughter}=target;
+    if(gender==='f'){
+      const relation=doc.relationships.find(row=>row.childId===id&&row.type==='father');
+      if(!relation)throw bad(409,'تعذر تحديد علاقة الأبوة لهذا السجل.');
+      profile.genderArchive={person,relationship:relation,index:doc.persons.indexOf(person),relationshipIndex:doc.relationships.indexOf(relation)};
+      doc.persons=doc.persons.filter(row=>row.personId!==id);
+      doc.relationships=doc.relationships.filter(row=>row!==relation);
+      db.prepare('INSERT INTO private_daughters VALUES(?,?,?)').run(id,relation.parentId,name);
+      db.prepare(`UPDATE audit SET private_father=? WHERE EXISTS (
+        SELECT 1 FROM json_each(audit.person_ids) WHERE value=?
+      )`).run(relation.parentId,id);
+    }else{
+      const archived=profile.genderArchive;
+      const restored={...(archived?.person||{}),personId:id,fullName:name,gender:'m',lifeStatus:profile.lifeStatus};
+      const siblingOrder=doc.relationships.filter(row=>row.parentId===daughter.father_id&&row.type==='father')
+        .reduce((max,row)=>Math.max(max,Number(row.siblingOrder)||0),-1)+1;
+      const relation={...(archived?.relationship||{}),relationshipId:archived?.relationship?.relationshipId||'father:'+id,
+        type:'father',parentId:daughter.father_id,childId:id,
+        siblingOrder:archived?.relationship?.siblingOrder??siblingOrder};
+      doc.persons.splice(archived?Math.min(archived.index,doc.persons.length):doc.persons.length,0,restored);
+      doc.relationships.splice(archived?Math.min(archived.relationshipIndex??doc.relationships.length,doc.relationships.length):doc.relationships.length,0,relation);
+      db.prepare('DELETE FROM private_daughters WHERE id=?').run(id);
+    }
+    validateTree(doc);
+    // A former public name must not be returned as the comparison after it becomes private.
+    saveTree(doc,publicTree(doc));
   }
 
   function saveProfile(account,id,data){
@@ -421,16 +500,13 @@ function createPortal({filename,origin}) {
       const target=personTarget(account,id);
       const {doc,before,person,daughter}=target;
       const name=personName(data.name);
-      const {lifeStatus,phone,email}=data;
-      const photo=data.photo===undefined?profileFor(id,target).photo:data.photo;
-      if(!['unknown','living','deceased'].includes(lifeStatus)||typeof phone!=='string'||
-        (phone&&!/^[+\d٠-٩۰-۹() -]{7,32}$/u.test(phone))||typeof email!=='string'||
-        (email&&(email.length>254||!/^\S+@[^\s@]+\.[^\s@]+$/.test(email)))||typeof photo!=='string'||
-        (photo&&(photo.length>180000||!/^data:image\/jpeg;base64,\/9j\/[A-Za-z0-9+/]+={0,2}$/.test(photo))))
-        throw bad(400,'راجع الحالة وبيانات التواصل وصيغة الصورة.');
-      db.prepare('INSERT INTO person_profiles VALUES(?,?) ON CONFLICT(person_id) DO UPDATE SET document=excluded.document')
-        .run(id,JSON.stringify({lifeStatus,phone,email,photo}));
-      if(person&&(person.fullName!==name||person.lifeStatus!==lifeStatus)){
+      const profile=profileValues(data,{lifeStatus:person?.lifeStatus||'unknown',...profileDocument(id)});
+      const gender=data.gender===undefined?daughter?'f':'m':data.gender;
+      if(!['m','f'].includes(gender))throw bad(400,error.invalid);
+      const genderChanged=gender!==(daughter?'f':'m');
+      const {lifeStatus}=profile;
+      if(genderChanged)changeGender(account,id,target,gender,profile,name);
+      else if(person&&(person.fullName!==name||person.lifeStatus!==lifeStatus)){
         person.fullName=name;
         person.lifeStatus=lifeStatus;
         validateTree(doc);
@@ -438,8 +514,10 @@ function createPortal({filename,origin}) {
       }else if(daughter&&daughter.name!==name){
         db.prepare('UPDATE private_daughters SET name=? WHERE id=?').run(name,id);
       }
-      auditChange(account,'person-profile','تعديل بيانات شخص',[id],daughter?.father_id);
-      return {id};
+      storeProfile(id,profile);
+      const privateFather=gender==='f'?(daughter?.father_id||before.people.find(row=>row.id===id)?.parentId):null;
+      auditChange(account,'person-profile','تعديل بيانات شخص',[id],privateFather);
+      return {id,gender,genderChanged};
     });
   }
 
@@ -497,6 +575,7 @@ function createPortal({filename,origin}) {
       let id=personId;
       if(method==='POST'){
         id=insertChild(doc,personId,name);
+        if(data.birthDate!==undefined||data.photo!==undefined)storeProfile(id,profileValues(data));
       }else{
         const person=doc.persons.find(person=>person.personId===id);
         if(person.fullName===name)return {id};
@@ -545,6 +624,7 @@ function createPortal({filename,origin}) {
     const id=randomUUID();
     return transaction(()=>{
       db.prepare('INSERT INTO private_daughters VALUES(?,?,?)').run(id,fatherId,personName(data.name));
+      if(data.birthDate!==undefined||data.photo!==undefined)storeProfile(id,profileValues(data));
       auditChange(account,'daughter-add','إضافة ابنة',[id],fatherId);
       return {id,private:true};
     });
@@ -682,7 +762,7 @@ function createPortal({filename,origin}) {
         expireInvalidStreams();
         setCookie(res,'',0);payload={ok:true};
       }else if(method==='POST'&&pathname==='/api/people'){
-        const data=await input(req);fields(data,['parentId','name','gender']);
+        const data=await input(req,184000);fields(data,['parentId','name','gender','birthDate','photo']);
         if(data.gender!==undefined&&!['m','f'].includes(data.gender))throw bad(400,error.invalid);
         const acting=requireCurrent(req);
         if(data.gender==='f'){
@@ -697,9 +777,9 @@ function createPortal({filename,origin}) {
         payload=removalOptions(account,decodeURIComponent(pathname.split('/')[3]));
       }else if(/^\/api\/people\/[^/]+\/profile$/.test(pathname)&&['GET','PATCH'].includes(method)){
         const id=decodeURIComponent(pathname.split('/')[3]);
-        if(method==='GET')payload=profileFor(id,personTarget(account,id));
+        if(method==='GET')payload=profileFor(id,personTarget(account,id),account);
         else{
-          const data=await input(req,184000);fields(data,['name','lifeStatus','phone','email','photo']);
+          const data=await input(req,184000);fields(data,['name','lifeStatus','phone','email','photo','birthDate','gender']);
           payload=saveProfile(requireCurrent(req),id,data);
           publishTree();
           signalPrivateChange();

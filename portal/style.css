@@ -89,6 +89,22 @@ p{margin:.6rem 0}
 .tree-tools select{width:auto;max-width:100%}
 .botanical-tools{margin-block:.65rem}
 #botanical-zoom:not([hidden]){display:flex;flex-wrap:wrap;gap:.3rem}
+#tree-stage{position:relative;min-height:0;overflow:hidden;border-radius:.7rem}
+.tree-node-actions{position:absolute;z-index:2;direction:rtl;padding:.25rem;border:1px solid #a99a70;border-radius:.6rem;background:#fffdf5;box-shadow:0 .25rem .7rem #332b2529}
+.tree-node-buttons{display:flex;gap:.25rem}
+.tree-node-buttons button{min-height:44px;min-width:44px;padding:.35rem .55rem}
+#tree-node-detail{margin:.15rem .25rem .35rem;font-size:.8rem;color:#3a4f42;max-width:min(13.5rem,55vw);overflow-wrap:anywhere}
+.tree-canvas>svg{margin-inline:auto}
+body.tree-focus-open{overflow:hidden}
+#live-tree.is-focused{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;gap:.4rem;padding:.5rem max(.5rem,env(safe-area-inset-right)) max(.5rem,env(safe-area-inset-bottom)) max(.5rem,env(safe-area-inset-left));border:0;border-radius:0;background:#f8f4e8;overflow:hidden}
+#tree-focus-status,#live-tree.is-focused .tree-heading>div:first-child,#live-tree.is-focused #locate-me,#live-tree.is-focused>.hint:not(#tree-focus-status),#live-tree.is-focused>.display-options,#live-tree.is-focused>#tree-color-legend,#live-tree.is-focused #botanical-add{display:none}
+#live-tree.is-focused>.tree-heading,#live-tree.is-focused .tree-heading .tree-tools{margin:0}
+#live-tree.is-focused #tree-focus-status:not(:empty){display:block;margin:0;padding-inline:.35rem}
+#live-tree.is-focused>.tree-tools{margin:0;justify-content:space-between;gap:.3rem}
+#live-tree.is-focused .tree-tools button{min-height:44px;padding:.35rem .55rem}
+#live-tree.is-focused #tree-stage{flex:1}
+#live-tree.is-focused #tree-view{height:100%;box-sizing:border-box}
+#person-action-dialog output:empty{display:none}
 .tree-canvas[data-drawing=botanical] svg{margin:auto}
 .tree-canvas[data-drawing=botanical]{user-select:none;cursor:grab}
 .tree-canvas[data-drawing=botanical] .nodegroup{cursor:pointer}
