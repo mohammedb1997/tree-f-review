@@ -10,6 +10,58 @@ const {chromium}=require('playwright-core');
 const {createPortal}=require('./server.cjs');
 const core=require('../Claud/botanical-core.js');
 
+test('large mobile tree keeps readable labels and offers the radial and entire-tree views',{timeout:30000},async()=>{
+  const port=4195,origin='http://127.0.0.1:'+port;
+  const portal=createPortal({filename:':memory:',origin});
+  const password='Radial-Preview-Test-2026';
+  const fixture=core.fixture(137);
+  fixture.persons[22].fullName='عبدالرحمن بن عبدالله بن عبدالرحمن التجريبي الطويل';
+  await portal.initialize({login:'admin@example.test',password,document:fixture});
+  let browser;
+  try{
+    await once(portal.server.listen(port,'127.0.0.1'),'listening');
+    browser=await chromium.launch({channel:'chrome',chromiumSandbox:true});
+    const page=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
+    page.setDefaultTimeout(5000);
+    await page.goto(origin+'/?tree=full');
+    await page.locator('#identifier').fill('admin@example.test');
+    await page.locator('#password').fill(password);
+    await page.locator('#login-form button[type=submit]').tap();
+    const layout=page.locator('#tree-drawing');
+    await layout.waitFor();
+    const canvas=page.locator('#tree-view');
+    const svg=canvas.locator('svg');
+    const scale=()=>svg.evaluate(node=>node.clientWidth/node.viewBox.baseVal.width);
+    const links=()=>canvas.locator('[data-parent-id][data-child-id]').evaluateAll(paths=>paths.map(path=>[path.dataset.parentId,path.dataset.childId]));
+    assert.equal(await layout.inputValue(),'classic');
+    assert(await scale()>=0.79);
+    const originalLinks=await links();
+    await layout.selectOption('radial');
+    assert.equal(await canvas.getAttribute('data-drawing'),'radial');
+    assert.equal(await canvas.locator('[data-person-id]').count(),137);
+    assert.deepEqual(await links(),originalLinks);
+    assert.equal(originalLinks.length,136);
+    const overlaps=await canvas.locator('.tree-person').evaluateAll(nodes=>{
+      const boxes=nodes.map(node=>node.querySelector('rect').getBoundingClientRect());
+      return boxes.some((a,i)=>boxes.slice(i+1).some(b=>a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top));
+    });
+    assert.equal(overlaps,false);
+    await page.locator('#tree-overview').tap();
+    assert(await scale()<0.79);
+    assert((await svg.boundingBox()).width<=(await canvas.boundingBox()).width);
+    assert.equal(await page.locator('#tree-node-actions').isVisible(),false);
+    await page.locator('#botanical-fit').tap();
+    assert(await scale()>=0.79);
+    await canvas.locator('[data-person-id="test-0"]').tap();
+    await page.locator('#tree-node-actions').waitFor();
+    await layout.selectOption('classic');
+    assert.equal(await canvas.locator('[data-person-id="test-0"]').getAttribute('aria-pressed'),'true');
+  }finally{
+    await browser?.close();
+    await new Promise(resolve=>portal.server.close(resolve));
+  }
+});
+
 test('mobile person actions lock the father and save private profiles and confirmed removals',{timeout:45000},async()=>{
   const port=4196,origin='http://127.0.0.1:'+port;
   const portal=createPortal({filename:':memory:',origin});

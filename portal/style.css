@@ -100,7 +100,15 @@ body.tree-focus-open{overflow:hidden}
 #tree-focus-status,#live-tree.is-focused .tree-heading>div:first-child,#live-tree.is-focused #locate-me,#live-tree.is-focused>.hint:not(#tree-focus-status),#live-tree.is-focused>.display-options,#live-tree.is-focused>#tree-color-legend,#live-tree.is-focused #botanical-add{display:none}
 #live-tree.is-focused>.tree-heading,#live-tree.is-focused .tree-heading .tree-tools{margin:0}
 #focused-color-slot:empty{display:none}
-#live-tree.is-focused .tree-heading .tree-tools{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.9fr)}
+#focused-drawing-slot:empty{display:none}
+#focused-drawing-slot .botanical-tools{margin:0;display:block}
+#focused-drawing-slot label{position:absolute;clip-path:inset(50%);width:1px;height:1px;overflow:hidden}
+#focused-drawing-slot .botanical-tools select{width:100%;min-height:44px;margin:0}
+#live-tree.is-focused>#tree-scale-help:not([hidden]){display:block;margin:0;padding-inline:.35rem;font-size:.82rem}
+#tree-overview[aria-pressed=true]{border-color:#31694d;background:#dceee3}
+.tree-canvas[data-drawing=radial]{cursor:grab;user-select:none}
+.tree-canvas .radial-guide{fill:none;stroke:#cbbd94;stroke-width:1;stroke-dasharray:4 8;pointer-events:none}
+#live-tree.is-focused .tree-heading>.tree-tools{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
 #focused-color-slot .tree-color-tools{margin:0;display:block}
 #focused-color-slot label{position:absolute;clip-path:inset(50%);width:1px;height:1px;overflow:hidden;white-space:nowrap}
 #live-tree.is-focused :is(#tree-scope,#tree-color-mode){min-width:0;width:100%;min-height:44px}

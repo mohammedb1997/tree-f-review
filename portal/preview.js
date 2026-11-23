@@ -30,6 +30,13 @@
     {id:'son',name:'سليمان التجريبي',parentId:'father'},
     {id:'grandson',name:'يوسف التجريبي',parentId:'son'}
   ]};
+  const sampleSize=Number(options.get('sample'));
+  if(user.role==='admin'&&[30,137,150,500].includes(sampleSize)&&globalThis.BotanicalCore){
+    const sample=globalThis.BotanicalCore.fixture(sampleSize);
+    tree={revision:0,title:sample.title,people:globalThis.BotanicalCore.visible(sample).nodes.map(row=>({
+      id:row.personId,name:row.fullName,parentId:row.parentId
+    }))};
+  }
   const demoFather=tree.people.find(row=>row.id===tree.people.find(person=>person.id===user.personId)?.parentId);
   if(demoFather)user.invitedBy={personId:demoFather.id,name:demoFather.name,relationship:'father'};
   const fail=message=>{throw new Error(message);};

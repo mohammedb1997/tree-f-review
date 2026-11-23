@@ -66,17 +66,19 @@
       <div class="workspace-board">
       <section id="live-tree" class="panel live-panel" aria-labelledby="live-tree-title">
         <div class="tree-heading"><div><h2 id="live-tree-title">موقعك في شجرة العائلة</h2><p id="live-status" class="hint" role="status">جارٍ الاتصال بالتحديثات…</p></div>
-          <div class="tree-tools"><button id="locate-me" type="button">موقعي في الشجرة</button><label for="tree-scope" class="sr-only">نطاق عرض الشجرة</label><select id="tree-scope"><option value="mine" hidden>فرعي: أبنائي وأحفادي</option><option value="family" hidden>العائلة مع فرعي</option><option value="shared">الشجرة الرئيسية</option><option value="all">الكل: شجرة العائلة</option><option value="branch">فرع الشخص المحدد</option></select><div id="focused-color-slot"></div></div></div>
+          <div class="tree-tools"><button id="locate-me" type="button">موقعي في الشجرة</button><label for="tree-scope" class="sr-only">نطاق عرض الشجرة</label><select id="tree-scope"><option value="mine" hidden>فرعي: أبنائي وأحفادي</option><option value="family" hidden>العائلة مع فرعي</option><option value="shared">الشجرة الرئيسية</option><option value="all">الكل: شجرة العائلة</option><option value="branch">فرع الشخص المحدد</option></select><div id="focused-color-slot"></div><div id="focused-drawing-slot"></div></div></div>
         <div class="tree-tools">
           <button id="tree-focus-toggle" class="primary" type="button" aria-pressed="false">ملء الشاشة</button>
           <div id="botanical-zoom" hidden>
             <button id="botanical-zoom-in" type="button">تكبير +</button>
             <button id="botanical-zoom-out" type="button">تصغير −</button>
             <button id="botanical-fit" type="button">ملاءمة الشاشة</button>
+            <button id="tree-overview" type="button" aria-pressed="false">نظرة كاملة</button>
           </div>
           <button id="botanical-add" type="button" hidden>إضافة ابن للشخص المحدد</button>
         </div>
         <p id="tree-focus-status" class="hint" aria-hidden="true"></p>
+        <p id="tree-scale-help" class="hint" hidden></p>
         <section id="member-context" aria-label="الداعي وسلسلة النسب" hidden>
           <p id="member-inviter" class="hint" hidden></p>
           <nav id="member-lineage" aria-label="الأب والأجداد"></nav>
@@ -94,10 +96,10 @@
         </div>
         <details class="display-options">
           <summary>خيارات العرض</summary>
-          <div class="tree-tools botanical-tools">
+          <div id="standard-drawing-slot"><div id="tree-drawing-tools" class="tree-tools botanical-tools">
           <label for="tree-drawing">طريقة العرض</label>
-          <select id="tree-drawing"><option value="classic">مخطط الشجرة</option><option value="botanical">الشجرة النباتية</option></select>
-          </div>
+          <select id="tree-drawing"><option value="classic">مخطط الشجرة</option><option value="radial">المخطط الشعاعي</option><option value="botanical">الشجرة النباتية</option></select>
+          </div></div>
           <div id="standard-color-slot"><div id="tree-color-tools" class="tree-color-tools">
           <label for="tree-color-mode">تلوين الشجرة</label>
           <select id="tree-color-mode">
