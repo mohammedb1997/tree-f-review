@@ -99,6 +99,11 @@ body.tree-focus-open{overflow:hidden}
 #live-tree.is-focused{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;gap:.4rem;padding:.5rem max(.5rem,env(safe-area-inset-right)) max(.5rem,env(safe-area-inset-bottom)) max(.5rem,env(safe-area-inset-left));border:0;border-radius:0;background:#f8f4e8;overflow:hidden}
 #tree-focus-status,#live-tree.is-focused .tree-heading>div:first-child,#live-tree.is-focused #locate-me,#live-tree.is-focused>.hint:not(#tree-focus-status),#live-tree.is-focused>.display-options,#live-tree.is-focused>#tree-color-legend,#live-tree.is-focused #botanical-add{display:none}
 #live-tree.is-focused>.tree-heading,#live-tree.is-focused .tree-heading .tree-tools{margin:0}
+#focused-color-slot:empty{display:none}
+#live-tree.is-focused .tree-heading .tree-tools{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.9fr)}
+#focused-color-slot .tree-color-tools{margin:0;display:block}
+#focused-color-slot label{position:absolute;clip-path:inset(50%);width:1px;height:1px;overflow:hidden;white-space:nowrap}
+#live-tree.is-focused :is(#tree-scope,#tree-color-mode){min-width:0;width:100%;min-height:44px}
 #live-tree.is-focused #tree-focus-status:not(:empty){display:block;margin:0;padding-inline:.35rem}
 #live-tree.is-focused>.tree-tools{margin:0;justify-content:space-between;gap:.3rem}
 #live-tree.is-focused .tree-tools button{min-height:44px;padding:.35rem .55rem}
@@ -120,6 +125,8 @@ body.tree-focus-open{overflow:hidden}
 .tree-canvas svg{display:block;max-width:none;font-family:Tahoma,Arial,sans-serif}
 .tree-branch{fill:none;stroke-width:2.5}
 .tree-branch:not([data-kinship-path]){stroke:#9b8155}
+.tree-branch[data-membership=mine]{stroke:#31694d}
+.tree-branch[data-membership=muted]{stroke:#979c97}
 .tree-branch.is-related,.tree-branch[data-kinship-path]{stroke-width:3.5}
 .tree-person{cursor:pointer}
 .tree-person rect{stroke-width:1.5}

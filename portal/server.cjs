@@ -773,6 +773,18 @@ function createPortal({filename,origin}) {
           payload=updatePerson(acting,data.parentId,data,method);
           publishTree();
         }
+      }else if(method==='POST'&&/^\/api\/people\/[^/]+\/invite$/.test(pathname)){
+        const data=await input(req);fields(data,[]);
+        const id=decodeURIComponent(pathname.split('/')[3]);
+        payload=transaction(()=>{
+          const acting=requireCurrent(req);
+          const target=personTarget(acting,id);
+          const fatherId=target.daughter?.father_id||target.before.people.find(row=>row.id===id)?.parentId;
+          if(acting.role!=='admin'&&(!fatherId||fatherId!==acting.person_id))throw bad(403,error.forbidden);
+          const invitation=issueInvite(id,null);
+          auditChange(acting,'account-invite','إصدار دعوة لحساب عضو',[id],target.daughter?.father_id);
+          return invitation;
+        });
       }else if(method==='GET'&&/^\/api\/people\/[^/]+\/remove-options$/.test(pathname)){
         payload=removalOptions(account,decodeURIComponent(pathname.split('/')[3]));
       }else if(/^\/api\/people\/[^/]+\/profile$/.test(pathname)&&['GET','PATCH'].includes(method)){

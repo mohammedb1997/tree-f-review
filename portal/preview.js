@@ -184,11 +184,15 @@
       record('add','إضافة '+data.name,id);
       return {id};
     }
-    const action=route.match(/^\/api\/people\/([^/]+)\/(profile|remove-options)$/);
+    const action=route.match(/^\/api\/people\/([^/]+)\/(profile|remove-options|invite)$/);
     if(action){
       const id=decodeURIComponent(action[1]);
       if(action[2]==='remove-options')return {options:previewRemovalOptions(id)};
       const {row,daughters,fatherId}=previewTarget(id);
+      if(action[2]==='invite'){
+        if(user.role!=='admin'&&(fatherId||row.parentId)!==user.personId)fail('الدعوة للأب المباشر أو المدير.');
+        return issueInvite(id);
+      }
       const gender=daughters?'f':'m';
       const canChangeGender=user.role==='admin'&&previewRemovalOptions(id).some(person=>person.id===id);
       if(data===undefined)return {lifeStatus:'unknown',phone:'',email:'',photo:'',birthDate:'',...profiles.get(id),

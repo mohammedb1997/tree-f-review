@@ -121,6 +121,51 @@ test('mobile person actions lock the father and save private profiles and confir
     await page.locator('#person-delete-confirm').check();
     await page.locator('#person-delete-form button[type=submit]').tap();
     await son.waitFor({state:'detached'});
+    const includeOrigin={headers:{origin}};
+    const addition=await sibling.request.post(origin+'/api/people',{
+      ...includeOrigin,data:{parentId:'test-2',gender:'m',name:'ابن بدعوة مباشرة'}
+    });
+    assert.equal(addition.status(),200);
+    const {id:invitedId}=await addition.json();
+    const denied=await sibling.request.post(origin+'/api/people/test-1/invite',{...includeOrigin,data:{}});
+    assert.equal(denied.status(),403);
+    await sibling.goto(origin);
+    await sibling.locator('#people').getByRole('button',{name:/ابن بدعوة مباشرة/}).click();
+    await sibling.locator('#person-edit').click();
+    await sibling.locator('#invite-selected-person').click();
+    const sharedLink=sibling.locator('#selected-invitation-link');
+    await sharedLink.waitFor();
+    const invitationUrl=await sharedLink.inputValue();
+    const temporary=await sibling.locator('#selected-invitation-password').inputValue();
+    assert(!invitationUrl.includes(temporary));
+    assert(!decodeURIComponent(await sibling.locator('#selected-invitation-mail').getAttribute('href')).includes(temporary));
+    const invited=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
+    await invited.goto(invitationUrl);
+    const childInviteCode=new URLSearchParams(new URL(invitationUrl).hash.slice(1)).get('invite');
+    await invited.locator('#code').waitFor();
+    assert.equal(await invited.locator('#code').inputValue(),childInviteCode);
+    await invited.locator('#initial-password').fill(temporary);
+    await invited.locator('#new-password').fill('Invited-Family-Member-2026');
+    await invited.locator('#activate-form button[type=submit]').tap();
+    const color=invited.locator('#tree-color-mode');
+    await color.waitFor();
+    assert.equal(await color.inputValue(),'membership');
+    assert.equal(await invited.locator('#tree-scope').inputValue(),'family');
+    const visibleTree=invited.locator('#tree-view');
+    const own=visibleTree.locator('[data-person-id="'+invitedId+'"]');
+    assert.equal(await own.getAttribute('data-membership'),'mine');
+    assert.equal(await visibleTree.locator('[data-person-id="test-1"]').getAttribute('data-membership'),'muted');
+    const linkedDaughter=await invited.request.post(origin+'/api/people',{
+      ...includeOrigin,data:{parentId:invitedId,gender:'f',name:'ابنة فرع العضو التجريبي'}
+    });
+    assert.equal(linkedDaughter.status(),200);
+    const {id:linkedDaughterId}=await linkedDaughter.json();
+    const daughterNode=visibleTree.locator('[data-person-id="'+linkedDaughterId+'"]');
+    assert.equal(await daughterNode.getAttribute('data-membership'),'mine');
+    await color.selectOption('generation');
+    assert.equal(await own.getAttribute('data-tone'),'generation');
+    await color.selectOption('gender');
+    assert.equal(await own.getAttribute('data-tone'),'gender');
   }finally{
     await browser?.close();
     await new Promise(resolve=>portal.server.close(resolve));

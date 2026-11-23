@@ -50,8 +50,12 @@ const treeColors={
   selected:{label:'الشخص المحدد',fill:'#ffefbf',stroke:'#865711'},
   child:{label:'الأبناء المباشرون',fill:'#dceee3',stroke:'#31694d'},
   descendant:{label:'الأحفاد والذرية',fill:'#dceef0',stroke:'#30636c'},
-  other:{label:'بقية العائلة',fill:'#fffdf6',stroke:'#796b53'}
+  other:{label:'بقية العائلة',fill:'#fffdf6',stroke:'#796b53'},
+  mine:{label:'فرعي',fill:'#dceee3',stroke:'#31694d'},
+  muted:{label:'الفروع الأخرى',fill:'#ebece9',stroke:'#707771'}
 };
+const legendColors=mode=>(mode==='gender'?['male','female']:mode==='membership'?['mine','muted']:
+  ['selected','ancestor','child','descendant','other']).map(key=>treeColors[key]);
 const generationColors=['male','ancestor','child','selected','female','descendant'].map(key=>treeColors[key]);
 const arabicNumber=new Intl.NumberFormat('ar-SA');
 let botanicalZoom=1;
@@ -59,7 +63,7 @@ let inlineSelection=null;
 let inlineAge='';
 let focusReturn=null;
 
-function drawBotanical(container,snapshot,shown,allPeople,relationship,colorMode){
+function drawBotanical(container,snapshot,shown,allPeople,relationship,colorMode,membership){
   const core=globalThis.BotanicalCore;
   if(!core)return false;
   const botanicalNodes=new Map(shown.map(person=>[person.id,{
@@ -113,7 +117,8 @@ function drawBotanical(container,snapshot,shown,allPeople,relationship,colorMode
     const id=item.dataset.personId;
     const person=allPeople.get(id),level=botanicalNodes.get(id).generation+offset+1;
     const category=relationship(person),gender=person.gender==='f'?'female':'male';
-    const tone=colorMode==='gender'?treeColors[gender]:colorMode==='relationship'?treeColors[category]:null;
+    const tone=colorMode==='gender'?treeColors[gender]:colorMode==='relationship'?treeColors[category]:
+      membership?treeColors[membership.has(id)?'mine':'muted']:null;
     const label=item.querySelector(':scope > rect');
     const outline=item.querySelector(':scope > g');
     if(tone){
@@ -128,6 +133,7 @@ function drawBotanical(container,snapshot,shown,allPeople,relationship,colorMode
     item.dataset.relationship=category;
     item.dataset.generation=level;
     item.dataset.gender=gender;
+    if(membership)item.dataset.membership=membership.has(id)?'mine':'muted';
     item.querySelector(':scope > text:last-child').textContent=arabicNumber.format(level);
     if(beforeSnapshot&&container.id!=='before-tree'&&person.gender!=='f'){
       if(!previous.has(id))item.dataset.change='added';
@@ -138,13 +144,16 @@ function drawBotanical(container,snapshot,shown,allPeople,relationship,colorMode
       if(event.key==='Enter'||event.key===' '){event.preventDefault();openPersonCard(id,false,container.id==='tree-view',true);}
     };
   }
+  if(membership)for(const edge of svg.querySelectorAll('[data-child-id]')){
+    edge.setAttribute('stroke',treeColors[membership.has(edge.dataset.parentId)&&membership.has(edge.dataset.childId)?'mine':'muted'].stroke);
+  }
   if(container.id==='tree-view'){
     const generationKeys=new Set(nodes.map(node=>node.generation));
     const colors=colorMode==='generation'?[...generationKeys].sort((a,b)=>a-b).map(level=>({
       label:'الجيل '+arabicNumber.format(level+offset+1),
       fill:source.presentation.generationPalette[level],
       stroke:source.presentation.generationPalette[level]
-    })):(colorMode==='gender'?['male','female']:['selected','ancestor','child','descendant','other']).map(key=>treeColors[key]);
+    })):legendColors(colorMode);
     renderTreeLegend(colors);
     byId('tree-ancestor-hint').hidden=colorMode!=='relationship'||offset===0;
   }
@@ -193,6 +202,7 @@ function drawTree(container, snapshot, colored = true) {
   const allPeople = new Map(source.map(person=>[person.id,person]));
   const ancestors = ancestorIds(allPeople,selectedId);
   const colorMode = colored ? byId('tree-color-mode').value : '';
+  const membership=colorMode==='membership'?descendants(source,user?.personId):null;
   function relationship(person){
     if(person.id===selectedId)return 'selected';
     if(ancestors.has(person.id))return 'ancestor';
@@ -201,7 +211,7 @@ function drawTree(container, snapshot, colored = true) {
   }
   const shown = anchor && family.size
     ? source.filter(person => family.has(person.id)) : source;
-  if(colored&&byId('tree-drawing').value==='botanical'&&drawBotanical(container,snapshot,shown,allPeople,relationship,colorMode))return;
+  if(colored&&byId('tree-drawing').value==='botanical'&&drawBotanical(container,snapshot,shown,allPeople,relationship,colorMode,membership))return;
   const map = new Map(shown.map(person => [person.id, person]));
   const children = new Map();
   for (const person of shown) {
@@ -236,7 +246,7 @@ function drawTree(container, snapshot, colored = true) {
         const numbers=generations.filter(generation=>(generation-1)%generationColors.length===index);
         return numbers.length?[{...color,label:'الجيل '+numbers.map(n=>arabicNumber.format(n)).join('، ')}]:[];
       })
-      : (colorMode==='gender'?['male','female']:['selected','ancestor','child','descendant','other']).map(key=>treeColors[key]);
+      : legendColors(colorMode);
     renderTreeLegend(entries);
     byId('tree-ancestor-hint').hidden=colorMode!=='relationship'||![...ancestors].some(id=>!map.has(id));
   }
@@ -267,6 +277,7 @@ function drawTree(container, snapshot, colored = true) {
       'data-parent-id':person.parentId, 'data-child-id':person.id
     });
     const relation=relationship(person);
+    if(membership)path.dataset.membership=membership.has(person.id)&&membership.has(person.parentId)?'mine':'muted';
     if(colorMode==='relationship'&&(relation==='child'||relation==='descendant'||
        ((relation==='selected'||relation==='ancestor')&&ancestors.has(person.parentId)))){
       path.setAttribute('data-kinship-path','');
@@ -288,7 +299,9 @@ function drawTree(container, snapshot, colored = true) {
     const gender=person.gender==='f'?'female':'male'; // Shared paternal rows come from the male-only tree.
     const generationLabel='الجيل '+arabicNumber.format(position.generation);
     const color=colorMode==='generation'?generationColors[(position.generation-1)%generationColors.length]:
-      colorMode==='gender'?treeColors[gender]:colorMode==='relationship'?treeColors[relation]:null;
+      colorMode==='gender'?treeColors[gender]:colorMode==='relationship'?treeColors[relation]:
+      membership?treeColors[membership.has(person.id)?'mine':'muted']:null;
+    if(membership)group.dataset.membership=membership.has(person.id)?'mine':'muted';
     const description=[colorMode==='generation'?generationLabel:color?.label,
       change==='added'?'أُضيف في آخر تعديل':change==='renamed'?'تغيّر الاسم في آخر تعديل':''].filter(Boolean).join(' · ');
     if(change)group.dataset.change=change;
@@ -392,6 +405,7 @@ function setTreeFocus(active){
   toggle.textContent=active?'خروج':'ملء الشاشة';
   toggle.setAttribute('aria-label',active?'إنهاء ملء الشاشة':'ملء الشاشة');
   byId('botanical-fit').textContent=active?'ملاءمة':'ملاءمة الشاشة';
+  byId(active?'focused-color-slot':'standard-color-slot').append(byId('tree-color-tools'));
   botanicalZoom=1;
   if(treeSnapshot)renderTrees();
   if(active)toggle.focus({preventScroll:true});
@@ -646,6 +660,28 @@ let personAction=null;
 const personDialog=byId('person-action-dialog');
 const actionForms={add:'add-form',edit:'edit-form',remove:'person-delete-form'};
 
+function resetSelectedInvitation(){
+  byId('selected-invitation').hidden=true;
+  byId('selected-invitation-status').textContent='';
+  byId('selected-invitation-link').value='';
+  byId('selected-invitation-password').value='';
+  byId('selected-invitation-mail').removeAttribute('href');
+}
+
+function invitedCode(){
+  const code=new URLSearchParams(location.hash.slice(1)).get('invite');
+  return /^FAM-[0-9A-F]{16}$/i.test(code||'')?code.toUpperCase():'';
+}
+
+function openInvitationForm(){
+  const code=invitedCode();
+  if(!code)return false;
+  setAccessMode(true);
+  byId('code').value=code;
+  byId('initial-password').focus();
+  return true;
+}
+
 function setChildForm(){
   const daughter=byId('child-gender').value==='f';
   const parent=byId('parent');
@@ -666,6 +702,7 @@ function openAction(kind,person,locked=false){
   if(personDialog.open)return null;
   const action={kind,id:person.id,locked,trigger:document.activeElement};
   personAction=action;
+  resetSelectedInvitation();
   for(const id of Object.values(actionForms)){
     const form=byId(id);
     form.hidden=true;
@@ -696,6 +733,7 @@ personDialog.addEventListener('close',()=>{
   if(personDialog.open)return;
   const trigger=personAction?.trigger;
   personAction=null;
+  resetSelectedInvitation();
   for(const id of Object.values(actionForms))byId(id).hidden=true;
   byId('child-name').value='';
   byId('child-birth').value='';
@@ -715,6 +753,60 @@ function managesPerson(person){
     (user?.role==='admin'||[person.id,person.parentId].includes(user?.personId));
 }
 
+function canInvitePerson(person){
+  return user?.role==='admin'||!!user?.personId&&person.parentId===user.personId;
+}
+
+byId('invite-selected-person').addEventListener('click',async event=>{
+  const button=event.currentTarget;
+  const action=personAction;
+  const person=people.find(row=>row.id===action?.id);
+  if(action?.kind!=='edit'||!person||!canInvitePerson(person))return;
+  resetSelectedInvitation();
+  button.disabled=true;
+  const status=byId('selected-invitation-status');
+  status.textContent='جارٍ إنشاء الدعوة…';
+  try{
+    const {code,initialPassword}=await api('/api/people/'+encodeURIComponent(person.id)+'/invite',{});
+    if(personAction!==action||!personDialog.open)return;
+    const preview=!!globalThis.familyPortalPreview;
+    const url=new URL(location.href);
+    url.search='?welcome=family&tree=full';
+    url.hash=new URLSearchParams({invite:code});
+    const local=['localhost','127.0.0.1','[::1]'].includes(url.hostname);
+    const link=byId('selected-invitation-link');
+    link.value=preview?code:url.href;
+    link.previousElementSibling.textContent=preview?'رمز الدعوة التجريبية':'رابط التفعيل';
+    byId('selected-invitation-password').value=initialPassword;
+    byId('selected-invitation-info').textContent=preview?'الدعوة التجريبية محفوظة في هذا التبويب فقط.':local
+      ? 'عنوان هذا الخادم محلي. افتح البوابة من عنوان يستطيع المدعو الوصول إليه لمشاركة الدعوة.'
+      : 'شارك الرابط، ثم أرسل كلمة المرور المؤقتة على انفراد خلال ٢٤ ساعة.';
+    const mail=byId('selected-invitation-mail');
+    mail.hidden=preview||local;
+    if(!preview){
+      const body='أدعوك للاطلاع على شجرة العائلة وتحديث بياناتك. افتح رابط التفعيل، وسأرسل لك كلمة المرور المؤقتة على انفراد.\n\n'+url.href;
+      mail.href='mailto:?subject='+encodeURIComponent('دعوة إلى شجرة العائلة')+'&body='+encodeURIComponent(body);
+    }
+    byId('selected-invitation').hidden=false;
+    status.textContent='أُنشئت الدعوة.';
+  }catch(error){
+    if(personAction===action&&personDialog.open)status.textContent=error.message;
+  }finally{button.disabled=false;}
+});
+
+byId('copy-selected-invitation').addEventListener('click',async()=>{
+  const input=byId('selected-invitation-link');
+  const status=byId('selected-invitation-status');
+  try{
+    await navigator.clipboard.writeText(input.value);
+    status.textContent='تم النسخ.';
+  }catch{
+    input.focus();
+    input.select();
+    status.textContent='حدّدت النص. يمكنك نسخه الآن.';
+  }
+});
+
 byId('person-add').addEventListener('click',()=>openAddPanel(selectedId,true));
 for(const [button,kind,endpoint] of [['person-edit','edit','profile'],['person-delete','remove','remove-options']]){
   byId(button).addEventListener('click',async()=>{
@@ -731,6 +823,7 @@ for(const [button,kind,endpoint] of [['person-edit','edit','profile'],['person-d
       const form=byId(actionForms[kind]);
       form.reset();
       if(kind==='edit'){
+        byId('invite-selected-person').hidden=!canInvitePerson(person);
         for(const [id,key] of [['person-name','name'],['person-life','lifeStatus'],['person-phone','phone'],['person-email','email'],['person-birth','birthDate']]){
           byId(id).value=result[key]||'';
         }
@@ -1102,9 +1195,15 @@ async function loadTree() {
 
 async function enter() {
   user = await api('/api/me');
+  const params=new URLSearchParams(location.search);
+  const familyView=!!user.personId&&params.get('welcome')==='family';
   const scope=byId('tree-scope');
   scope.querySelector('option[value="mine"]').hidden=!user.personId;
-  scope.value=user.personId?'mine':'shared';
+  scope.querySelector('option[value="family"]').hidden=!user.personId;
+  scope.value=familyView?'family':user.personId?'mine':'shared';
+  const colorMode=byId('tree-color-mode');
+  colorMode.querySelector('option[value="membership"]').hidden=!user.personId;
+  colorMode.value=familyView?'membership':'relationship';
   byId('access').hidden = true;
   byId('workspace').hidden = false;
   byId('session').hidden = false;
@@ -1123,7 +1222,7 @@ async function enter() {
   await loadTree();
   await loadPrivateDaughters();
   startLive();
-  if(new URLSearchParams(location.search).get('tree')==='full')setTreeFocus(true);
+  if(params.get('tree')==='full')setTreeFocus(true);
 }
 
 byId('show-login').addEventListener('click', () => setAccessMode(false));
@@ -1188,6 +1287,7 @@ byId('activate-form').addEventListener('submit', event => {
       password:byId('new-password').value
     });
     byId('activate-form').reset();
+    if(invitedCode())history.replaceState(null,'',location.pathname+location.search);
     setAccessMode(false);
     await enter();
     notify('تم تفعيل حسابك.');
@@ -1197,7 +1297,7 @@ byId('activate-form').addEventListener('submit', event => {
 byId('logout').addEventListener('click', () => submit(byId('session'), async () => {
   await api('/api/logout', {});
   showSignedOut();
-  byId('identifier').focus();
+  if(!openInvitationForm())byId('identifier').focus();
 }));
 
 byId('refresh').addEventListener('click', () => submit(byId('workspace'), async () => {
@@ -1531,5 +1631,6 @@ byId('branch-svg-export').addEventListener('click',()=>downloadBranch(true));
 
 enter().catch(error => {
   showSignedOut();
+  openInvitationForm();
   if (!/الدخول|دخول|session|authenticated|unauthorized/i.test(error.message)) notify(error.message, true);
 });

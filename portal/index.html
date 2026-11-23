@@ -66,7 +66,7 @@
       <div class="workspace-board">
       <section id="live-tree" class="panel live-panel" aria-labelledby="live-tree-title">
         <div class="tree-heading"><div><h2 id="live-tree-title">موقعك في شجرة العائلة</h2><p id="live-status" class="hint" role="status">جارٍ الاتصال بالتحديثات…</p></div>
-          <div class="tree-tools"><button id="locate-me" type="button">موقعي في الشجرة</button><label for="tree-scope" class="sr-only">نطاق عرض الشجرة</label><select id="tree-scope"><option value="mine" hidden>فرعي: أبنائي وأحفادي</option><option value="shared">الشجرة الرئيسية</option><option value="all">الكل: شجرة العائلة</option><option value="branch">فرع الشخص المحدد</option></select></div></div>
+          <div class="tree-tools"><button id="locate-me" type="button">موقعي في الشجرة</button><label for="tree-scope" class="sr-only">نطاق عرض الشجرة</label><select id="tree-scope"><option value="mine" hidden>فرعي: أبنائي وأحفادي</option><option value="family" hidden>العائلة مع فرعي</option><option value="shared">الشجرة الرئيسية</option><option value="all">الكل: شجرة العائلة</option><option value="branch">فرع الشخص المحدد</option></select><div id="focused-color-slot"></div></div></div>
         <div class="tree-tools">
           <button id="tree-focus-toggle" class="primary" type="button" aria-pressed="false">ملء الشاشة</button>
           <div id="botanical-zoom" hidden>
@@ -94,14 +94,15 @@
           <label for="tree-drawing">طريقة العرض</label>
           <select id="tree-drawing"><option value="classic">مخطط الشجرة</option><option value="botanical">الشجرة النباتية</option></select>
           </div>
-          <div class="tree-color-tools">
+          <div id="standard-color-slot"><div id="tree-color-tools" class="tree-color-tools">
           <label for="tree-color-mode">تلوين الشجرة</label>
           <select id="tree-color-mode">
             <option value="relationship">حسب القرابة</option>
+            <option value="membership" hidden>فرعي مميّز</option>
             <option value="generation">حسب الجيل</option>
             <option value="gender">حسب الجنس</option>
           </select>
-          </div>
+          </div></div>
         </details>
         <ul id="tree-color-legend" aria-label="مفتاح ألوان الشجرة"></ul>
         <p class="hint">الإطار الذهبي يحدد موقعك. اختر اسمًا لعرض بياناته.</p>
@@ -166,6 +167,17 @@
             <label id="person-photo-remove-label" hidden><input id="person-photo-remove" type="checkbox"> إزالة الصورة الحالية</label>
             <p class="hint">بيانات التواصل والصورة تظهر في نموذج التعديل للحسابات المخوّلة. هذه الحقول لا تغيّر بيانات الدخول.</p>
             <button type="submit" class="primary">حفظ التعديلات</button>
+            <button id="invite-selected-person" type="button" hidden>إنشاء دعوة لهذا الشخص</button>
+            <div id="selected-invitation" hidden>
+              <p id="selected-invitation-info" class="hint"></p>
+              <label for="selected-invitation-link">رابط التفعيل</label>
+              <input id="selected-invitation-link" type="url" dir="ltr" readonly>
+              <button id="copy-selected-invitation" type="button">نسخ الرابط أو الرمز</button>
+              <a id="selected-invitation-mail" hidden>فتح مسودة بريد</a>
+              <label for="selected-invitation-password">كلمة المرور المؤقتة</label>
+              <input id="selected-invitation-password" dir="ltr" readonly autocomplete="off">
+            </div>
+            <p id="selected-invitation-status" role="status"></p>
             <p data-form-status class="hint" role="status"></p>
           </form>
           <form id="add-form" method="post" hidden>
