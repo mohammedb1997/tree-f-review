@@ -1,0 +1,67 @@
+name: Test and publish family portal preview
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.14.1
+      - name: Install the browser test driver
+        run: |
+          npm install --prefix "$RUNNER_TEMP/treef-ci" --ignore-scripts --no-package-lock playwright-core@1.64.1
+          echo "NODE_PATH=$RUNNER_TEMP/treef-ci/node_modules" >> "$GITHUB_ENV"
+          google-chrome --version
+      - name: Rebuild the static preview and check its revision
+        run: |
+          node portal/build-preview.cjs
+          git diff --exit-code -- portal/preview.html
+      - name: Test SQLite, portal permissions and mobile workflows
+        run: >-
+          node --test portal/server.test.cjs portal/backup.test.cjs
+          portal/launch-check.test.cjs portal/deploy/note9-pilot.test.cjs
+          portal/browser.test.cjs portal/workflows.browser.test.cjs
+      - name: Build the public site from tracked demo assets
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        run: |
+          mkdir _site
+          git archive --format=tar HEAD -- .nojekyll index.html review.css CHANGES-ornate-v3.md Claud samples developer \
+            portal/README.ar.md portal/deploy/README.ar.md portal/preview.html portal/preview.js portal/app.js portal/style.css \
+            portal/design-review.html portal/design-review.css portal/design-review.js portal/world/index.html \
+            portal/world/README.ar.md portal/world/world.js portal/world/world.css portal/world/vendor | tar -xf - -C _site
+          printf '{"commit":"%s"}\n' "$GITHUB_SHA" > _site/release.json
+      - uses: actions/upload-pages-artifact@v4
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        with:
+          path: _site
+
+  publish:
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: family-portal-pages
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deployment
