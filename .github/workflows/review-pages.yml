@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: family-portal-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-24.04
@@ -57,8 +61,6 @@ jobs:
     permissions:
       pages: write
       id-token: write
-    concurrency:
-      group: family-portal-pages
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
