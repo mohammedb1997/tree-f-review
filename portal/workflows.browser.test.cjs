@@ -41,6 +41,7 @@ test('large mobile tree keeps readable labels and offers the radial and entire-t
     assert.equal(await canvas.locator('[data-person-id]').count(),137);
     assert.deepEqual(await links(),originalLinks);
     assert.equal(originalLinks.length,136);
+    assert(await svg.evaluate(node=>node.viewBox.baseVal.width<2450));
     const overlaps=await canvas.locator('.tree-person').evaluateAll(nodes=>{
       const boxes=nodes.map(node=>node.querySelector('rect').getBoundingClientRect());
       return boxes.some((a,i)=>boxes.slice(i+1).some(b=>a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top));
@@ -52,6 +53,42 @@ test('large mobile tree keeps readable labels and offers the radial and entire-t
     assert.equal(await page.locator('#tree-node-actions').isVisible(),false);
     await page.locator('#botanical-fit').tap();
     assert(await scale()>=0.79);
+    const reading=await scale();
+    await page.locator('#botanical-zoom-out').tap();
+    assert((await scale())<reading*0.85);
+    await page.locator('#botanical-fit').tap();
+    const session=await page.context().newCDPSession(page);
+    const frame=await canvas.boundingBox();
+    const x=Math.round(frame.x+frame.width/2),y=Math.round(frame.y+frame.height/2);
+    const touchPoints=spread=>[{x:x-spread,y,id:1},{x:x+spread,y,id:2}];
+    const pinch=async(start,end)=>{
+      await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:touchPoints(start).slice(0,1)});
+      await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:touchPoints(start)});
+      await session.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:touchPoints((start+end)/2)});
+      await session.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:touchPoints(end)});
+      await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+    };
+    const graphPoint=()=>svg.evaluate((node,[x,y])=>{
+      const bounds=node.getBoundingClientRect();
+      return [(x-bounds.left)/bounds.width,(y-bounds.top)/bounds.height];
+    },[x,y]);
+    const anchor=await graphPoint();
+    await pinch(42,76);
+    const enlarged=await scale();
+    assert(enlarged>reading*1.6);
+    const anchored=await graphPoint();
+    assert(anchor.every((coordinate,index)=>Math.abs(coordinate-anchored[index])<0.03));
+    await pinch(76,34);
+    assert((await scale())<reading*0.9);
+    await page.locator('#botanical-fit').tap();
+    const beforePan=await canvas.evaluate(node=>node.scrollLeft);
+    await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y,id:3}]});
+    await session.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:x-45,y,id:3}]});
+    await session.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:x-100,y,id:3}]});
+    await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+    await page.waitForFunction(left=>document.getElementById('tree-view').scrollLeft>left+10,beforePan);
+    await session.detach();
+    await page.locator('#botanical-fit').tap();
     await canvas.locator('[data-person-id="test-0"]').tap();
     await page.locator('#tree-node-actions').waitFor();
     await layout.selectOption('classic');

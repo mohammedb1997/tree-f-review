@@ -60,6 +60,9 @@ const generationColors=['male','ancestor','child','selected','female','descendan
 const arabicNumber=new Intl.NumberFormat('ar-SA');
 let botanicalZoom=1;
 let overviewMode=false;
+let treePinch=null;
+let radialCache=null;
+const detailZoomThreshold=1.24;
 const minimumReadingScale=0.8;
 let inlineSelection=null;
 let inlineAge='';
@@ -189,14 +192,26 @@ function renderTreeLegend(entries){
   }));
 }
 
-function treeScale(container,width,height){
-  const fit=Math.min(container.clientWidth/width,container.clientHeight/height,1.35);
-  if(container.id!=='tree-view')return fit*botanicalZoom;
+function fitTreeScale(container,width,height){
+  return Math.min(container.clientWidth/width,container.clientHeight/height,1.35);
+}
+
+function showScaleControls(fit,scale){
   const help=byId('tree-scale-help');
-  const cramped=fit<minimumReadingScale;
-  help.hidden=!cramped;
-  help.textContent=overviewMode?'نظرة عامة. اختر «ملاءمة» للعودة إلى حجم قراءة الأسماء.':'اسحب اللوحة لقراءة الأسماء أو اختر «كامل» لرؤية التوزيع.';
-  return overviewMode?fit:Math.max(minimumReadingScale,fit)*botanicalZoom;
+  help.hidden=fit>=minimumReadingScale&&scale>=minimumReadingScale;
+  help.textContent=scale<minimumReadingScale-0.001
+    ? 'كبّر بإصبعين أو اختر «ملاءمة» لقراءة الأسماء.'
+    : 'اسحب بإصبع واحد للتنقل، أو كبّر بإصبعين لقراءة الأسماء.';
+  byId('tree-overview').setAttribute('aria-pressed',String(overviewMode));
+}
+
+function treeScale(container,width,height,fitToViewport=true){
+  const fit=fitTreeScale(container,width,height);
+  if(container.id!=='tree-view')return fit*botanicalZoom;
+  const base=fitToViewport?Math.max(minimumReadingScale,fit):1;
+  const scale=overviewMode?fit:base*botanicalZoom;
+  if(fitToViewport||botanicalZoom!==1)showScaleControls(fit,scale);
+  return scale;
 }
 
 function radialLayout(roots,children,measure,allPeople){
@@ -207,15 +222,15 @@ function radialLayout(roots,children,measure,allPeople){
     weights.set(person.id,result);
     return result;
   }
-  function place(person,depth,generation,start,span){
+  function place(person,depth,generation,start,span,parentId=null){
     const angle=start+span/2;
-    const position={angle,ux:Math.cos(angle),uy:Math.sin(angle),width:measure(person),generation};
+    const position={angle,ux:Math.cos(angle),uy:Math.sin(angle),width:measure(person),generation,parentId,id:person.id};
     positions.set(person.id,position);
     (rings[depth]??=[]).push(position);
     let cursor=start;
     for(const child of children.get(person.id)||[]){
       const share=span*weights.get(child.id)/weights.get(person.id);
-      place(child,depth+1,generation+1,cursor,share);
+      place(child,depth+1,generation+1,cursor,share,person.id);
       cursor+=share;
     }
   }
@@ -228,27 +243,52 @@ function radialLayout(roots,children,measure,allPeople){
     place(root,roots.length===1?0:1,generation,cursor,span);
     cursor+=span;
   }
-  const radii=[];
-  let radius=0,priorExtent=0;
-  for(const [depth,ring] of rings.entries()){
-    if(!ring)continue;
-    const extent=ring.reduce((max,node)=>Math.max(max,Math.hypot(node.width/2,25)),0);
-    if(depth)radius+=Math.max(128,priorExtent+extent+24);
-    for(let i=0;i<ring.length;i++)for(let j=i+1;j<ring.length;j++){
-      const a=ring[i],b=ring[j];
-      const separationX=((a.width+b.width)/2+14)/Math.abs(a.ux-b.ux);
-      const separationY=64/Math.abs(a.uy-b.uy);
-      radius=Math.max(radius,Math.min(separationX,separationY));
-    }
-    for(const node of ring){
-      node.radius=radius;
-      node.x=node.ux*radius;
-      node.y=node.uy*radius;
-    }
-    if(depth)radii.push(radius);
-    priorExtent=extent;
+  function axisInterval(direction,center,clearance){
+    if(Math.abs(direction)<1e-10)return Math.abs(center)<clearance?[-Infinity,Infinity]:null;
+    const ends=[(center-clearance)/direction,(center+clearance)/direction];
+    return ends[0]<ends[1]?ends:[ends[1],ends[0]];
   }
-  return {positions,radii};
+  function pack(tracks){
+    const placed=new Map(),radii=[];
+    let outerRadius=0;
+    for(const [depth,ring] of rings.entries()){
+      if(!ring)continue;
+      // Change the packing order to stagger nearby labels without changing their angles.
+      for(let track=0;track<tracks;track++)for(let index=track;index<ring.length;index+=tracks){
+        const source=ring[index];
+        const node={...source};
+        const parent=placed.get(node.parentId);
+        let radius=parent?parent.radius+90:depth?128:0;
+        const blocked=[];
+        for(const previous of placed.values()){
+          const horizontal=axisInterval(node.ux,previous.x,(node.width+previous.width)/2+14);
+          const vertical=axisInterval(node.uy,previous.y,64);
+          if(!horizontal||!vertical)continue;
+          const start=Math.max(horizontal[0],vertical[0]);
+          const end=Math.min(horizontal[1],vertical[1]);
+          if(start<end&&end>radius)blocked.push([start,end]);
+        }
+        blocked.sort((a,b)=>a[0]-b[0]);
+        for(const [start,end] of blocked){
+          if(start>radius)break;
+          radius=Math.max(radius,end+0.01);
+        }
+        node.radius=radius;
+        node.x=node.ux*radius;
+        node.y=node.uy*radius;
+        placed.set(node.id,node);
+        outerRadius=Math.max(outerRadius,radius);
+      }
+      if(depth)radii.push(outerRadius);
+    }
+    return {placed,radii,outerRadius};
+  }
+  const candidates=[1,2,3,4].map(pack);
+  candidates.sort((a,b)=>a.outerRadius-b.outerRadius);
+  const best=candidates[0];
+  // Return the original traversal order used by callers and exports.
+  for(const id of positions.keys())positions.set(id,best.placed.get(id));
+  return {positions,radii:best.radii};
 }
 
 function drawTree(container, snapshot, colored = true) {
@@ -294,7 +334,10 @@ function drawTree(container, snapshot, colored = true) {
   const radial=container.id==='tree-view'&&byId('tree-drawing').value==='radial';
   const roots=children.get(null)||[];
   const measure=person=>Math.max(radial?126:150,Math.ceil(context.measureText(person.name).width+38));
-  const {positions,radii}=radial?radialLayout(roots,children,measure,allPeople):{positions:new Map(),radii:[]};
+  if(radial&&(radialCache?.source!==source||radialCache.anchor!==anchor)){
+    radialCache={source,anchor,layout:radialLayout(roots,children,measure,allPeople)};
+  }
+  const {positions,radii}=radial?radialCache.layout:{positions:new Map(),radii:[]};
   let cursor = 25;
   let maximumDepth = 0;
   const gap = 32;
@@ -346,11 +389,11 @@ function drawTree(container, snapshot, colored = true) {
     viewWidth=2*extent;
     container.dataset.drawing='radial';
   }
-  const scale=fit?treeScale(container,viewWidth,height):1;
+  const scale=container.id==='tree-view'?treeScale(container,viewWidth,height,fit):1;
   const renderedHeight=Math.ceil(height*scale);
   const svg = svgElement('svg', {width:Math.ceil(viewWidth*scale), height:renderedHeight, viewBox:`${left} ${top} ${viewWidth} ${height}`, role:'group', 'aria-label':snapshot.title || 'شجرة العائلة'});
   if(fit)svg.style.marginBlockStart=Math.max(0,(container.clientHeight-renderedHeight)/2)+'px';
-  for(const radius of radii)svg.append(svgElement('circle',{cx:0,cy:0,r:radius,class:'radial-guide','aria-hidden':'true'}));
+  for(const radius of new Set(radii))svg.append(svgElement('circle',{cx:0,cy:0,r:radius,class:'radial-guide','aria-hidden':'true'}));
   for (const person of shown) {
     const child = positions.get(person.id);
     const parent = positions.get(person.parentId);
@@ -453,8 +496,9 @@ function renderTrees() {
 
 function positionTreeActions(){
   const actions=byId('tree-node-actions');
-  if(overviewMode){actions.hidden=true;return;}
   const canvas=byId('tree-view');
+  const drawing=canvas.querySelector('svg');
+  if(overviewMode||treePinch||drawing&&currentDrawingScale(drawing)<0.55){actions.hidden=true;return;}
   const person=inlineSelection===selectedId&&people.find(row=>row.id===inlineSelection);
   const node=person&&canvas.querySelector('[data-person-id="'+CSS.escape(person.id)+'"]');
   if(!node){actions.hidden=true;return;}
@@ -468,7 +512,7 @@ function positionTreeActions(){
   edit.textContent=managesPerson(person)?'تعديل':'دعوة';
   const parent=people.find(row=>row.id===person.parentId);
   const detail=byId('tree-node-detail');
-  detail.hidden=botanicalZoom<1.5;
+  detail.hidden=botanicalZoom<detailZoomThreshold;
   detail.textContent=[parent?'الأب: '+parent.name:'أصل الشجرة',inlineAge].filter(Boolean).join(' · ');
   const bounds=node.getBoundingClientRect(), frame=canvas.getBoundingClientRect();
   actions.hidden=buttons.hidden&&detail.hidden||bounds.bottom<=frame.top||bounds.top>=frame.bottom||bounds.right<=frame.left||bounds.left>=frame.right;
@@ -483,7 +527,7 @@ function refreshInlineAge(){
   const person=people.find(row=>row.id===inlineSelection);
   inlineAge='';
   positionTreeActions();
-  if(!person||botanicalZoom<1.5||!managesPerson(person))return;
+  if(!person||botanicalZoom<detailZoomThreshold||!managesPerson(person))return;
   const account=user;
   api('/api/people/'+encodeURIComponent(person.id)+'/profile').then(profile=>{
     if(user!==account||inlineSelection!==person.id)return;
@@ -552,28 +596,86 @@ byId('tree-overview').addEventListener('click',()=>{
   renderTrees();
   if(!overviewMode)locatePerson(selectedId);
 });
-for(const [id,factor] of [['botanical-zoom-in',1.5],['botanical-zoom-out',1/1.5],['botanical-fit',0]]){
+
+function currentDrawingScale(svg){
+  return svg.getBoundingClientRect().width/svg.viewBox.baseVal.width;
+}
+
+function drawingAnchor(svg,point){
+  const bounds=svg.getBoundingClientRect();
+  return {x:(point.x-bounds.left)/bounds.width,y:(point.y-bounds.top)/bounds.height};
+}
+
+function zoomDrawing(scale,point,anchor){
+  const canvas=byId('tree-view'),svg=canvas.querySelector('svg');
+  if(!svg)return;
+  const {width,height}=svg.viewBox.baseVal;
+  const fit=fitTreeScale(canvas,width,height);
+  const managed=canvas.dataset.drawing||byId('live-tree').classList.contains('is-focused');
+  const next=Math.max(Math.min(fit,0.35),Math.min(3,scale));
+  botanicalZoom=next/(managed?Math.max(minimumReadingScale,fit):1);
+  overviewMode=false;
+  svg.setAttribute('width',Math.ceil(width*next));
+  svg.setAttribute('height',Math.ceil(height*next));
+  if(managed)svg.style.marginBlockStart=Math.max(0,(canvas.clientHeight-height*next)/2)+'px';
+  const bounds=svg.getBoundingClientRect();
+  canvas.scrollLeft+=bounds.left+bounds.width*anchor.x-point.x;
+  canvas.scrollTop+=bounds.top+bounds.height*anchor.y-point.y;
+  showScaleControls(fit,next);
+  positionTreeActions();
+}
+
+for(const [id,factor] of [['botanical-zoom-in',1.25],['botanical-zoom-out',1/1.25]]){
   byId(id).addEventListener('click',()=>{
     const canvas=byId('tree-view'),svg=canvas.querySelector('svg');
-    const frame=canvas.getBoundingClientRect(),previous=svg?.getBoundingClientRect();
-    const anchor=previous?.width&&previous.height&&[(frame.left+frame.width/2-previous.left)/previous.width,
-      (frame.top+frame.height/2-previous.top)/previous.height];
-    const scale=svg?.clientWidth&&svg.viewBox.baseVal.width?svg.clientWidth/svg.viewBox.baseVal.width:1;
-    const fromOverview=overviewMode;
-    overviewMode=false;
-    botanicalZoom=factor&&!fromOverview?Math.max(1,Math.min(botanicalZoom*3/scale,botanicalZoom*factor)):1;
-    renderTrees();
-    if(!factor||fromOverview||inlineSelection)locatePerson(selectedId);
-    else if(anchor){
-      const next=canvas.querySelector('svg')?.getBoundingClientRect();
-      if(next){
-        canvas.scrollLeft+=next.left+anchor[0]*next.width-frame.left-frame.width/2;
-        canvas.scrollTop+=next.top+anchor[1]*next.height-frame.top-frame.height/2;
-      }
-    }
+    if(!svg)return;
+    const frame=canvas.getBoundingClientRect();
+    const selected=inlineSelection&&canvas.querySelector('[data-person-id="'+CSS.escape(inlineSelection)+'"]')?.getBoundingClientRect();
+    const visible=selected&&selected.left>=frame.left&&selected.right<=frame.right&&selected.top>=frame.top&&selected.bottom<=frame.bottom;
+    const bounds=visible?selected:frame;
+    const point={x:(bounds.left+bounds.right)/2,y:(bounds.top+bounds.bottom)/2};
+    zoomDrawing(currentDrawingScale(svg)*factor,point,drawingAnchor(svg,point));
     refreshInlineAge();
   });
 }
+byId('botanical-fit').addEventListener('click',()=>{
+  overviewMode=false;
+  botanicalZoom=1;
+  renderTrees();
+  locatePerson(selectedId);
+  refreshInlineAge();
+});
+
+function pinchPosition(touches){
+  const first=touches[0],second=touches[1];
+  return {x:(first.clientX+second.clientX)/2,y:(first.clientY+second.clientY)/2,
+    distance:Math.hypot(second.clientX-first.clientX,second.clientY-first.clientY)};
+}
+
+const mainTreeCanvas=byId('tree-view');
+mainTreeCanvas.addEventListener('touchstart',event=>{
+  if(event.touches.length!==2||treePinch)return;
+  const svg=mainTreeCanvas.querySelector('svg');
+  if(!svg)return;
+  const point=pinchPosition(event.touches);
+  if(!point.distance)return;
+  if(event.cancelable)event.preventDefault();
+  treePinch={distance:point.distance,scale:currentDrawingScale(svg),anchor:drawingAnchor(svg,point)};
+  positionTreeActions();
+},{passive:false});
+mainTreeCanvas.addEventListener('touchmove',event=>{
+  if(!treePinch||event.touches.length!==2)return;
+  if(event.cancelable)event.preventDefault();
+  const point=pinchPosition(event.touches);
+  zoomDrawing(treePinch.scale*point.distance/treePinch.distance,point,treePinch.anchor);
+},{passive:false});
+for(const type of ['touchend','touchcancel'])mainTreeCanvas.addEventListener(type,event=>{
+  if(!treePinch)return;
+  if(event.cancelable)event.preventDefault();
+  if(type==='touchend'&&event.touches.length)return;
+  treePinch=null;
+  refreshInlineAge();
+},{passive:false});
 byId('botanical-add').addEventListener('click',()=>{
   if(!people.some(person=>person.id===selectedId&&canAddPerson(person)))return;
   byId('child-gender').value='m';
@@ -720,6 +822,8 @@ async function submit(form, action) {
 }
 
 function showSignedOut() {
+  radialCache=null;
+  treePinch=null;
   if(byId('person-action-dialog').open)byId('person-action-dialog').close();
   batchDraft=null;
   byId('batch-preview').replaceChildren();
