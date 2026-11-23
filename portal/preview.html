@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>تجربة بوابة العائلة</title>
-  <link rel="stylesheet" href="style.css?v=2431193746">
-  <script src="../Claud/botanical-core.js?v=2431193746" defer></script>
-  <script src="preview.js?v=2431193746" defer></script>
-  <script src="app.js?v=2431193746" defer></script>
+  <link rel="stylesheet" href="style.css?v=308f3ee96e">
+  <script src="../Claud/botanical-core.js?v=308f3ee96e" defer></script>
+  <script src="preview.js?v=308f3ee96e" defer></script>
+  <script src="app.js?v=308f3ee96e" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -79,6 +79,10 @@
           <button id="botanical-add" type="button" hidden>إضافة ابن للشخص المحدد</button>
         </div>
         <p id="tree-focus-status" class="hint" aria-hidden="true"></p>
+        <section id="member-context" aria-label="الداعي وسلسلة النسب" hidden>
+          <p id="member-inviter" class="hint" hidden></p>
+          <nav id="member-lineage" aria-label="الأب والأجداد"></nav>
+        </section>
         <div id="tree-stage">
           <div id="tree-view" class="tree-canvas" tabindex="0" aria-label="شجرة العائلة الحية"></div>
           <div id="tree-node-actions" class="tree-node-actions" role="group" aria-label="إجراءات الشخص المحدد" hidden>
@@ -169,7 +173,16 @@
             <label id="person-photo-remove-label" hidden><input id="person-photo-remove" type="checkbox"> إزالة الصورة الحالية</label>
             <p class="hint">بيانات التواصل والصورة تظهر في نموذج التعديل للحسابات المخوّلة. هذه الحقول لا تغيّر بيانات الدخول.</p>
             <button type="submit" class="primary">حفظ التعديلات</button>
-            <button id="invite-selected-person" type="button" hidden>إنشاء دعوة لهذا الشخص</button>
+            <p data-form-status class="hint" role="status"></p>
+          </form>
+          <section id="person-invite-panel" aria-labelledby="invite-permissions-title" hidden>
+            <fieldset>
+              <legend id="invite-permissions-title">صلاحيات المدعو</legend>
+              <label><input id="invite-allow-add" type="checkbox" checked> إضافة أشخاص في فرعه</label>
+              <label><input id="invite-allow-edit" type="checkbox" checked> تعديل بيانات فرعه وحذف السجلات المؤهلة</label>
+              <p class="hint">أزل التحديد عن الخيارين للسماح بالمشاهدة فقط.</p>
+            </fieldset>
+            <button id="invite-selected-person" type="button">إنشاء دعوة لهذا الشخص</button>
             <div id="selected-invitation" hidden>
               <p id="selected-invitation-info" class="hint"></p>
               <label for="selected-invitation-link">رابط التفعيل</label>
@@ -180,8 +193,7 @@
               <input id="selected-invitation-password" dir="ltr" readonly autocomplete="off">
             </div>
             <p id="selected-invitation-status" role="status"></p>
-            <p data-form-status class="hint" role="status"></p>
-          </form>
+          </section>
           <form id="add-form" method="post" hidden>
             <label for="child-gender">الجنس</label>
             <select id="child-gender" name="gender"><option value="m">ابن</option><option value="f">ابنة</option></select>
@@ -227,6 +239,12 @@
         <h2 id="private-daughters-title" tabindex="-1">بناتي</h2>
         <p class="hint">يمكنك دعوة كل ابنة لحسابها، وتظهر الأسماء لأفراد العائلة المسجّلين عند اختيار «الكل».</p>
         <p id="private-daughters-empty">لم تضف بنات بعد.</p>
+        <fieldset class="invite-grants" id="daughter-grants" hidden>
+          <legend>صلاحيات الدعوة التالية</legend>
+          <label><input id="daughter-invite-allow-add" type="checkbox" checked> الإضافة</label>
+          <label><input id="daughter-invite-allow-edit" type="checkbox" checked> التعديل</label>
+          <small>بدون الخيارين، تكون الدعوة للمشاهدة فقط.</small>
+        </fieldset>
         <ul id="private-daughters-list"></ul>
         <div id="daughter-invitation" class="invitation" hidden>
           <h3 id="daughter-invitation-person"></h3>
@@ -277,6 +295,12 @@
         <p class="hint">اربط الحساب بالشخص المعني. يمتد التعديل إلى هذا الشخص وأبنائه وأحفاده.</p>
         <form id="invite-form" class="invite-form" method="post">
           <div><label for="invite-person">صاحب الحساب في الشجرة</label><select id="invite-person" name="personId" required></select></div>
+          <fieldset class="invite-grants">
+            <legend>صلاحيات المدعو</legend>
+            <label><input id="admin-invite-allow-add" type="checkbox" checked> الإضافة</label>
+            <label><input id="admin-invite-allow-edit" type="checkbox" checked> التعديل</label>
+            <small>بدون الخيارين، تكون الدعوة للمشاهدة فقط.</small>
+          </fieldset>
           <button class="primary" type="submit">إنشاء دعوة</button>
         </form>
         <div id="invitation" class="invitation" hidden>

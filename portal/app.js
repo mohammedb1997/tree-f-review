@@ -63,7 +63,7 @@ let inlineSelection=null;
 let inlineAge='';
 let focusReturn=null;
 
-function drawBotanical(container,snapshot,shown,allPeople,relationship,colorMode,membership){
+function drawBotanical(container,snapshot,shown,allPeople,relationship,colorMode,membership,accountAncestors){
   const core=globalThis.BotanicalCore;
   if(!core)return false;
   const botanicalNodes=new Map(shown.map(person=>[person.id,{
@@ -134,6 +134,7 @@ function drawBotanical(container,snapshot,shown,allPeople,relationship,colorMode
     item.dataset.generation=level;
     item.dataset.gender=gender;
     if(membership)item.dataset.membership=membership.has(id)?'mine':'muted';
+    if(accountAncestors.has(id))item.dataset.myAncestor='';
     item.querySelector(':scope > text:last-child').textContent=arabicNumber.format(level);
     if(beforeSnapshot&&container.id!=='before-tree'&&person.gender!=='f'){
       if(!previous.has(id))item.dataset.change='added';
@@ -146,6 +147,9 @@ function drawBotanical(container,snapshot,shown,allPeople,relationship,colorMode
   }
   if(membership)for(const edge of svg.querySelectorAll('[data-child-id]')){
     edge.setAttribute('stroke',treeColors[membership.has(edge.dataset.parentId)&&membership.has(edge.dataset.childId)?'mine':'muted'].stroke);
+  }
+  for(const edge of svg.querySelectorAll('[data-child-id]')){
+    if(accountAncestors.has(edge.dataset.parentId)&&(accountAncestors.has(edge.dataset.childId)||edge.dataset.childId===user?.personId))edge.dataset.myLineage='';
   }
   if(container.id==='tree-view'){
     const generationKeys=new Set(nodes.map(node=>node.generation));
@@ -201,6 +205,7 @@ function drawTree(container, snapshot, colored = true) {
   const relatives = anchor && anchor!==selectedId ? descendants(source,selectedId) : family;
   const allPeople = new Map(source.map(person=>[person.id,person]));
   const ancestors = ancestorIds(allPeople,selectedId);
+  const accountAncestors=ancestorIds(allPeople,user?.personId);
   const colorMode = colored ? byId('tree-color-mode').value : '';
   const membership=colorMode==='membership'?descendants(source,user?.personId):null;
   function relationship(person){
@@ -211,7 +216,7 @@ function drawTree(container, snapshot, colored = true) {
   }
   const shown = anchor && family.size
     ? source.filter(person => family.has(person.id)) : source;
-  if(colored&&byId('tree-drawing').value==='botanical'&&drawBotanical(container,snapshot,shown,allPeople,relationship,colorMode,membership))return;
+  if(colored&&byId('tree-drawing').value==='botanical'&&drawBotanical(container,snapshot,shown,allPeople,relationship,colorMode,membership,accountAncestors))return;
   const map = new Map(shown.map(person => [person.id, person]));
   const children = new Map();
   for (const person of shown) {
@@ -278,6 +283,7 @@ function drawTree(container, snapshot, colored = true) {
     });
     const relation=relationship(person);
     if(membership)path.dataset.membership=membership.has(person.id)&&membership.has(person.parentId)?'mine':'muted';
+    if(accountAncestors.has(person.parentId)&&(accountAncestors.has(person.id)||person.id===user?.personId))path.dataset.myLineage='';
     if(colorMode==='relationship'&&(relation==='child'||relation==='descendant'||
        ((relation==='selected'||relation==='ancestor')&&ancestors.has(person.parentId)))){
       path.setAttribute('data-kinship-path','');
@@ -302,6 +308,7 @@ function drawTree(container, snapshot, colored = true) {
       colorMode==='gender'?treeColors[gender]:colorMode==='relationship'?treeColors[relation]:
       membership?treeColors[membership.has(person.id)?'mine':'muted']:null;
     if(membership)group.dataset.membership=membership.has(person.id)?'mine':'muted';
+    if(accountAncestors.has(person.id))group.dataset.myAncestor='';
     const description=[colorMode==='generation'?generationLabel:color?.label,
       change==='added'?'أُضيف في آخر تعديل':change==='renamed'?'تغيّر الاسم في آخر تعديل':''].filter(Boolean).join(' · ');
     if(change)group.dataset.change=change;
@@ -336,7 +343,7 @@ function renderTrees() {
   const botanical=byId('tree-drawing').value==='botanical';
   const focused=byId('live-tree').classList.contains('is-focused');
   byId('botanical-zoom').hidden=!botanical&&!focused;
-  byId('botanical-add').hidden=!botanical||!people.some(person=>person.id===selectedId&&person.writable);
+  byId('botanical-add').hidden=!botanical||!people.some(person=>person.id===selectedId&&canAddPerson(person));
   const scroll=Array.from(document.querySelectorAll('.tree-canvas'),node=>[node,node.scrollLeft,node.scrollTop]);
   const active = document.activeElement;
   const focusPersonId = active?.dataset?.personId;
@@ -367,9 +374,13 @@ function positionTreeActions(){
   const node=person&&canvas.querySelector('[data-person-id="'+CSS.escape(person.id)+'"]');
   if(!node){actions.hidden=true;return;}
   const buttons=actions.querySelector('.tree-node-buttons');
-  buttons.hidden=!managesPerson(person);
+  buttons.hidden=!hasPersonActions(person);
   const add=actions.querySelector('[data-action="person-add"]');
-  add.hidden=!person.writable;
+  add.hidden=!canAddPerson(person);
+  actions.querySelector('[data-action="person-delete"]').hidden=!managesPerson(person);
+  const edit=actions.querySelector('[data-action="person-edit"]');
+  edit.hidden=!managesPerson(person)&&!canInvitePerson(person);
+  edit.textContent=managesPerson(person)?'تعديل':'دعوة';
   const parent=people.find(row=>row.id===person.parentId);
   const detail=byId('tree-node-detail');
   detail.hidden=botanicalZoom<1.5;
@@ -448,7 +459,7 @@ for(const [id,factor] of [['botanical-zoom-in',1.5],['botanical-zoom-out',1/1.5]
   });
 }
 byId('botanical-add').addEventListener('click',()=>{
-  if(!people.some(person=>person.id===selectedId&&person.writable))return;
+  if(!people.some(person=>person.id===selectedId&&canAddPerson(person)))return;
   byId('child-gender').value='m';
   openAddPanel(selectedId);
 });
@@ -604,6 +615,9 @@ function showSignedOut() {
   byId('correction-note').value='';
   stopLive();
   user = null;
+  byId('member-context').hidden=true;
+  byId('member-inviter').textContent='';
+  byId('member-lineage').replaceChildren();
   people = [];
   privatePeople = [];
   treeRequest++;
@@ -708,7 +722,8 @@ function openAction(kind,person,locked=false){
     form.hidden=true;
     form.querySelector('[data-form-status]').textContent='';
   }
-  byId('person-action-title').textContent={add:'إضافة ابن أو ابنة',edit:'تعديل بيانات الشخص',remove:'حذف شخص'}[kind];
+  byId('person-invite-panel').hidden=true;
+  byId('person-action-title').textContent={add:'إضافة ابن أو ابنة',edit:'تعديل بيانات الشخص',remove:'حذف شخص',invite:'دعوة لهذا الشخص'}[kind];
   byId('person-action-target').textContent=person.name;
   byId('person-action-status').textContent='';
   personDialog.showModal();
@@ -717,7 +732,7 @@ function openAction(kind,person,locked=false){
 }
 
 function openAddPanel(parentId,locked=false) {
-  const person=people.find(person=>person.id===parentId&&person.writable);
+  const person=people.find(person=>person.id===parentId&&canAddPerson(person));
   if(!person||!openAction('add',person,locked))return;
   byId('add-form').hidden=false;
   const gender=byId('child-gender');
@@ -734,6 +749,7 @@ personDialog.addEventListener('close',()=>{
   const trigger=personAction?.trigger;
   personAction=null;
   resetSelectedInvitation();
+  byId('person-invite-panel').hidden=true;
   for(const id of Object.values(actionForms))byId(id).hidden=true;
   byId('child-name').value='';
   byId('child-birth').value='';
@@ -748,26 +764,56 @@ personDialog.addEventListener('close',()=>{
 });
 byId('person-action-close').addEventListener('click',()=>personDialog.close());
 
+function hasPermission(kind){
+  return !!user&&(user.role==='admin'||user.permissions?.[kind]!==false);
+}
+
+function canAddPerson(person){
+  return hasPermission('add')&&(person.addable??person.writable);
+}
+
 function managesPerson(person){
-  return person.writable||person.gender==='f'&&
-    (user?.role==='admin'||[person.id,person.parentId].includes(user?.personId));
+  return hasPermission('edit')&&(person.writable||person.gender==='f'&&
+    (user?.role==='admin'||[person.id,person.parentId].includes(user?.personId)));
 }
 
 function canInvitePerson(person){
-  return user?.role==='admin'||!!user?.personId&&person.parentId===user.personId;
+  return user?.role==='admin'||(hasPermission('edit')||hasPermission('add'))&&!!user.personId&&person.parentId===user.personId;
+}
+
+function hasPersonActions(person){
+  return canAddPerson(person)||managesPerson(person)||canInvitePerson(person);
+}
+
+function setupInvitationPanel(person){
+  byId('person-invite-panel').hidden=!canInvitePerson(person);
+  configureInviteGrants('invite');
+}
+
+function configureInviteGrants(prefix){
+  for(const kind of ['add','edit']){
+    const box=byId(prefix+'-allow-'+kind);
+    box.checked=hasPermission(kind);
+    box.disabled=!hasPermission(kind);
+  }
+}
+
+function inviteGrants(prefix){
+  return {add:byId(prefix+'-allow-add').checked,edit:byId(prefix+'-allow-edit').checked};
 }
 
 byId('invite-selected-person').addEventListener('click',async event=>{
   const button=event.currentTarget;
   const action=personAction;
   const person=people.find(row=>row.id===action?.id);
-  if(action?.kind!=='edit'||!person||!canInvitePerson(person))return;
+  if(!['edit','invite'].includes(action?.kind)||!person||!canInvitePerson(person))return;
   resetSelectedInvitation();
   button.disabled=true;
   const status=byId('selected-invitation-status');
   status.textContent='جارٍ إنشاء الدعوة…';
   try{
-    const {code,initialPassword}=await api('/api/people/'+encodeURIComponent(person.id)+'/invite',{});
+    const permissions=inviteGrants('invite');
+    const {code,initialPassword}=await api('/api/people/'+encodeURIComponent(person.id)+'/invite',{permissions});
     if(personAction!==action||!personDialog.open)return;
     const preview=!!globalThis.familyPortalPreview;
     const url=new URL(location.href);
@@ -784,7 +830,8 @@ byId('invite-selected-person').addEventListener('click',async event=>{
     const mail=byId('selected-invitation-mail');
     mail.hidden=preview||local;
     if(!preview){
-      const body='أدعوك للاطلاع على شجرة العائلة وتحديث بياناتك. افتح رابط التفعيل، وسأرسل لك كلمة المرور المؤقتة على انفراد.\n\n'+url.href;
+      const greeting=user?.personId&&user.personId===person.parentId?'دعوة من والدك للاطلاع على شجرة العائلة.':'دعوة للاطلاع على شجرة العائلة.';
+      const body=greeting+' افتح رابط التفعيل، وسأرسل لك كلمة المرور المؤقتة على انفراد.\n\n'+url.href;
       mail.href='mailto:?subject='+encodeURIComponent('دعوة إلى شجرة العائلة')+'&body='+encodeURIComponent(body);
     }
     byId('selected-invitation').hidden=false;
@@ -811,7 +858,12 @@ byId('person-add').addEventListener('click',()=>openAddPanel(selectedId,true));
 for(const [button,kind,endpoint] of [['person-edit','edit','profile'],['person-delete','remove','remove-options']]){
   byId(button).addEventListener('click',async()=>{
     const person=people.find(row=>row.id===selectedId);
-    if(!person||!managesPerson(person))return;
+    if(!person)return;
+    if(kind==='edit'&&!managesPerson(person)&&canInvitePerson(person)){
+      if(openAction('invite',person))setupInvitationPanel(person);
+      return;
+    }
+    if(!managesPerson(person))return;
     const action=openAction(kind,person);
     if(!action)return;
     const status=byId('person-action-status');
@@ -823,7 +875,7 @@ for(const [button,kind,endpoint] of [['person-edit','edit','profile'],['person-d
       const form=byId(actionForms[kind]);
       form.reset();
       if(kind==='edit'){
-        byId('invite-selected-person').hidden=!canInvitePerson(person);
+        setupInvitationPanel(person);
         for(const [id,key] of [['person-name','name'],['person-life','lifeStatus'],['person-phone','phone'],['person-email','email'],['person-birth','birthDate']]){
           byId(id).value=result[key]||'';
         }
@@ -856,9 +908,9 @@ for(const [button,kind,endpoint] of [['person-edit','edit','profile'],['person-d
 }
 
 byId('quick-add').addEventListener('click', () => {
-  const parent = people.find(person => person.writable && person.id === selectedId)
-    || people.find(person => person.writable && person.id === user?.personId)
-    || people.find(person => person.writable);
+  const parent = people.find(person => canAddPerson(person) && person.id === selectedId)
+    || people.find(person => canAddPerson(person) && person.id === user?.personId)
+    || people.find(canAddPerson);
   if (!parent) return;
   selectPerson(parent.id);
   openAddPanel(parent.id);
@@ -906,6 +958,7 @@ async function loadPrivateDaughters(){
     editing.append(nameInput,save,cancel);
     const rename=document.createElement('button');
     rename.type='button';
+    rename.hidden=!hasPermission('edit');
     rename.textContent='تعديل الاسم';
     rename.setAttribute('aria-label','تعديل اسم '+daughter.name);
     rename.addEventListener('click',()=>{
@@ -929,6 +982,7 @@ async function loadPrivateDaughters(){
     const invite=document.createElement('button');
     invite.type='button';
     const recover=daughter.accountStatus==='active';
+    invite.hidden=recover?!hasPermission('edit'):!hasPermission('edit')&&!hasPermission('add');
     invite.textContent=recover?'استعادة الدخول':daughter.accountStatus==='invited'?'تجديد الدعوة':'إنشاء دعوة';
     invite.setAttribute('aria-label',(recover?'استعادة دخول ':'دعوة ')+daughter.name);
     invite.addEventListener('click',()=>submit(item,async()=>{
@@ -936,7 +990,7 @@ async function loadPrivateDaughters(){
       byId('daughter-invitation').hidden=true;
       byId('daughter-invitation-code').value='';
       byId('daughter-invitation-password').value='';
-      const invitation=await api(endpoint+(recover?'/recover':'/invite'),{});
+      const invitation=await api(endpoint+(recover?'/recover':'/invite'),recover?{}:{permissions:inviteGrants('daughter-invite')});
       if(user!==account)return;
       byId('daughter-invitation-person').textContent='دعوة لـ '+daughter.name;
       byId('daughter-invitation-code').value=invitation.code;
@@ -950,6 +1004,7 @@ async function loadPrivateDaughters(){
   });
   byId('private-daughters-list').replaceChildren(...items);
   byId('private-daughters-empty').hidden=items.length>0;
+  byId('daughter-grants').hidden=!items.length||!hasPermission('add')&&!hasPermission('edit');
   byId('private-daughters').hidden=false;
 }
 
@@ -987,15 +1042,15 @@ function selectPerson(id) {
     ancestor=people.find(candidate=>candidate.id===ancestor.parentId);
   }
   byId('person-lineage').textContent = 'النسب · ' + lineage.join(' ← ');
-  byId('person-access').textContent = person.gender==='f'
-    ? 'اسم ظاهر لأفراد العائلة المسجّلين عند اختيار «الكل».'
-    : person.writable
-    ? 'يمكنك تعديل هذا الاسم وإضافة الأبناء لهذا الفرع.'
-    : 'يمكنك الاطلاع على هذا الفرع. التعديل متاح لصاحب الفرع والمدير.';
-  byId('person-quick-actions').hidden=!managesPerson(person);
-  byId('person-add').hidden=!person.writable;
+  byId('person-access').textContent = [managesPerson(person)?'التعديل متاح':'',canAddPerson(person)?'الإضافة متاحة':'']
+    .filter(Boolean).join(' · ') || 'يمكنك الاطلاع على هذا السجل.';
+  byId('person-quick-actions').hidden=!hasPersonActions(person);
+  byId('person-add').hidden=!canAddPerson(person);
+  byId('person-delete').hidden=!managesPerson(person);
+  byId('person-edit').hidden=!managesPerson(person)&&!canInvitePerson(person);
+  byId('person-edit').textContent=managesPerson(person)?'تعديل':'دعوة';
   byId('show-person-branch').hidden = !treeSnapshot?.people.some(candidate => candidate.id === id);
-  if (person.writable && (user?.role==='admin'||byId('child-gender').value==='m')) byId('parent').value = person.id;
+  if (canAddPerson(person) && (user?.role==='admin'||byId('child-gender').value==='m')) byId('parent').value = person.id;
   for (const button of byId('people').querySelectorAll('button')) {
     button.setAttribute('aria-pressed', String(button.dataset.personId === id));
   }
@@ -1160,25 +1215,27 @@ function applyTree(result,forcePrivate=false) {
   byId('tree-title').value = result.title || 'شجرة العائلة';
   byId('family-title').textContent = byId('tree-title').value;
   byId('workspace-name').textContent = byId('tree-title').value;
-  const writable = people.filter(person => person.writable);
+  const addable = people.filter(canAddPerson);
   const oldBatchParent=byId('batch-parent').value;
-  byId('batch-parent').replaceChildren(...treeSnapshot.people.filter(person=>person.writable).map(option));
+  byId('batch-parent').replaceChildren(...addable.map(option));
   if([...byId('batch-parent').options].some(item=>item.value===oldBatchParent))byId('batch-parent').value=oldBatchParent;
-  byId('batch-section').hidden=!writable.length;
+  byId('batch-section').hidden=!addable.length;
   refreshCorrectionChoices();
-  byId('parent').replaceChildren(...writable.map(option));
+  byId('parent').replaceChildren(...addable.map(option));
   byId('invite-person').replaceChildren(...treeSnapshot.people.map(option));
   renderPeople();
   const current = people.find(person => person.id === selectedId);
-  const initial = current || people.find(person => person.id === user.personId) || writable[0] || people[0];
+  const initial = current || people.find(person => person.id === user.personId) || addable[0] || people[0];
   if (initial) selectPerson(initial.id);
-  if(writable.some(person=>person.id===currentParent))byId('parent').value=currentParent;
-  if(personAction&&!people.some(person=>person.id===personAction.id&&managesPerson(person)))personDialog.close();
-  byId('quick-add').hidden = writable.length === 0;
+  if(addable.some(person=>person.id===currentParent))byId('parent').value=currentParent;
+  if(personAction&&!people.some(person=>person.id===personAction.id&&({add:canAddPerson,invite:canInvitePerson,
+    edit:managesPerson,remove:managesPerson}[personAction.kind])(person)))personDialog.close();
+  byId('quick-add').hidden = addable.length === 0;
   for(const [input,value] of draft){
     if(input.tagName!=='SELECT' || [...input.options].some(option=>option.value===value))input.value=value;
   }
   setChildForm();
+  renderMemberContext();
   if (firstSnapshot) locatePerson(initial?.id);
   return true;
 }
@@ -1191,6 +1248,42 @@ async function loadTree() {
   if(!account || user!==account || request!==treeRequest || scope!==byId('tree-scope').value)return;
   applyTree(result,true);
   if (account.role === 'admin') await loadAccounts();
+}
+
+function renderMemberContext(){
+  const personId=user?.personId;
+  const visible=new Map(people.map(person=>[person.id,person]));
+  const chain=visible.has(personId)?[...ancestorIds(visible,personId)].map((id,index)=>({id,name:visible.get(id).name,
+    relationship:index===0?'father':index===1?'grandfather':'ancestor'})):user?.lineage||[];
+  const sender=user?.invitedBy;
+  const inviter=byId('member-inviter');
+  const permissions=personId?permissionLabel():'';
+  inviter.textContent=[sender?.name?(sender.relationship==='father'?'الدعوة من والدك: ':'الدعوة من ')+sender.name:'',permissions].filter(Boolean).join(' · ');
+  inviter.hidden=!inviter.textContent;
+  byId('member-lineage').replaceChildren(...chain.map(row=>{
+    const button=document.createElement('button');
+    button.type='button';
+    button.textContent=({father:'الأب',grandfather:'الجد',ancestor:'من الأجداد'}[row.relationship]||'من الأجداد')+' · '+row.name;
+    button.addEventListener('click',()=>{
+      if(!people.some(person=>person.id===row.id))return;
+      const scope=byId('tree-scope');
+      if(['mine','branch'].includes(scope.value)){
+        scope.value='family';
+        scope.dispatchEvent(new Event('change'));
+      }
+      selectPerson(row.id);
+      locatePerson(row.id);
+    });
+    return button;
+  }));
+  byId('member-context').hidden=!personId||!chain.length&&inviter.hidden;
+}
+
+function permissionLabel(){
+  if(hasPermission('add')&&hasPermission('edit'))return 'إضافة وتعديل ضمن الفرع';
+  if(hasPermission('add'))return 'إضافة ضمن الفرع';
+  if(hasPermission('edit'))return 'تعديل ضمن الفرع';
+  return 'مشاهدة فقط';
 }
 
 async function enter() {
@@ -1213,11 +1306,11 @@ async function enter() {
   byId('locate-me').textContent = user.personId ? 'موقعي في الشجرة' : 'اعرض أصل الشجرة';
   byId('permission-summary').textContent = user.role === 'admin'
     ? 'أنت المدير العام. يمكنك إدارة جميع الأفراد وحسابات العائلة.'
-    : user.canAddDaughter
-      ? 'يمكنك تعديل بياناتك وبيانات أبنائك وأحفادك، والاطلاع على شجرة العائلة.'
-      : 'يظهر حسابك عند موقعك في الشجرة. اختر «الكل» للاطلاع على أفراد العائلة المسجّلين.';
+    : permissionLabel()+'. اختر «الكل» للاطلاع على الأسماء المتاحة للعائلة.';
   byId('administration').hidden = user.role !== 'admin';
   byId('admin-link').hidden = user.role !== 'admin';
+  configureInviteGrants('daughter-invite');
+  configureInviteGrants('admin-invite');
   byId('child-gender').querySelector('option[value="f"]').disabled=!(user.role==='admin'||user.canAddDaughter);
   await loadTree();
   await loadPrivateDaughters();
@@ -1428,7 +1521,7 @@ byId('invite-form').addEventListener('submit', event => {
     byId('invitation-code').value='';
     byId('invitation-password').value='';
     const invitation = await api('/api/invites', {
-      personId
+      personId,permissions:inviteGrants('admin-invite')
     });
     byId('invitation-person').textContent='دعوة لـ '+person.name;
     byId('invitation-code').value = invitation.code;
@@ -1506,7 +1599,7 @@ byId('batch-preview-button').addEventListener('click',()=>{
   }
   if(new Set(names.map(name=>name.normalize('NFC'))).size!==names.length){notify('توجد أسماء مكررة داخل الدفعة. راجعها قبل الحفظ.',true);return;}
   const parentId=byId('batch-parent').value;
-  const parent=people.find(person=>person.id===parentId&&person.writable);
+  const parent=people.find(person=>person.id===parentId&&canAddPerson(person));
   if(!parent){notify('اختر أبًا ضمن صلاحيتك.',true);return;}
   batchDraft={parentId,names,revision:treeSnapshot.revision};
   const heading=document.createElement('p');

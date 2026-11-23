@@ -88,6 +88,12 @@ function createPortal({filename,origin}) {
       role TEXT NOT NULL CHECK(role IN ('admin','member')), password TEXT,
       invitation TEXT UNIQUE, invite_until INTEGER
     );
+    CREATE TABLE IF NOT EXISTS account_permissions (
+      account_id TEXT PRIMARY KEY REFERENCES accounts(id),
+      can_add INTEGER NOT NULL CHECK(can_add IN (0,1)),
+      can_edit INTEGER NOT NULL CHECK(can_edit IN (0,1)),
+      invited_by TEXT REFERENCES accounts(id), inviter_person TEXT, inviter_name TEXT
+    );
     CREATE TABLE IF NOT EXISTS sessions (
       token TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id), expires INTEGER NOT NULL
     );
@@ -149,13 +155,48 @@ function createPortal({filename,origin}) {
   }
 
   function projection(snapshot,account){
-    const writable=new Set();
+    const scope=new Set(),writable=new Set(),addable=new Set();
+    const permissions=permissionsFor(account);
     const rows=snapshot.people.map(person=>{
       const {id,parentId}=person;
-      if(account.role==='admin'||id===account.person_id||writable.has(parentId))writable.add(id);
-      return {...person,writable:writable.has(id)};
+      if(account.role==='admin'||id===account.person_id||scope.has(parentId))scope.add(id);
+      if(scope.has(id)&&permissions.edit)writable.add(id);
+      if(scope.has(id)&&permissions.add)addable.add(id);
+      return {...person,writable:writable.has(id),addable:addable.has(id)};
     });
-    return {rows,writable};
+    return {rows,writable,addable,scope};
+  }
+
+  function permissionsFor(account){
+    if(account.role==='admin')return {add:true,edit:true};
+    const saved=db.prepare('SELECT can_add,can_edit FROM account_permissions WHERE account_id=?').get(account.id);
+    return saved?{add:!!saved.can_add,edit:!!saved.can_edit}:{add:true,edit:true};
+  }
+
+  function requirePermission(account,permission){
+    if(!permissionsFor(account)[permission])throw bad(403,error.forbidden);
+  }
+
+  function accountContext(account){
+    const rows=publicTree(tree()).people;
+    const daughter=db.prepare('SELECT father_id FROM private_daughters WHERE id=?').get(account.person_id);
+    let parentId=daughter?.father_id||rows.find(row=>row.id===account.person_id)?.parentId;
+    const lineage=[],seen=new Set([account.person_id]);
+    while(parentId&&!seen.has(parentId)){
+      const parent=rows.find(row=>row.id===parentId);
+      if(!parent)break;
+      seen.add(parentId);
+      lineage.push({id:parent.id,name:parent.name,
+        relationship:lineage.length===0?'father':lineage.length===1?'grandfather':'ancestor'});
+      parentId=parent.parentId;
+    }
+    const invitation=db.prepare(`SELECT p.inviter_person,p.inviter_name,a.role AS inviter_role
+      FROM account_permissions p LEFT JOIN accounts a ON a.id=p.invited_by WHERE p.account_id=?`).get(account.id);
+    const invitedBy=invitation?.inviter_name?{
+      name:invitation.inviter_name,personId:invitation.inviter_person,
+      relationship:lineage[0]?.id===invitation.inviter_person?'father':invitation.inviter_role==='admin'?'admin':'family'
+    }:null;
+    return {permissions:permissionsFor(account),invitedBy,lineage};
   }
 
   function version(){
@@ -171,7 +212,7 @@ function createPortal({filename,origin}) {
       : db.prepare('SELECT id,father_id,name FROM private_daughters WHERE father_id=? OR id=? ORDER BY rowid')
         .all(account.person_id,account.person_id);
     const privatePeople=records.map(record=>({
-      id:record.id,parentId:record.father_id,name:record.name,writable:false,gender:'f'
+      id:record.id,parentId:record.father_id,name:record.name,writable:false,addable:false,gender:'f'
     }));
     const view={title:current.title,people:projection(current,account).rows,privatePeople,revision};
     if(previous)view.before={title:previous.title,revision:revision-1,
@@ -219,6 +260,7 @@ function createPortal({filename,origin}) {
   }
 
   function addBatch(account,data){
+    requirePermission(account,'add');
     if(!Array.isArray(data.names)||data.names.length<1||data.names.length>50)
       throw bad(400,'أدخل من اسم واحد إلى ٥٠ اسمًا في الدفعة.');
     const names=data.names.map(name=>personName(name));
@@ -226,7 +268,7 @@ function createPortal({filename,origin}) {
     if(new Set(normalized).size!==names.length)throw bad(400,'توجد أسماء مكررة داخل الدفعة.');
     return transaction(()=>{
       const doc=tree(),before=publicTree(doc);
-      if(!projection(before,account).writable.has(data.parentId))throw bad(403,error.forbidden);
+      if(!projection(before,account).addable.has(data.parentId))throw bad(403,error.forbidden);
       const ids=names.map(name=>insertChild(doc,data.parentId,name));
       validateTree(doc);
       saveTree(doc,before);
@@ -275,6 +317,7 @@ function createPortal({filename,origin}) {
   }
 
   function createCorrection(account,data){
+    requirePermission(account,'edit');
     const note=personName(data.note,1000);
     const kind=data.kind??'reparent';
     if(!['reparent','merge'].includes(kind))throw bad(400,error.invalid);
@@ -400,7 +443,7 @@ function createPortal({filename,origin}) {
 
   function personTarget(account,id){
     const doc=tree(), before=publicTree(doc);
-    if(projection(before,account).writable.has(id)){
+    if(projection(before,account).scope.has(id)){
       const person=doc.persons.find(item=>item.personId===id);
       return {doc,before,person,name:person.fullName};
     }
@@ -496,6 +539,7 @@ function createPortal({filename,origin}) {
   }
 
   function saveProfile(account,id,data){
+    requirePermission(account,'edit');
     return transaction(()=>{
       const target=personTarget(account,id);
       const {doc,before,person,daughter}=target;
@@ -522,6 +566,7 @@ function createPortal({filename,origin}) {
   }
 
   function removePerson(account,id,anchor){
+    requirePermission(account,'edit');
     return transaction(()=>{
       const {doc,before,person,daughter}=personTarget(account,id);
       const parentId=daughter?.father_id||before.people.find(row=>row.id===id)?.parentId;
@@ -553,6 +598,7 @@ function createPortal({filename,origin}) {
   }
 
   function removalOptions(account,id){
+    requirePermission(account,'edit');
     const {before,doc,daughter,name}=personTarget(account,id);
     const males=projection(before,account).writable;
     const direct=before.people.filter(row=>row.parentId===id&&males.has(row.id));
@@ -566,12 +612,13 @@ function createPortal({filename,origin}) {
   }
 
   function updatePerson(account,personId,data,method){
+    requirePermission(account,method==='POST'?'add':'edit');
     return transaction(()=>{
       const doc=tree();
       const before=publicTree(doc);
-      const {writable}=projection(before,account);
+      const allowed=projection(before,account)[method==='POST'?'addable':'writable'];
       const name=personName(data.name);
-      if(!writable.has(personId))throw bad(403,error.forbidden);
+      if(!allowed.has(personId))throw bad(403,error.forbidden);
       let id=personId;
       if(method==='POST'){
         id=insertChild(doc,personId,name);
@@ -616,6 +663,7 @@ function createPortal({filename,origin}) {
   }
 
   function addPrivateDaughter(account,data){
+    requirePermission(account,'add');
     const fatherId=data.parentId;
     const canAdd=account.role==='admin'
       ? publicTree(tree()).people.some(person=>person.id===fatherId)
@@ -699,7 +747,7 @@ function createPortal({filename,origin}) {
     }else{
       if(!account)throw bad(401,error.auth);
       if(method==='GET'&&pathname==='/api/me')payload={role:account.role,personId:account.person_id,
-        identifier:account.identifier,canAddDaughter:canAddDaughter(account)};
+        identifier:account.identifier,canAddDaughter:canAddDaughter(account),...accountContext(account)};
       else if(method==='GET'&&pathname==='/api/tree')payload=treeView(version(),account,requestUrl.searchParams.get('scope')==='all');
       else if(method==='GET'&&pathname==='/api/private-daughters')payload=privateDaughters(account);
       else if(method==='GET'&&pathname==='/api/history')payload=history(account);
@@ -726,7 +774,9 @@ function createPortal({filename,origin}) {
         const data=await input(req);fields(data,['name']);
         const id=pathname.split('/')[3];
         const name=personName(data.name);
-        const previous=ownDaughter(requireCurrent(req),id);
+        const current=requireCurrent(req);
+        requirePermission(current,'edit');
+        const previous=ownDaughter(current,id);
         if(previous.name!==name){
           transaction(()=>{
             db.prepare('UPDATE private_daughters SET name=? WHERE id=?').run(name,id);
@@ -737,18 +787,19 @@ function createPortal({filename,origin}) {
         payload={id};
       }
       else if(method==='POST'&&/^\/api\/private-daughters\/[\w-]+\/(invite|recover)$/.test(pathname)){
-        const data=await input(req);fields(data,[]);
+        const data=await input(req);fields(data,['permissions']);
         const [, , ,id,action]=pathname.split('/');
         payload=transaction(()=>{
           const acting=requireCurrent(req);
           ownDaughter(acting,id);
           if(action==='recover'){
+            requirePermission(acting,'edit');
             const linked=db.prepare("SELECT id FROM accounts WHERE person_id=? AND role='member'").get(id);
             if(!linked)throw bad(409,'أنشئ دعوة أولى لهذا الحساب.');
             db.prepare('UPDATE accounts SET password=NULL WHERE id=?').run(linked.id);
             db.prepare('DELETE FROM sessions WHERE account_id=?').run(linked.id);
           }
-          const invitation=issueInvite(id,null);
+          const invitation=issueInvite(id,null,acting,data.permissions,{preserve:action==='recover'});
           auditChange(acting,action==='recover'?'daughter-recover':'daughter-invite',
             action==='recover'?'استعادة دخول حساب ابنة':'إصدار دعوة لحساب ابنة',[id],acting.person_id);
           return invitation;
@@ -774,14 +825,14 @@ function createPortal({filename,origin}) {
           publishTree();
         }
       }else if(method==='POST'&&/^\/api\/people\/[^/]+\/invite$/.test(pathname)){
-        const data=await input(req);fields(data,[]);
+        const data=await input(req);fields(data,['permissions']);
         const id=decodeURIComponent(pathname.split('/')[3]);
         payload=transaction(()=>{
           const acting=requireCurrent(req);
           const target=personTarget(acting,id);
           const fatherId=target.daughter?.father_id||target.before.people.find(row=>row.id===id)?.parentId;
           if(acting.role!=='admin'&&(!fatherId||fatherId!==acting.person_id))throw bad(403,error.forbidden);
-          const invitation=issueInvite(id,null);
+          const invitation=issueInvite(id,null,acting,data.permissions);
           auditChange(acting,'account-invite','إصدار دعوة لحساب عضو',[id],target.daughter?.father_id);
           return invitation;
         });
@@ -819,11 +870,22 @@ function createPortal({filename,origin}) {
     return account;
   }
 
-  function issueInvite(personId,legacyLogin){
+  function issueInvite(personId,legacyLogin,acting,requested,{preserve=false}={}){
+    const available=permissionsFor(acting);
+    if(!available.add&&!available.edit)throw bad(403,error.forbidden);
+    if(requested!==undefined&&(!requested||typeof requested!=='object'||Array.isArray(requested)||
+      Object.keys(requested).some(key=>!['add','edit'].includes(key))||
+      typeof requested.add!=='boolean'||typeof requested.edit!=='boolean'))throw bad(400,error.invalid);
+    const target=db.prepare('SELECT * FROM accounts WHERE person_id=?').get(personId);
+    const previous=target&&permissionsFor(target);
+    let granted=requested||available;
+    if(requested===undefined&&preserve&&previous)
+      granted={add:available.add&&previous.add,edit:available.edit&&previous.edit};
+    if(granted.add&&!available.add||granted.edit&&!available.edit)throw bad(403,error.forbidden);
     const initialPassword=legacyLogin?null:randomBytes(16).toString('base64url');
     const secret=initialPassword||randomToken();
-    const previous=db.prepare('SELECT identifier FROM accounts WHERE person_id=?').get(personId)?.identifier;
-    const login=legacyLogin||(familyCodePattern.test(previous||'')?previous:'fam-'+randomBytes(8).toString('hex'));
+    const previousLogin=target?.identifier;
+    const login=legacyLogin||(familyCodePattern.test(previousLogin||'')?previousLogin:'fam-'+randomBytes(8).toString('hex'));
     const existing=db.prepare('SELECT * FROM accounts WHERE identifier=? OR person_id=?').all(login,personId);
     if(existing.some(record=>record.role!=='member'||record.password||record.person_id!==personId))
       throw bad(409,'يوجد حساب مفعّل أو معرّف مستخدم بالفعل.');
@@ -831,6 +893,15 @@ function createPortal({filename,origin}) {
       .run(login,digest(secret),Date.now()+86400000,existing[0].id);
     else db.prepare('INSERT INTO accounts VALUES(?,?,?,?,?,?,?)')
       .run(randomUUID(),login,personId,'member',null,digest(secret),Date.now()+86400000);
+    const recipient=db.prepare('SELECT id FROM accounts WHERE identifier=?').get(login);
+    const inviterName=acting.person_id
+      ? tree().persons.find(person=>person.personId===acting.person_id)?.fullName||
+        db.prepare('SELECT name FROM private_daughters WHERE id=?').get(acting.person_id)?.name||'عضو العائلة'
+      : 'المدير العام';
+    db.prepare(`INSERT INTO account_permissions VALUES(?,?,?,?,?,?)
+      ON CONFLICT(account_id) DO UPDATE SET can_add=excluded.can_add,can_edit=excluded.can_edit,
+      invited_by=excluded.invited_by,inviter_person=excluded.inviter_person,inviter_name=excluded.inviter_name`)
+      .run(recipient.id,Number(granted.add),Number(granted.edit),acting.id,acting.person_id,inviterName);
     return initialPassword?{code:login.toUpperCase(),initialPassword}:{code:secret};
   }
 
@@ -856,7 +927,7 @@ function createPortal({filename,origin}) {
       return {accounts:rows.map(row=>({id:row.id,identifier:row.identifier,personId:row.person_id,role:row.role,active:!!row.active}))};
     }
     if(method==='POST'&&pathname==='/api/invites'){
-      const data=await input(req);fields(data,['identifier','personId']);
+      const data=await input(req);fields(data,['identifier','personId','permissions']);
       if(typeof data.personId!=='string')throw bad(400,error.invalid);
       const legacyLogin=data.identifier===undefined?null:identifier(data.identifier);
       if(legacyLogin&&familyCodePattern.test(legacyLogin))throw bad(400,error.invalid);
@@ -864,7 +935,7 @@ function createPortal({filename,origin}) {
         const acting=requireCurrent(req);
         if(acting.role!=='admin'||!projection(publicTree(tree()),acting).writable.has(data.personId))
           throw bad(400,error.invalid);
-        const invitation=issueInvite(data.personId,legacyLogin);
+        const invitation=issueInvite(data.personId,legacyLogin,acting,data.permissions);
         auditChange(acting,'account-invite','إصدار دعوة لحساب عضو',[data.personId]);
         return invitation;
       });

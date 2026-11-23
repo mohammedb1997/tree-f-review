@@ -110,6 +110,23 @@ body.tree-focus-open{overflow:hidden}
 #live-tree.is-focused #tree-stage{flex:1}
 #live-tree.is-focused #tree-view{height:100%;box-sizing:border-box}
 #person-action-dialog output:empty{display:none}
+#person-invite-panel{margin-block-start:1rem;border-block-start:1px solid #d9d0bd;padding-block-start:.85rem}
+#person-invite-panel fieldset{border:0;padding:0;margin:0 0 .65rem}
+#person-invite-panel legend{font-weight:700}
+#person-invite-panel label{display:block;margin-block:.4rem}
+#person-invite-panel button,#member-lineage button{min-height:44px}
+.invite-grants{border:1px solid #d9d0bd;border-radius:.55rem;padding:.5rem .7rem;min-width:0}
+.invite-grants label{display:inline-block;margin-inline-end:.65rem}
+.invite-grants small{display:block}
+.invite-grants input[type=checkbox]{width:auto}
+#member-context{min-width:0}
+#member-inviter{margin:.1rem 0 .3rem;overflow-wrap:anywhere}
+#member-lineage{display:flex;gap:.35rem;overflow:auto;scrollbar-width:thin}
+#member-lineage button{flex:none;padding:.35rem .55rem}
+#member-lineage:empty{display:none}
+.tree-person[data-my-ancestor] rect,.tree-canvas .nodegroup[data-my-ancestor]>rect{stroke:#8a6528;stroke-width:2.5;stroke-dasharray:5 3}
+.tree-canvas path[data-my-lineage]{stroke:#8a6528}
+.tree-canvas .tree-branch[data-my-lineage]{stroke-width:3.5}
 .tree-canvas[data-drawing=botanical] svg{margin:auto}
 .tree-canvas[data-drawing=botanical]{user-select:none;cursor:grab}
 .tree-canvas[data-drawing=botanical] .nodegroup{cursor:pointer}

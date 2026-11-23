@@ -5,8 +5,13 @@
   const admin={id:'admin',role:'admin',identifier:'admin@example.test',personId:null,password:'FamilyDemo-2026'};
   const accounts=[admin];
   let user=admin;
-  if(new URLSearchParams(location.search).get('role')==='member'){
+  const options=new URLSearchParams(location.search);
+  if(options.get('role')==='member'){
     user={id:'demo-member',role:'member',identifier:'member@example.test',personId:'father',password:'FamilyDemo-2026'};
+    if(options.get('access')==='view'){
+      user.personId='son';
+      user.permissions={add:false,edit:false};
+    }
     accounts.push(user);
   }
   document.querySelector(`[href="?role=${user.role}"]`)?.setAttribute('aria-current','page');
@@ -25,7 +30,10 @@
     {id:'son',name:'سليمان التجريبي',parentId:'father'},
     {id:'grandson',name:'يوسف التجريبي',parentId:'son'}
   ]};
+  const demoFather=tree.people.find(row=>row.id===tree.people.find(person=>person.id===user.personId)?.parentId);
+  if(demoFather)user.invitedBy={personId:demoFather.id,name:demoFather.name,relationship:'father'};
   const fail=message=>{throw new Error(message);};
+  function allowed(kind,account=user){return account.role==='admin'||account.permissions?.[kind]!==false;}
   function writable(id) {
     if(user.role==='admin')return true;
     for(let person=tree.people.find(item=>item.id===id);person;person=tree.people.find(item=>item.id===person.parentId))
@@ -38,10 +46,24 @@
     tree.revision++;
   }
   function publicAccount(account){
+    const lineage=[];
+    let parentId=tree.people.find(row=>row.id===account.personId)?.parentId;
+    if(!parentId)for(const [fatherId,daughters] of privateDaughters){
+      if(daughters.some(daughter=>daughter.id===account.personId)){parentId=fatherId;break;}
+    }
+    const seen=new Set();
+    for(let parent=tree.people.find(row=>row.id===parentId);parent&&!seen.has(parent.id);parent=tree.people.find(row=>row.id===parent.parentId)){
+      seen.add(parent.id);
+      lineage.push({id:parent.id,name:parent.name,relationship:['father','grandfather'][lineage.length]||'ancestor'});
+    }
     return {id:account.id,role:account.role,identifier:account.identifier,personId:account.personId,active:!!account.password,
-      canAddDaughter:tree.people.some(person=>person.id===account.personId)};
+      canAddDaughter:tree.people.some(person=>person.id===account.personId),lineage,invitedBy:account.invitedBy||null,
+      permissions:{add:allowed('add',account),edit:allowed('edit',account)}};
   }
-  function issueInvite(personId){
+  function issueInvite(personId,permissions,previousPermissions){
+    if(!allowed('add')&&!allowed('edit'))fail('المشاهدة فقط.');
+    const granted=permissions??Object.fromEntries(['add','edit'].map(kind=>[kind,allowed(kind)&&previousPermissions?.[kind]!==false]));
+    if(['add','edit'].some(kind=>typeof granted[kind]!=='boolean'||granted[kind]&&!allowed(kind)))fail('لا يمكن منح صلاحية أعلى من صلاحيتك.');
     let account=accounts.find(item=>item.personId===personId);
     if(account?.password)fail('أوقف الحساب أولًا لإصدار دعوة جديدة.');
     if(!account){
@@ -49,6 +71,10 @@
       account={id:'preview-account-'+id,role:'member',personId,identifier:'FAM-'+id.padStart(16,'0')};
       accounts.push(account);
     }
+    const inviter=tree.people.find(person=>person.id===user.personId);
+    const father=tree.people.find(person=>person.id===personId)?.parentId===user.personId||privateDaughters.get(user.personId)?.some(person=>person.id===personId);
+    account.permissions={add:granted.add,edit:granted.edit};
+    account.invitedBy={personId:user.personId,name:inviter?.name||'المدير العام',relationship:user.role==='admin'?'admin':father?'father':'family'};
     account.temporary='PreviewOnly-'+(++sequence);
     return {code:account.identifier,initialPassword:account.temporary};
   }
@@ -98,6 +124,7 @@
     if(route==='/api/history')return {entries:history.filter(entry=>user.role==='admin'||entry.actorId===user.id||entry.personId&&writable(entry.personId)).slice(0,100)};
     if(route==='/api/corrections'&&data===undefined)return {requests:corrections.filter(item=>user.role==='admin'||item.actorId===user.id)};
     if(route==='/api/corrections'){
+      if(!allowed('edit'))fail('هذه الصلاحية للتعديل.');
       const person=tree.people.find(item=>item.id===data.personId);
       const target=tree.people.find(item=>item.id===data.parentId);
       if(!person?.parentId||!target||person.id===target.id||!writable(person.id))fail('راجع الشخص والوجهة المطلوبة.');
@@ -125,7 +152,7 @@
       request.status='approved';record('correction','اعتماد طلب تصحيح نسب',target.id);return {};
     }
     if(route==='/api/people/batch'){
-      if(!writable(data.parentId)||!Array.isArray(data.names)||!data.names.length||data.names.length>50)fail('راجع دفعة الأسماء.');
+      if(!allowed('add')||!writable(data.parentId)||!Array.isArray(data.names)||!data.names.length||data.names.length>50)fail('راجع صلاحية الإضافة ودفعة الأسماء.');
       const names=data.names.map(name=>typeof name==='string'?name.trim():'');
       if(names.some(name=>!name||name.length>300)||new Set(names.map(name=>name.normalize('NFC'))).size!==names.length)fail('راجع الأسماء وتكرارها.');
       const added=names.map(name=>({id:'preview-person-'+(++sequence),parentId:data.parentId,name}));
@@ -140,7 +167,8 @@
             privatePeople.push({id,parentId,name,gender:'f',writable:false});
         }
       }
-      return {...tree,before:previous,people:tree.people.map(person=>({...person,writable:writable(person.id)})),privatePeople};
+      return {...tree,before:previous,people:tree.people.map(person=>({...person,writable:allowed('edit')&&writable(person.id),
+        addable:allowed('add')&&writable(person.id)})),privatePeople};
     }
     if(route==='/api/private-daughters'){
       if(!publicAccount(user).canAddDaughter)fail('السجل متاح للأب المباشر فقط.');
@@ -154,18 +182,22 @@
       const daughter=privateDaughters.get(user.personId)?.find(item=>item.id===personId);
       if(!daughter)fail('الإدارة للأب المباشر.');
       if(method==='PATCH'){
+        if(!allowed('edit'))fail('هذه الصلاحية للتعديل.');
         if(!data.name?.trim())fail('أدخل اسم الابنة.');
         daughter.name=data.name.trim();
         return {id:personId};
       }
       if(route.endsWith('/recover')){
+        if(!allowed('edit'))fail('هذه الصلاحية للتعديل.');
         const account=accounts.find(item=>item.personId===personId);
         if(!account)fail('أنشئ دعوة أولى لهذا الحساب.');
         delete account.password;
+        return issueInvite(personId,undefined,account.permissions);
       }
-      return issueInvite(personId);
+      return issueInvite(personId,data?.permissions);
     }
     if(route==='/api/people'){
+      if(!allowed('add'))fail('هذه الصلاحية للإضافة.');
       if(data.gender==='f'){
         const allowed=user.role==='admin'
           ? tree.people.some(person=>person.id===data.parentId)
@@ -187,16 +219,20 @@
     const action=route.match(/^\/api\/people\/([^/]+)\/(profile|remove-options|invite)$/);
     if(action){
       const id=decodeURIComponent(action[1]);
-      if(action[2]==='remove-options')return {options:previewRemovalOptions(id)};
+      if(action[2]==='remove-options'){
+        if(!allowed('edit'))fail('هذه الصلاحية للتعديل.');
+        return {options:previewRemovalOptions(id)};
+      }
       const {row,daughters,fatherId}=previewTarget(id);
       if(action[2]==='invite'){
         if(user.role!=='admin'&&(fatherId||row.parentId)!==user.personId)fail('الدعوة للأب المباشر أو المدير.');
-        return issueInvite(id);
+        return issueInvite(id,data?.permissions);
       }
       const gender=daughters?'f':'m';
       const canChangeGender=user.role==='admin'&&previewRemovalOptions(id).some(person=>person.id===id);
       if(data===undefined)return {lifeStatus:'unknown',phone:'',email:'',photo:'',birthDate:'',...profiles.get(id),
         gender,canChangeGender,name:row.name};
+      if(!allowed('edit'))fail('هذه الصلاحية للتعديل.');
       const {name,lifeStatus,phone,email,photo=profiles.get(id)?.photo||'',birthDate=profiles.get(id)?.birthDate||''}=data;
       if(data.gender&&data.gender!==gender){
         if(!canChangeGender)fail('تعديل الجنس متاح للمدير للسجلات غير المرتبطة.');
@@ -219,6 +255,7 @@
       return {id};
     }
     if(/^\/api\/people\/[^/]+$/.test(route)&&method==='DELETE'){
+      if(!allowed('edit'))fail('هذه الصلاحية للتعديل.');
       const id=decodeURIComponent(route.split('/').at(-1));
       if(!previewRemovalOptions(data.anchor).some(person=>person.id===id))fail('السجل محمي من الحذف.');
       const {row,daughters}=previewTarget(id);
@@ -230,7 +267,7 @@
     }
     if(route.startsWith('/api/people/')&&method==='PATCH'){
       const id=decodeURIComponent(route.split('/').at(-1));
-      if(!writable(id))fail('التعديل ضمن الفرع المخوّل.');
+      if(!allowed('edit')||!writable(id))fail('التعديل ضمن الفرع المخوّل.');
       const person=tree.people.find(item=>item.id===id);
       update(()=>{person.name=data.name;});
       record('rename','تعديل اسم '+data.name,id);
@@ -239,7 +276,7 @@
     if(user.role!=='admin')fail('هذا الإجراء للمدير التجريبي.');
     if(route==='/api/tree'&&method==='PATCH'){update(()=>{tree.title=data.title;});record('title','تعديل عنوان الشجرة');return {};}
     if(route==='/api/accounts')return {accounts:accounts.map(publicAccount)};
-    if(route==='/api/invites')return issueInvite(data.personId);
+    if(route==='/api/invites')return issueInvite(data.personId,data.permissions);
     if(route.endsWith('/revoke')){
       const account=accounts.find(item=>item.id===route.split('/')[3]&&item.role==='member');
       if(!account)fail('الحساب التجريبي غير موجود.');

@@ -151,6 +151,9 @@ test('mobile person actions lock the father and save private profiles and confir
     await color.waitFor();
     assert.equal(await color.inputValue(),'membership');
     assert.equal(await invited.locator('#tree-scope').inputValue(),'family');
+    assert.match(await invited.locator('#member-inviter').textContent(),/الدعوة من والدك/);
+    await invited.locator('#member-lineage').getByRole('button',{name:/^الأب/}).waitFor();
+    await invited.locator('#member-lineage').getByRole('button',{name:/^الجد/}).waitFor();
     const visibleTree=invited.locator('#tree-view');
     const own=visibleTree.locator('[data-person-id="'+invitedId+'"]');
     assert.equal(await own.getAttribute('data-membership'),'mine');
@@ -166,6 +169,39 @@ test('mobile person actions lock the father and save private profiles and confir
     assert.equal(await own.getAttribute('data-tone'),'generation');
     await color.selectOption('gender');
     assert.equal(await own.getAttribute('data-tone'),'gender');
+
+    const viewerAddition=await sibling.request.post(origin+'/api/people',{
+      ...includeOrigin,data:{parentId:'test-2',gender:'f',name:'ابنة للمشاهدة فقط'}
+    });
+    assert.equal(viewerAddition.status(),200);
+    const {id:viewerId}=await viewerAddition.json();
+    await sibling.locator('#person-action-close').click();
+    await sibling.locator('#people').getByRole('button',{name:/ابنة للمشاهدة فقط/}).click();
+    await sibling.locator('#person-edit').click();
+    await sibling.locator('#invite-allow-add').uncheck();
+    await sibling.locator('#invite-allow-edit').uncheck();
+    await sibling.locator('#invite-selected-person').click();
+    await sharedLink.waitFor();
+    const viewer=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
+    await viewer.goto(await sharedLink.inputValue());
+    await viewer.locator('#initial-password').fill(await sibling.locator('#selected-invitation-password').inputValue());
+    await viewer.locator('#new-password').fill('Invited-Read-Only-2026');
+    await viewer.locator('#activate-form button[type=submit]').tap();
+    const sender=viewer.locator('#member-inviter');
+    await sender.filter({hasText:'مشاهدة فقط'}).waitFor();
+    assert.match(await sender.textContent(),/الدعوة من والدك/);
+    const {permissions,lineage,invitedBy}=await (await viewer.request.get(origin+'/api/me')).json();
+    assert.deepEqual(permissions,{add:false,edit:false});
+    assert.equal(invitedBy.personId,'test-2');
+    assert.deepEqual(lineage.map(row=>[row.id,row.relationship]),[['test-2','father'],['test-0','grandfather']]);
+    await viewer.locator('#tree-view [data-person-id="'+viewerId+'"]').tap();
+    assert.equal(await viewer.locator('#tree-node-actions').isVisible(),false);
+    assert.equal((await viewer.request.patch(origin+'/api/people/'+viewerId+'/profile',{
+      ...includeOrigin,data:{name:'تعديل ممنوع'}
+    })).status(),403);
+    assert.equal((await viewer.request.post(origin+'/api/people',{
+      ...includeOrigin,data:{parentId:'test-2',gender:'m',name:'إضافة ممنوعة'}
+    })).status(),403);
   }finally{
     await browser?.close();
     await new Promise(resolve=>portal.server.close(resolve));
