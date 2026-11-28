@@ -457,8 +457,11 @@ test('folded tree shows authorized descendant counts and opens one generation at
     const ids=()=>canvas.locator('[data-person-id]').evaluateAll(nodes=>nodes.map(node=>node.dataset.personId).sort());
     const toggle=id=>canvas.locator('[data-branch-id="'+id+'"]');
     for(const size of [30,150,500]){
-      await page.goto(preview+'?role=admin&tree=full&layout=folded&sample='+size);
+      const layout={30:'folded',150:'generations',500:'browse'}[size];
+      await page.goto(preview+'?role=admin&tree=full&layout='+layout+'&sample='+size);
       await canvas.locator('[data-person-id="test-0"]').waitFor();
+      assert.equal(await page.locator('#tree-drawing').inputValue(),'folded');
+      assert.equal(await page.locator('#tree-drawing option[value="browse"],#tree-drawing option[value="generations"]').count(),0);
       const fixture=core.visible(core.fixture(size)).nodes;
       const children=id=>fixture.filter(row=>row.parentId===id);
       const descendants=id=>children(id).reduce((total,child)=>total+1+descendants(child.personId),0);
@@ -524,83 +527,6 @@ test('mobile defaults to expanded branches and search selects a hidden name with
       await page.locator('.family-panel #search').waitFor();
       await page.close();
     }
-  }finally{
-    await browser.close();
-  }
-});
-
-test('branch browser separates navigation from person actions on large mobile trees',{timeout:30000},async()=>{
-  const preview=process.env.TREEF_PREVIEW_URL || pathToFileURL(path.join(__dirname,'preview.html')).href;
-  const browser=await chromium.launch({channel:'chrome',chromiumSandbox:true});
-  try{
-    const page=await browser.newPage({viewport:{width:360,height:800},isMobile:true,hasTouch:true});
-    const canvas=page.locator('#tree-view');
-    const summary=canvas.locator('.branch-summary button');
-    const names=()=>canvas.locator('li [data-person-id]').evaluateAll(rows=>rows.map(row=>row.dataset.personId));
-    const actions=page.locator('#tree-node-actions');
-    const parent=page.locator('#branch-parent');
-    const home=page.locator('#branch-home');
-    for(const size of [30,150,500]){
-      await page.goto(preview+'?role=admin&layout=browse&sample='+size);
-      await summary.waitFor();
-      const fixture=core.visible(core.fixture(size)).nodes;
-      const children=id=>fixture.filter(row=>row.parentId===id).map(row=>row.personId);
-      const top=children('test-0');
-      assert.equal(await summary.getAttribute('data-person-id'),'test-0');
-      assert.deepEqual(await names(),top);
-      const branch=top.find(id=>children(id).some(child=>children(child).length));
-      await canvas.locator('[data-person-id="'+branch+'"]').tap();
-      assert.equal(await summary.getAttribute('data-person-id'),'test-0');
-      await actions.waitFor();
-      await canvas.locator('[data-open-branch="'+branch+'"]').tap();
-      assert.deepEqual(await names(),children(branch));
-      assert.equal(await actions.isVisible(),false);
-      const next=children(branch).find(id=>children(id).length);
-      await canvas.locator('[data-open-branch="'+next+'"]').tap();
-      assert.deepEqual(await names(),children(next));
-      await parent.tap();
-      assert.equal(await summary.getAttribute('data-person-id'),branch);
-      await home.tap();
-      assert.equal(await summary.getAttribute('data-person-id'),'test-0');
-      assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
-    }
-    const target=core.visible(core.fixture(500)).nodes.at(-1);
-    await page.locator('#tree-search-open').tap();
-    await page.locator('#search').fill(target.fullName);
-    await page.locator('#people [data-person-id="'+target.personId+'"]').tap();
-    assert.equal(await summary.getAttribute('data-person-id'),target.parentId);
-    assert.equal(await canvas.locator('[data-person-id="'+target.personId+'"]').getAttribute('aria-pressed'),'true');
-    await actions.locator('[data-action=person-add]').tap();
-    await page.locator('#person-action-dialog').waitFor();
-    assert.equal(await page.locator('#parent').inputValue(),target.personId);
-
-    await page.goto(preview+'?role=member&access=view&layout=generations');
-    assert.equal(await summary.getAttribute('data-person-id'),'son');
-    await summary.tap();
-    assert.equal(await actions.locator('button:visible').count(),0);
-    assert.equal(await canvas.locator('[data-person-id="uncle"]').count(),0);
-
-    await page.addInitScript(()=>{
-      let preview;
-      Object.defineProperty(globalThis,'familyPortalPreview',{get:()=>preview,set(adapter){
-        preview={request:async(url,...args)=>{
-          const result=await adapter.request(url,...args);
-          if(url==='/api/tree')result.people.forEach(person=>{
-            if(person.id!=='test-0')person.parentId='test-0';
-          });
-          return result;
-        }};
-      }});
-    });
-    await page.goto(preview+'?role=admin&layout=browse&sample=500');
-    await summary.waitFor();
-    assert.equal((await names()).length,30);
-    await canvas.locator('.branch-more').tap();
-    assert.equal((await names()).length,60);
-    await page.locator('#tree-search-open').tap();
-    await page.locator('#search').fill(target.fullName);
-    await page.locator('#people [data-person-id="'+target.personId+'"]').tap();
-    assert.equal(await canvas.locator('[data-person-id="'+target.personId+'"]').getAttribute('aria-pressed'),'true');
   }finally{
     await browser.close();
   }
