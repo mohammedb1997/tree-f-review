@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>تجربة بوابة العائلة</title>
-  <link rel="stylesheet" href="style.css?v=f05ad25f1b">
-  <script src="../Claud/botanical-core.js?v=f05ad25f1b" defer></script>
-  <script src="preview.js?v=f05ad25f1b" defer></script>
-  <script src="app.js?v=f05ad25f1b" defer></script>
+  <link rel="stylesheet" href="style.css?v=618830db56">
+  <script src="../Claud/botanical-core.js?v=618830db56" defer></script>
+  <script src="preview.js?v=618830db56" defer></script>
+  <script src="app.js?v=618830db56" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -85,6 +85,15 @@
         </div>
         <p id="tree-focus-status" class="hint" aria-hidden="true"></p>
         <p id="tree-scale-help" class="hint" hidden></p>
+        <div id="generation-controls" hidden>
+          <label for="generation-select" class="sr-only">الجيل المعروض</label>
+          <select id="generation-select"></select>
+          <div id="generation-paging" hidden>
+            <button id="generation-prev" type="button">السابق</button>
+            <span id="generation-page" role="status"></span>
+            <button id="generation-next" type="button">التالي</button>
+          </div>
+        </div>
         <section id="member-context" aria-label="الداعي وسلسلة النسب" hidden>
           <p id="member-inviter" class="hint" hidden></p>
           <nav id="member-lineage" aria-label="الأب والأجداد"></nav>
@@ -105,7 +114,7 @@
           <summary>خيارات العرض</summary>
           <div id="standard-drawing-slot"><div id="tree-drawing-tools" class="tree-tools botanical-tools">
           <label for="tree-drawing">طريقة العرض</label>
-          <select id="tree-drawing"><option value="classic">مخطط الشجرة</option><option value="folded">فروع قابلة للطي</option><option value="radial">المخطط الشعاعي</option><option value="botanical">الشجرة النباتية</option></select>
+          <select id="tree-drawing"><option value="classic">مخطط الشجرة</option><option value="folded">فروع قابلة للطي</option><option value="generations">دليل الأجيال</option><option value="radial">المخطط الشعاعي</option><option value="botanical">الشجرة النباتية</option></select>
           </div></div>
           <div id="standard-color-slot"><div id="tree-color-tools" class="tree-color-tools">
           <label for="tree-color-mode">تلوين الشجرة</label>

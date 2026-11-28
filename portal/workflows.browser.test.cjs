@@ -529,6 +529,62 @@ test('mobile defaults to expanded branches and search selects a hidden name with
   }
 });
 
+test('generation directory keeps large mobile trees readable and groups every person by father',{timeout:30000},async()=>{
+  const preview=process.env.TREEF_PREVIEW_URL || pathToFileURL(path.join(__dirname,'preview.html')).href;
+  const browser=await chromium.launch({channel:'chrome',chromiumSandbox:true});
+  try{
+    const page=await browser.newPage({viewport:{width:360,height:800},isMobile:true,hasTouch:true});
+    const canvas=page.locator('#tree-view');
+    const generation=page.locator('#generation-select');
+    const next=page.locator('#generation-next');
+    for(const size of [30,150,500]){
+      await page.goto(preview+'?role=admin&layout=generations&sample='+size);
+      await generation.waitFor();
+      const sample=core.visible(core.fixture(size)).nodes;
+      const names=new Map(sample.map(row=>[row.personId,row.fullName]));
+      const parents=new Map(sample.map(row=>[row.personId,row.parentId]));
+      const numbers=await generation.locator('option').evaluateAll(options=>options.map(option=>option.value));
+      const seen=new Set();
+      for(const current of numbers){
+        await generation.selectOption(current);
+        while(true){
+          const rows=await canvas.locator('.generation-directory button').evaluateAll(buttons=>buttons.map(button=>({
+            id:button.dataset.personId,name:button.textContent,father:button.closest('section').querySelector('h3').textContent
+          })));
+          assert(rows.length>0&&rows.length<=24);
+          for(const row of rows){
+            assert(!seen.has(row.id));
+            seen.add(row.id);
+            assert.equal(row.name,names.get(row.id));
+            assert.equal(row.father,parents.get(row.id)?'الأب · '+names.get(parents.get(row.id)):'أصل الشجرة');
+          }
+          if(!await next.isVisible()||await next.isDisabled())break;
+          await next.tap();
+        }
+      }
+      assert.equal(seen.size,size);
+      assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+    }
+    const target=core.visible(core.fixture(500)).nodes.at(-1);
+    await generation.selectOption({index:0});
+    await page.locator('#tree-search-open').tap();
+    await page.locator('#search').fill(target.fullName);
+    await page.locator('#people [data-person-id="'+target.personId+'"]').tap();
+    await page.locator('#tree-node-actions').waitFor();
+    assert.equal(await canvas.locator('[data-person-id="'+target.personId+'"]').getAttribute('aria-pressed'),'true');
+    await page.locator('#tree-node-actions [data-action=person-add]').tap();
+    await page.locator('#person-action-dialog').waitFor();
+    assert.equal(await page.locator('#parent').inputValue(),target.personId);
+    await page.goto(preview+'?role=member&access=view&layout=generations');
+    const person=canvas.locator('[data-person-id="son"]');
+    await person.tap();
+    assert.equal(await page.locator('#tree-node-actions button:visible').count(),0);
+    assert.equal(await canvas.locator('[data-person-id="uncle"]').count(),0);
+  }finally{
+    await browser.close();
+  }
+});
+
 test('public review: member mode, scoped search and admin switch',{timeout:20000},async()=>{
   const preview=process.env.TREEF_PREVIEW_URL || pathToFileURL(path.join(__dirname,'preview.html')).href;
   const browser=await chromium.launch({channel:'chrome',chromiumSandbox:true});

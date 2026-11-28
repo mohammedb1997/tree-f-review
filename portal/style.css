@@ -124,6 +124,18 @@ body.tree-focus-open{overflow:hidden}
 .branch-toggle:focus-visible{outline:none}
 .branch-toggle:is(:hover,:focus-visible) .branch-toggle-ring{stroke:#213c2b;stroke-width:3}
 .branch-toggle[aria-expanded=true] .branch-toggle-ring{fill:#fffdf6}
+#generation-controls:not([hidden]){display:flex;align-items:center;flex-wrap:wrap;gap:.35rem .65rem}
+#generation-select{width:auto;max-width:100%;min-height:44px;margin:0;font-size:16px}
+#generation-paging:not([hidden]){display:flex;align-items:center;gap:.45rem;white-space:nowrap}
+#generation-paging button{min-width:44px;min-height:44px}
+#generation-page{font-variant-numeric:tabular-nums}
+.generation-directory{width:min(100%,58rem);box-sizing:border-box;margin-inline:auto;padding:clamp(.55rem,2vw,1.25rem)}
+.generation-directory section+section{margin-block-start:1rem}
+.generation-directory h3{margin:0 0 .35rem;font-size:.95rem;color:#425645;overflow-wrap:anywhere}
+.generation-directory ul{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,15rem),1fr));gap:.35rem;list-style:none;margin:0;padding:0}
+.generation-directory button{width:100%;min-height:44px;padding:.55rem .7rem;text-align:start;font-size:1rem;line-height:1.45;white-space:normal;overflow-wrap:anywhere;border-inline-start:4px solid #998e6f;background:#fffdf7}
+.generation-directory button[aria-pressed=true]{background:#fff0c2;border-color:#936428}
+.generation-directory button:focus-visible{outline-offset:-4px}
 .tree-canvas .radial-guide{fill:none;stroke:#cbbd94;stroke-width:1;stroke-dasharray:4 8;pointer-events:none}
 #live-tree.is-focused .tree-heading>.tree-tools{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
 #focused-color-slot .tree-color-tools{margin:0;display:block}
