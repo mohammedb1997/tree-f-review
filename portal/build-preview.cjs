@@ -3,13 +3,14 @@ const fs=require('node:fs');
 const path=require('node:path');
 const {createHash}=require('node:crypto');
 
-const source=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const readSource=file=>fs.readFileSync(path.join(__dirname,file),'utf8').replace(/\r\n/g,'\n');
+const source=readSource('index.html');
 const revision=createHash('sha256')
-  .update(fs.readFileSync(path.join(__dirname,'../Claud/botanical-core.js')))
+  .update(readSource('../Claud/botanical-core.js'))
   .update(source)
-  .update(fs.readFileSync(path.join(__dirname,'app.js')))
-  .update(fs.readFileSync(path.join(__dirname,'preview.js')))
-  .update(fs.readFileSync(path.join(__dirname,'style.css')))
+  .update(readSource('app.js'))
+  .update(readSource('preview.js'))
+  .update(readSource('style.css'))
   .digest('hex').slice(0,10);
 const preview=source
   .replace('<title>بوابة العائلة</title>','<title>تجربة بوابة العائلة</title>')
