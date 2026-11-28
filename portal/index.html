@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>بوابة العائلة</title>
   <link rel="stylesheet" href="/portal/style.css">
   <script src="/Claud/botanical-core.js" defer></script>
@@ -67,11 +67,15 @@
       <section id="live-tree" class="panel live-panel" aria-labelledby="live-tree-title">
         <div class="tree-heading"><div><h2 id="live-tree-title">موقعك في شجرة العائلة</h2><p id="live-status" class="hint" role="status">جارٍ الاتصال بالتحديثات…</p></div>
           <div class="tree-tools"><button id="locate-me" type="button">موقعي في الشجرة</button><label for="tree-scope" class="sr-only">نطاق عرض الشجرة</label><select id="tree-scope"><option value="mine" hidden>فرعي: أبنائي وأحفادي</option><option value="family" hidden>العائلة مع فرعي</option><option value="shared">الشجرة الرئيسية</option><option value="all">الكل: شجرة العائلة</option><option value="branch">فرع الشخص المحدد</option></select><div id="focused-color-slot"></div><div id="focused-drawing-slot"></div></div></div>
-        <div class="tree-tools">
+        <div class="tree-tools tree-view-toolbar">
           <button id="tree-focus-toggle" class="primary" type="button" aria-pressed="false">ملء الشاشة</button>
+          <div id="focused-navigation">
+            <button id="tree-search-open" type="button" aria-haspopup="dialog">بحث</button>
+            <button id="tree-locate" type="button">الموقع</button>
+          </div>
           <div id="botanical-zoom" hidden>
-            <button id="botanical-zoom-in" type="button">تكبير +</button>
-            <button id="botanical-zoom-out" type="button">تصغير −</button>
+            <button id="botanical-zoom-in" type="button" aria-label="تكبير الشجرة">تكبير +</button>
+            <button id="botanical-zoom-out" type="button" aria-label="تصغير الشجرة">تصغير −</button>
             <button id="botanical-fit" type="button">ملاءمة الشاشة</button>
             <button id="tree-overview" type="button" aria-pressed="false">نظرة كاملة</button>
           </div>
@@ -86,6 +90,7 @@
         <div id="tree-stage">
           <div id="tree-view" class="tree-canvas" tabindex="0" aria-label="شجرة العائلة الحية"></div>
           <div id="tree-node-actions" class="tree-node-actions" role="group" aria-label="إجراءات الشخص المحدد" hidden>
+            <p id="tree-node-name"></p>
             <p id="tree-node-detail" hidden></p>
             <div class="tree-node-buttons">
               <button type="button" data-action="person-add" class="primary">إضافة</button>
@@ -114,6 +119,9 @@
         <p class="hint">الإطار الذهبي يحدد موقعك. اختر اسمًا لعرض بياناته.</p>
         <p class="hint" id="tree-ancestor-hint" hidden>اختر «الشجرة الرئيسية» أو «الكل» لعرض الأب والأجداد.</p>
       </section>
+      <dialog id="tree-search-dialog" aria-label="البحث في الشجرة">
+        <div class="tree-search-head"><button id="tree-search-close" type="button">إغلاق البحث</button></div>
+      </dialog>
       <div class="workspace-grid">
         <section class="panel family-panel" aria-labelledby="family-title">
           <h2>البحث والأفراد</h2>

@@ -25,7 +25,7 @@ test('دعوة وتحديد موقع العضو ومقارنة تعديل حي �
     for(const page of [admin,member,daughter]){
       page.setDefaultTimeout(5000);
       page.on('pageerror',error=>errors.push(error.message));
-      await page.goto(origin);
+      await page.goto(page===member?origin+'/?tree=page':origin);
     }
     await daughter.goto(origin+'/portal/world/');
     await daughter.waitForURL(origin+'/portal/');
@@ -109,6 +109,8 @@ test('دعوة وتحديد موقع العضو ومقارنة تعديل حي �
     const worldErrors=[];
     world.on('pageerror',error=>worldErrors.push(error.message));
     await world.goto(origin);
+    await world.locator('#live-tree.is-focused #tree-view svg').waitFor();
+    await world.locator('#tree-focus-toggle').click();
     await world.getByRole('link',{name:'استكشف شجرة الحساب بالعرض الثابت أو ثلاثي الأبعاد'}).click();
     const worldNames=world.locator('#directory-names');
     await worldNames.getByText('ابنة اختبار خصوصية الأب',{exact:true}).waitFor();

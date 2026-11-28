@@ -23,7 +23,7 @@ test('large mobile tree keeps readable labels and offers the radial and entire-t
     browser=await chromium.launch({channel:'chrome',chromiumSandbox:true});
     const page=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
     page.setDefaultTimeout(5000);
-    await page.goto(origin+'/?tree=full');
+    await page.goto(origin+'/?tree=full&layout=classic');
     await page.locator('#identifier').fill('admin@example.test');
     await page.locator('#password').fill(password);
     await page.locator('#login-form button[type=submit]').tap();
@@ -114,16 +114,18 @@ test('mobile person actions lock the father and save private profiles and confir
     await page.locator('#identifier').fill('admin@example.test');
     await page.locator('#password').fill(password);
     await page.locator('#login-form button[type=submit]').tap();
-    await page.locator('#tree-focus-toggle').tap();
+    await page.locator('#live-tree.is-focused #tree-view svg').waitFor();
     assert.equal(await page.locator('#tree-focus-toggle').getAttribute('aria-pressed'),'true');
+    assert.equal(await page.locator('#tree-drawing').inputValue(),'folded');
     const treeFrame=await page.locator('#tree-stage').boundingBox();
-    assert(treeFrame.width>=370&&treeFrame.height>=690,JSON.stringify(treeFrame));
+    assert(treeFrame.width>=370&&treeFrame.height>=670,JSON.stringify(treeFrame));
     const graphWidth=await page.locator('#tree-view svg').evaluate(svg=>svg.clientWidth);
     const parentId='test-1';
     const parentNode=page.locator(`#tree-view [data-person-id="${parentId}"]`);
     await parentNode.tap();
     const inline=page.locator('#tree-node-actions');
-    assert((await inline.boundingBox()).y>=(await parentNode.boundingBox()).y+(await parentNode.boundingBox()).height);
+    assert.equal(await inline.locator('#tree-node-name').textContent(),await parentNode.getAttribute('aria-label'));
+    assert((await inline.boundingBox()).y>=(await page.locator('#tree-view').boundingBox()).y+(await page.locator('#tree-view').boundingBox()).height-1);
     await page.locator('#botanical-zoom-in').tap();
     assert(await page.locator('#tree-view svg').evaluate(svg=>svg.clientWidth)>graphWidth);
     await page.locator('#tree-node-detail').waitFor();
@@ -142,12 +144,13 @@ test('mobile person actions lock the father and save private profiles and confir
     await page.locator('#child-photo').setInputFiles(photo);
     await page.locator('#add-child-button').tap();
     await dialog.waitFor({state:'hidden'});
-    await page.locator('#tree-focus-toggle').tap();
     await page.locator('#tree-scope').selectOption('all');
+    await page.locator('#tree-search-open').tap();
+    await page.locator('#search').fill('ابنة تجريبية سريعة');
     const daughter=page.locator('#people').getByRole('button',{name:/ابنة تجريبية سريعة/});
     const daughterId=await daughter.getAttribute('data-person-id');
     await daughter.tap();
-    await page.locator('#person-edit').tap();
+    await inline.getByRole('button',{name:'تعديل'}).tap();
     await page.locator('#person-photo-preview').waitFor();
     assert.equal(await page.locator('#person-birth').inputValue(),'2015-06-20');
     await page.locator('#person-name').fill('ابنة بعد تعديل الملف');
@@ -156,7 +159,7 @@ test('mobile person actions lock the father and save private profiles and confir
     await page.locator('#person-email').fill('person@example.test');
     await page.locator('#edit-form button[type=submit]').tap();
     await dialog.waitFor({state:'hidden'});
-    await page.locator('#person-title').getByText('ابنة بعد تعديل الملف',{exact:true}).waitFor();
+    await inline.getByText('ابنة بعد تعديل الملف',{exact:true}).waitFor();
     const profileRoute=origin+'/api/people/'+daughterId+'/profile';
     const profile=await (await page.request.get(profileRoute)).json();
     assert.equal(profile.lifeStatus,'deceased');
@@ -174,6 +177,7 @@ test('mobile person actions lock the father and save private profiles and confir
     assert.equal((await sibling.request.get(profileRoute)).status(),403);
     assert.equal((await sibling.request.delete(origin+'/api/people/'+daughterId,{headers:{origin},data:{anchor:parentId}})).status(),403);
     assert.equal((await page.request.delete(origin+'/api/people/test-0',{headers:{origin},data:{anchor:'test-0'}})).status(),409);
+    await page.locator('#tree-focus-toggle').tap();
     await page.locator('#person-edit').tap();
     await page.locator('#person-photo-preview').waitFor();
     assert.equal(await page.locator('#person-life').inputValue(),'deceased');
@@ -229,7 +233,9 @@ test('mobile person actions lock the father and save private profiles and confir
     assert(!invitationUrl.includes(temporary));
     assert(!decodeURIComponent(await sibling.locator('#selected-invitation-mail').getAttribute('href')).includes(temporary));
     const invited=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
-    await invited.goto(invitationUrl);
+    const classicInvitation=new URL(invitationUrl);
+    classicInvitation.searchParams.set('layout','classic');
+    await invited.goto(classicInvitation.href);
     const childInviteCode=new URLSearchParams(new URL(invitationUrl).hash.slice(1)).get('invite');
     await invited.locator('#code').waitFor();
     assert.equal(await invited.locator('#code').inputValue(),childInviteCode);
@@ -284,7 +290,9 @@ test('mobile person actions lock the father and save private profiles and confir
     assert.equal(invitedBy.personId,'test-2');
     assert.deepEqual(lineage.map(row=>[row.id,row.relationship]),[['test-2','father'],['test-0','grandfather']]);
     await viewer.locator('#tree-view [data-person-id="'+viewerId+'"]').tap();
-    assert.equal(await viewer.locator('#tree-node-actions').isVisible(),false);
+    const viewerActions=viewer.locator('#tree-node-actions');
+    await viewerActions.waitFor();
+    assert.equal(await viewerActions.locator('button:visible').count(),0);
     assert.equal((await viewer.request.patch(origin+'/api/people/'+viewerId+'/profile',{
       ...includeOrigin,data:{name:'تعديل ممنوع'}
     })).status(),403);
@@ -332,6 +340,7 @@ test('batch entry, review workflow, audit and branch export in Chrome',{timeout:
     await member.locator('#new-password').fill(password);
     await member.locator('#activate-form button[type=submit]').click();
     await member.locator('#tree-view .is-self').waitFor();
+    await member.locator('#tree-focus-toggle').click();
     await member.locator('.display-options summary').click();
     await member.locator('#tree-drawing').selectOption('botanical');
     const drawing=member.locator('#tree-view[data-drawing="botanical"] svg');
@@ -418,7 +427,7 @@ test('public Chrome preview is interactive and resets to synthetic data',{timeou
     page.setDefaultTimeout(6000);
     const apiRequests=[];
     page.on('request',request=>{if(new URL(request.url()).pathname.startsWith('/api/'))apiRequests.push(request.url());});
-    await page.goto(preview);
+    await page.goto(preview+'?tree=page');
     await page.locator('#workspace').waitFor();
     const name='عضو وهمي لمعاينة النشر';
     await page.locator('#batch-section summary').click();
@@ -474,7 +483,7 @@ test('folded tree shows authorized descendant counts and opens one generation at
       await toggle(branch).tap();
       assert.equal(await toggle(sub).getAttribute('aria-expanded'),'false');
     }
-    await page.goto(preview+'?role=admin&layout=folded');
+    await page.goto(preview+'?role=admin&tree=page&layout=folded');
     await page.locator('#search').fill('يوسف');
     await page.locator('#people [data-person-id="grandson"]').tap();
     await canvas.locator('[data-person-id="grandson"]').waitFor();
@@ -489,6 +498,37 @@ test('folded tree shows authorized descendant counts and opens one generation at
   }
 });
 
+test('mobile defaults to expanded branches and search selects a hidden name within the tree',{timeout:20000},async()=>{
+  const preview=process.env.TREEF_PREVIEW_URL || pathToFileURL(path.join(__dirname,'preview.html')).href;
+  const browser=await chromium.launch({channel:'chrome',chromiumSandbox:true});
+  try{
+    for(const [width,height] of [[360,800],[844,390],[820,1180]]){
+      const page=await browser.newPage({viewport:{width,height},isMobile:true,hasTouch:true});
+      await page.goto(preview+'?role=admin&sample=500');
+      const canvas=page.locator('#live-tree.is-focused #tree-view');
+      await canvas.locator('svg').waitFor();
+      assert.equal(await canvas.getAttribute('data-drawing'),'folded');
+      assert(await canvas.locator('[data-person-id]').count()<20);
+      assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+      await page.locator('#tree-search-open').tap();
+      const search=page.locator('#tree-search-dialog');
+      const last=core.visible(core.fixture(500)).nodes.at(-1);
+      await search.locator('#search').fill(last.fullName);
+      await search.locator('[data-person-id="'+last.personId+'"]').tap();
+      await search.waitFor({state:'hidden'});
+      assert.equal(await canvas.locator('[data-person-id="'+last.personId+'"]').getAttribute('aria-pressed'),'true');
+      await page.locator('#tree-node-actions').waitFor();
+      assert.equal(await page.locator('#tree-node-name').textContent(),last.fullName);
+      assert.equal(await page.locator('#tree-node-actions button[data-action="person-edit"]').isVisible(),true);
+      await page.locator('#tree-focus-toggle').tap();
+      await page.locator('.family-panel #search').waitFor();
+      await page.close();
+    }
+  }finally{
+    await browser.close();
+  }
+});
+
 test('public review: member mode, scoped search and admin switch',{timeout:20000},async()=>{
   const preview=process.env.TREEF_PREVIEW_URL || pathToFileURL(path.join(__dirname,'preview.html')).href;
   const browser=await chromium.launch({channel:'chrome',chromiumSandbox:true});
@@ -497,9 +537,10 @@ test('public review: member mode, scoped search and admin switch',{timeout:20000
     page.setDefaultTimeout(6000);
     const requests=[];
     page.on('request',request=>{if(new URL(request.url()).pathname.startsWith('/api/'))requests.push(request.url());});
-    await page.goto(preview);
+    await page.goto(preview+'?tree=page');
     await page.getByRole('link',{name:'جرّب كعضو'}).tap();
     await page.locator('#tree-view [data-person-id="father"]').waitFor({state:'attached'});
+    await page.locator('#tree-focus-toggle').tap();
     assert.equal(await page.locator('#tree-scope').inputValue(),'mine');
     assert.equal(await page.locator('#administration').isVisible(),false);
     assert.equal(await page.locator('#tree-view [data-person-id="uncle"]').count(),0);
@@ -518,6 +559,8 @@ test('public review: member mode, scoped search and admin switch',{timeout:20000
     assert.equal(await page.locator('#search').inputValue(),'');
     assert.equal(await page.evaluate(()=>document.activeElement.id),'search');
     await page.getByRole('link',{name:'جرّب كمدير'}).tap();
+    await page.locator('#live-tree.is-focused #tree-view svg').waitFor();
+    await page.locator('#tree-focus-toggle').tap();
     await page.locator('#administration').waitFor();
     assert.equal(await page.locator('#tree-scope').inputValue(),'shared');
     assert.deepEqual(requests,[]);

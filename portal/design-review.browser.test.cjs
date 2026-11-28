@@ -98,7 +98,7 @@ test('responsive portal: long Arabic names and results for 30, 150 and 500 peopl
         }
       });
     },{people});
-    await page.goto(fixture('preview.html'));
+    await page.goto(fixture('preview.html')+'?tree=page&layout=classic');
     await page.locator('#tree-view [data-person-id]').last().waitFor({state:'attached'});
     assert.equal(await page.locator('#tree-view [data-person-id]').count(),count);
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
@@ -126,7 +126,7 @@ test('visual baselines: gallery and portal at 390, 768 and 1280 CSS px',async ()
       ['components','design-review.html','#components'],
       ['portal','preview.html','.live-panel']
     ]) {
-      if (name !== 'components') await page.goto(fixture(file));
+      if (name !== 'components') await page.goto(fixture(file)+(name==='portal'?'?tree=page':''));
       if (name === 'portal') await page.locator('#tree-view .tree-person').first().waitFor({state:'attached'});
       await page.evaluate(() => document.fonts.ready);
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),`${name} overflows at ${width}`);

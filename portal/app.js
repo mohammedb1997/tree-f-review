@@ -68,6 +68,7 @@ const minimumReadingScale=0.8;
 let inlineSelection=null;
 let inlineAge='';
 let focusReturn=null;
+const mobileTree=matchMedia('(max-width:760px), (pointer:coarse) and (max-width:900px)');
 
 function drawBotanical(container,snapshot,shown,allPeople,relationship,colorMode,membership,accountAncestors){
   const core=globalThis.BotanicalCore;
@@ -332,7 +333,7 @@ function drawTree(container, snapshot, colored = true) {
     children.get(parentId).push(person);
   }
   const context = document.createElement('canvas').getContext('2d');
-  context.font = '15px Tahoma,Arial,sans-serif';
+  context.font = (folded&&mobileTree.matches?'17':'15')+'px Tahoma,Arial,sans-serif';
   const radial=container.id==='tree-view'&&byId('tree-drawing').value==='radial';
   const roots=children.get(null)||[];
   const rootIds=new Set(roots.map(person=>person.id));
@@ -567,8 +568,16 @@ function positionTreeActions(){
   edit.textContent=managesPerson(person)?'تعديل':'دعوة';
   const parent=people.find(row=>row.id===person.parentId);
   const detail=byId('tree-node-detail');
-  detail.hidden=botanicalZoom<detailZoomThreshold;
+  const compact=mobileTree.matches&&byId('live-tree').classList.contains('is-focused');
+  byId('tree-node-name').textContent=person.name;
+  detail.hidden=!compact&&botanicalZoom<detailZoomThreshold;
   detail.textContent=[parent?'الأب: '+parent.name:'أصل الشجرة',inlineAge].filter(Boolean).join(' · ');
+  if(compact){
+    actions.hidden=false;
+    actions.style.removeProperty('left');
+    actions.style.removeProperty('top');
+    return;
+  }
   const bounds=node.getBoundingClientRect(), frame=canvas.getBoundingClientRect();
   actions.hidden=buttons.hidden&&detail.hidden||bounds.bottom<=frame.top||bounds.top>=frame.bottom||bounds.right<=frame.left||bounds.left>=frame.right;
   if(actions.hidden)return;
@@ -591,15 +600,17 @@ function refreshInlineAge(){
   }).catch(()=>{});
 }
 
-function setTreeFocus(active){
+function setTreeFocus(active,{moveFocus=true}={}){
   const panel=byId('live-tree'),toggle=byId('tree-focus-toggle');
-  if(active)focusReturn=document.activeElement;
+  if(active&&moveFocus)focusReturn=document.activeElement;
   panel.classList.toggle('is-focused',active);
   document.body.classList.toggle('tree-focus-open',active);
   toggle.setAttribute('aria-pressed',String(active));
-  toggle.textContent=active?'خروج':'ملء الشاشة';
-  toggle.setAttribute('aria-label',active?'إنهاء ملء الشاشة':'ملء الشاشة');
+  toggle.textContent=active?'القائمة':'ملء الشاشة';
+  toggle.setAttribute('aria-label',active?'القائمة وإنهاء ملء الشاشة':'ملء الشاشة');
   byId('botanical-fit').textContent=active?'ملاءمة':'ملاءمة الشاشة';
+  byId('botanical-zoom-in').textContent=active?'+':'تكبير +';
+  byId('botanical-zoom-out').textContent=active?'−':'تصغير −';
   byId('tree-overview').textContent=active?'كامل':'نظرة كاملة';
   byId('tree-overview').setAttribute('aria-label','نظرة كاملة');
   byId(active?'focused-color-slot':'standard-color-slot').append(byId('tree-color-tools'));
@@ -615,14 +626,26 @@ function setTreeFocus(active){
   botanicalZoom=1;
   overviewMode=false;
   if(treeSnapshot){renderTrees();if(active)locatePerson(selectedId);}
+  if(!moveFocus)return;
   if(active)toggle.focus({preventScroll:true});
-  else if(user&&focusReturn?.isConnected)focusReturn.focus({preventScroll:true});
+  else if(user)(focusReturn?.isConnected&&byId('workspace').contains(focusReturn)&&focusReturn!==document.body?focusReturn:toggle).focus({preventScroll:true});
 }
 
 byId('tree-focus-toggle').addEventListener('click',()=>setTreeFocus(!byId('live-tree').classList.contains('is-focused')));
+const treeSearchDialog=byId('tree-search-dialog');
+const peoplePanel=byId('search').closest('.family-panel');
+const peoplePanelHome=peoplePanel.parentElement;
+byId('tree-search-open').addEventListener('click',()=>{
+  treeSearchDialog.append(peoplePanel);
+  treeSearchDialog.showModal();
+  byId('search').focus();
+});
+byId('tree-search-close').addEventListener('click',()=>treeSearchDialog.close());
+treeSearchDialog.addEventListener('close',()=>peoplePanelHome.prepend(peoplePanel));
+byId('tree-locate').addEventListener('click',()=>byId('locate-me').click());
 document.addEventListener('keydown',event=>{
   const panel=byId('live-tree');
-  if(byId('person-action-dialog').open||!panel.classList.contains('is-focused'))return;
+  if(document.querySelector('dialog[open]')||!panel.classList.contains('is-focused'))return;
   if(event.key==='Escape')setTreeFocus(false);
   if(event.key==='Tab'){
     const focusable=[...panel.querySelectorAll('button:not([disabled]),select:not([disabled]),[tabindex="0"]')].filter(node=>node.getClientRects().length);
@@ -891,6 +914,7 @@ async function submit(form, action) {
 }
 
 function showSignedOut() {
+  if(treeSearchDialog.open)treeSearchDialog.close();
   branchExpansion.clear();
   radialCache=null;
   treePinch=null;
@@ -1348,6 +1372,14 @@ function selectPerson(id) {
 }
 
 function openPersonCard(id, fromResults = false, inTree = false, keyboard = false) {
+  const fromTreeSearch=fromResults&&treeSearchDialog.open;
+  if(fromTreeSearch){
+    treeSearchDialog.close();
+    byId('search').value='';
+    renderPeople();
+    inTree=true;
+    fromResults=false;
+  }
   const restoreReading=inTree&&overviewMode;
   if(restoreReading){overviewMode=false;botanicalZoom=1;}
   inlineSelection=inTree?id:null;
@@ -1356,7 +1388,7 @@ function openPersonCard(id, fromResults = false, inTree = false, keyboard = fals
   byId('return-to-results').hidden = !fromResults;
   selectPerson(id);
   if(inTree){
-    if(restoreReading)locatePerson(id);
+    if(restoreReading||fromTreeSearch)locatePerson(id,byId('tree-view'),fromTreeSearch);
     refreshInlineAge();
     const actions=byId('tree-node-actions');
     if(keyboard&&!actions.hidden)actions.querySelector('button:not([hidden])')?.focus({preventScroll:true});
@@ -1530,7 +1562,7 @@ function applyTree(result,forcePrivate=false) {
   }
   setChildForm();
   renderMemberContext();
-  if (firstSnapshot) locatePerson(initial?.id);
+  if (firstSnapshot) locatePerson(initial?.id,byId('tree-view'),true);
   return true;
 }
 
@@ -1583,7 +1615,10 @@ function permissionLabel(){
 async function enter() {
   user = await api('/api/me');
   const params=new URLSearchParams(location.search);
-  if(['radial','folded'].includes(params.get('layout')))byId('tree-drawing').value=params.get('layout');
+  const expanded=params.get('tree')==='full'||(params.get('tree')!=='page'&&mobileTree.matches);
+  const drawing=byId('tree-drawing');
+  drawing.value=[...drawing.options].some(option=>option.value===params.get('layout'))
+    ? params.get('layout') : expanded&&mobileTree.matches?'folded':'classic';
   const familyView=!!user.personId&&params.get('welcome')==='family';
   const scope=byId('tree-scope');
   scope.querySelector('option[value="mine"]').hidden=!user.personId;
@@ -1599,6 +1634,7 @@ async function enter() {
   byId('workspace-role').textContent = user.role === 'admin' ? 'لوحة المدير' : 'بوابة العائلة';
   byId('live-tree-title').textContent = user.personId ? 'موقعك في شجرة العائلة' : 'شجرة العائلة';
   byId('locate-me').textContent = user.personId ? 'موقعي في الشجرة' : 'اعرض أصل الشجرة';
+  byId('tree-locate').textContent=user.personId?'موقعي':'الأصل';
   byId('permission-summary').textContent = user.role === 'admin'
     ? 'أنت المدير العام. يمكنك إدارة جميع الأفراد وحسابات العائلة.'
     : permissionLabel()+'. اختر «الكل» للاطلاع على الأسماء المتاحة للعائلة.';
@@ -1607,10 +1643,10 @@ async function enter() {
   configureInviteGrants('daughter-invite');
   configureInviteGrants('admin-invite');
   byId('child-gender').querySelector('option[value="f"]').disabled=!(user.role==='admin'||user.canAddDaughter);
+  if(expanded)setTreeFocus(true,{moveFocus:false});
   await loadTree();
   await loadPrivateDaughters();
   startLive();
-  if(params.get('tree')==='full')setTreeFocus(true);
 }
 
 byId('show-login').addEventListener('click', () => setAccessMode(false));
